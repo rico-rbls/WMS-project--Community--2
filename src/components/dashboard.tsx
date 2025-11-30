@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import type { InventoryCategory, PurchaseOrder } from "../types";
 import type { ViewType } from "../App";
 import { getPurchaseOrders } from "../services/api";
+import { useAuth } from "../context/auth-context";
+import { canWrite } from "../lib/permissions";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -21,6 +23,8 @@ interface DashboardProps {
 
 export function Dashboard({ navigateToView }: DashboardProps) {
   const { inventory, orders, shipments, suppliers, isLoading, refreshInventory, refreshOrders, refreshShipments, refreshSuppliers } = useAppContext();
+  const { user } = useAuth();
+  const canModify = user ? canWrite(user.role) : false;
   const isMobile = useIsMobile();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
@@ -268,7 +272,9 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Frequently used operations</CardDescription>
+          <CardDescription>
+            {canModify ? "Frequently used operations" : "Read-only mode - Contact an Admin to perform actions"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
@@ -276,6 +282,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               variant="outline"
               className="h-20 flex-col gap-2"
               onClick={() => navigateToView?.("inventory", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to add inventory" : undefined}
             >
               <Package className="h-5 w-5" />
               <span className="text-sm">Add Inventory</span>
@@ -284,6 +292,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               variant="outline"
               className="h-20 flex-col gap-2"
               onClick={() => navigateToView?.("orders", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create orders" : undefined}
             >
               <ShoppingCart className="h-5 w-5" />
               <span className="text-sm">New Order</span>
@@ -292,6 +302,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               variant="outline"
               className="h-20 flex-col gap-2"
               onClick={() => navigateToView?.("purchase-orders", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create purchase orders" : undefined}
             >
               <ClipboardList className="h-5 w-5" />
               <span className="text-sm">Create PO</span>
@@ -300,6 +312,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               variant="outline"
               className="h-20 flex-col gap-2"
               onClick={() => navigateToView?.("shipments", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create shipments" : undefined}
             >
               <Truck className="h-5 w-5" />
               <span className="text-sm">New Shipment</span>
@@ -308,6 +322,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               variant="outline"
               className="h-20 flex-col gap-2"
               onClick={() => navigateToView?.("suppliers", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to add suppliers" : undefined}
             >
               <Users className="h-5 w-5" />
               <span className="text-sm">Add Supplier</span>
@@ -404,6 +420,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                 size="sm"
                 onClick={() => navigateToView?.("purchase-orders", true)}
                 className="hidden sm:flex"
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to create purchase orders" : undefined}
               >
                 <ShoppingBag className="h-4 w-4 mr-2" />
                 Create PO
@@ -439,7 +457,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                         size="sm"
                         className="shrink-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
                         onClick={() => navigateToView?.("purchase-orders", true)}
-                        title={`Create PO for ${item.name}`}
+                        title={!canModify ? "You don't have permission to create purchase orders" : `Create PO for ${item.name}`}
+                        disabled={!canModify}
                       >
                         <ShoppingBag className="h-4 w-4 mr-1" />
                         <span className="hidden sm:inline">Reorder</span>
@@ -509,6 +528,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   size="sm"
                   onClick={() => navigateToView?.("purchase-orders", true)}
                   className="sm:hidden"
+                  disabled={!canModify}
+                  title={!canModify ? "You don't have permission to create purchase orders" : undefined}
                 >
                   <ShoppingBag className="h-4 w-4 mr-2" />
                   Create PO
