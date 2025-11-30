@@ -27,7 +27,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
+const SIDEBAR_WIDTH = "12rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -220,7 +220,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative bg-transparent transition-[width] duration-200 ease-linear",
+          "relative shrink-0 bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:!w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, RefreshCw, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAppContext } from "../context/app-context";
 import { useIsMobile } from "./ui/use-mobile";
@@ -161,16 +161,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with Refresh Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Warehouse Management System Overview</p>
-        </div>
-        <Button onClick={() => handleRefresh()} disabled={isRefreshing} variant="outline" size="sm">
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+        <p className="text-muted-foreground">Warehouse Management System Overview</p>
       </div>
 
       {/* Alerts Section */}
