@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -16,13 +16,16 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star } from "lucide-react";
+import { ScrollArea } from "./ui/scroll-area";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems } from "../services/api";
 import type { InventoryCategory, InventoryItem, SavedSearch } from "../types";
@@ -77,8 +80,21 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     supplierId: "",
     maintainStockAt: 0,
     minimumStock: 0,
+    photoUrl: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Excel import states
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importData, setImportData] = useState<Partial<InventoryItem>[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+
+  // Photo preview states
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Open dialog when triggered from Dashboard Quick Actions
   useEffect(() => {
@@ -221,6 +237,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       supplierId: "",
       maintainStockAt: 0,
       minimumStock: 0,
+      photoUrl: "",
     });
     setFieldErrors({});
   }
@@ -286,6 +303,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         supplierId: form.supplierId,
         maintainStockAt: form.maintainStockAt,
         minimumStock: form.minimumStock,
+        photoUrl: form.photoUrl || undefined,
       });
       setInventory([created, ...(inventory ?? [])]);
       setIsAddOpen(false);
@@ -319,6 +337,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         supplierId: form.supplierId,
         maintainStockAt: form.maintainStockAt,
         minimumStock: form.minimumStock,
+        photoUrl: form.photoUrl || undefined,
       });
       setInventory((inventory ?? []).map((i) => (i.id === updated.id ? updated : i)));
       setIsEditOpen(null);
@@ -338,6 +357,153 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       toast.error(e?.message || "Failed to delete item");
     }
   }
+
+  // Excel import handler
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        const errors: string[] = [];
+        const validItems: Partial<InventoryItem>[] = [];
+
+        jsonData.forEach((row: any, index) => {
+          const rowNum = index + 2; // Excel rows start at 1, plus header
+
+          // Map Excel columns to inventory fields (case-insensitive)
+          const name = row.Name || row.name || row.NAME;
+          const category = row.Category || row.category || row.CATEGORY;
+          const quantity = Number(row.Quantity || row.quantity || row.QUANTITY || 0);
+          const location = row.Location || row.location || row.LOCATION || "";
+          const reorderLevel = Number(row["Reorder Level"] || row.reorderLevel || row.ReorderLevel || 0);
+          const brand = row.Brand || row.brand || row.BRAND || "Unknown";
+          const pricePerPiece = Number(row["Price Per Piece"] || row.pricePerPiece || row.Price || row.price || 0);
+          const supplierId = row["Supplier ID"] || row.supplierId || row.SupplierId || "";
+          const maintainStockAt = Number(row["Maintain Stock At"] || row.maintainStockAt || reorderLevel * 2);
+          const minimumStock = Number(row["Minimum Stock"] || row.minimumStock || reorderLevel);
+          const photoUrl = row["Photo URL"] || row.photoUrl || row.PhotoUrl || "";
+
+          // Validate required fields
+          if (!name) {
+            errors.push(`Row ${rowNum}: Name is required`);
+            return;
+          }
+
+          // Validate category
+          const validCategories = ["Electronics", "Furniture", "Clothing", "Food"];
+          if (!validCategories.includes(category)) {
+            errors.push(`Row ${rowNum}: Invalid category "${category}". Must be one of: ${validCategories.join(", ")}`);
+            return;
+          }
+
+          if (quantity < 0) {
+            errors.push(`Row ${rowNum}: Quantity cannot be negative`);
+            return;
+          }
+
+          validItems.push({
+            name,
+            category: category as InventoryCategory,
+            quantity,
+            location,
+            reorderLevel,
+            brand,
+            pricePerPiece,
+            supplierId,
+            maintainStockAt,
+            minimumStock,
+            photoUrl: photoUrl || undefined,
+          });
+        });
+
+        setImportData(validItems);
+        setImportErrors(errors);
+        setIsImportDialogOpen(true);
+      } catch (error) {
+        toast.error("Failed to parse file. Please ensure it's a valid Excel or CSV file.");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  const handleImportConfirm = useCallback(async () => {
+    if (importData.length === 0) return;
+
+    setIsImporting(true);
+    try {
+      const createdItems: InventoryItem[] = [];
+      for (const item of importData) {
+        const created = await createInventoryItem({
+          name: item.name!,
+          category: item.category!,
+          quantity: item.quantity ?? 0,
+          location: item.location ?? "",
+          reorderLevel: item.reorderLevel ?? 0,
+          brand: item.brand ?? "Unknown",
+          pricePerPiece: item.pricePerPiece ?? 0,
+          supplierId: item.supplierId ?? "",
+          maintainStockAt: item.maintainStockAt ?? 0,
+          minimumStock: item.minimumStock ?? 0,
+          photoUrl: item.photoUrl,
+        });
+        createdItems.push(created);
+      }
+
+      setInventory([...createdItems, ...(inventory ?? [])]);
+      toast.success(`Successfully imported ${createdItems.length} items`);
+      setIsImportDialogOpen(false);
+      setImportData([]);
+      setImportErrors([]);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to import items");
+    } finally {
+      setIsImporting(false);
+    }
+  }, [importData, inventory, setInventory]);
+
+  // Photo upload handler
+  const handlePhotoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload JPG, PNG, or WebP images.");
+      return;
+    }
+
+    // Create a data URL for preview/storage (in a real app, you'd upload to a server/cloud storage)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setForm(prev => ({ ...prev, photoUrl: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input
+    if (photoInputRef.current) {
+      photoInputRef.current.value = "";
+    }
+  }, []);
+
+  const openPhotoPreview = useCallback((url: string) => {
+    setPhotoPreviewUrl(url);
+    setIsPhotoPreviewOpen(true);
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -479,11 +645,37 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
   return (
     <div className="space-y-6">
+      {/* Hidden file inputs */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={photoInputRef}
+        onChange={handlePhotoUpload}
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+      />
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Inventory Management</CardTitle>
             <div className="flex gap-2">
+              {/* Import from Excel Button */}
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to import items" : "Import from Excel/CSV"}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
 
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
@@ -655,6 +847,41 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       />
                       {fieldErrors.maintainStockAt && <p className="text-sm text-red-500">{fieldErrors.maintainStockAt}</p>}
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="photo">Product Photo</Label>
+                      <div className="flex items-center gap-4">
+                        {form.photoUrl ? (
+                          <div className="relative h-16 w-16 rounded-md border overflow-hidden">
+                            <img
+                              src={form.photoUrl}
+                              alt="Product preview"
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setForm({ ...form, photoUrl: "" })}
+                              className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-6 w-6" />
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => photoInputRef.current?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload Photo
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                    </div>
                     <Button
                       className="w-full"
                       onClick={handleAdd}
@@ -801,6 +1028,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         aria-label="Select all items"
                       />
                     </TableHead>
+                    <TableHead className="w-16">Photo</TableHead>
                     <SortableTableHead
                       sortKey="id"
                       currentSortKey={sortConfig.key as string | null}
@@ -886,6 +1114,25 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             aria-label={`Select ${item.name}`}
                           />
                         </TableCell>
+                        <TableCell>
+                          {item.photoUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => openPhotoPreview(item.photoUrl!)}
+                              className="h-10 w-10 rounded-md overflow-hidden border hover:ring-2 hover:ring-primary transition-all"
+                            >
+                              <img
+                                src={item.photoUrl}
+                                alt={item.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
+                          ) : (
+                            <div className="h-10 w-10 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                              <ImageIcon className="h-4 w-4" />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{item.id}</TableCell>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{item.brand || 'Unknown'}</TableCell>
@@ -920,6 +1167,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                               supplierId: item.supplierId || "SUP-001",
                               maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
                               minimumStock: item.minimumStock ?? item.reorderLevel,
+                              photoUrl: item.photoUrl || "",
                             });
                           }}>
                             <DialogTrigger asChild>
@@ -989,6 +1237,41 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   <Label htmlFor="edit-maintainStock">Maintain Stock At</Label>
                                   <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: Number(e.target.value) })} />
                                 </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-photo">Product Photo</Label>
+                                  <div className="flex items-center gap-4">
+                                    {form.photoUrl ? (
+                                      <div className="relative h-16 w-16 rounded-md border overflow-hidden">
+                                        <img
+                                          src={form.photoUrl}
+                                          alt="Product preview"
+                                          className="h-full w-full object-cover"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setForm({ ...form, photoUrl: "" })}
+                                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl p-0.5"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                                        <ImageIcon className="h-6 w-6" />
+                                      </div>
+                                    )}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => photoInputRef.current?.click()}
+                                    >
+                                      <Upload className="h-4 w-4 mr-2" />
+                                      Upload Photo
+                                    </Button>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                                </div>
                                 <div className="flex gap-2">
                                   <Button className="flex-1" onClick={handleEditSave}>Save Changes</Button>
                                   <Button variant="destructive" onClick={() => handleDelete(item.id)}>Delete</Button>
@@ -1018,6 +1301,108 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           )}
         </CardContent>
       </Card>
+
+      {/* Import Preview Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Import Preview
+            </DialogTitle>
+            <DialogDescription>
+              Review the data before importing. {importData.length} items will be added.
+            </DialogDescription>
+          </DialogHeader>
+
+          {importErrors.length > 0 && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <div className="flex items-center gap-2 text-destructive font-medium mb-2">
+                <AlertCircle className="h-4 w-4" />
+                {importErrors.length} validation error(s) found:
+              </div>
+              <ScrollArea className="max-h-24">
+                <ul className="text-sm text-destructive space-y-1">
+                  {importErrors.map((error, i) => (
+                    <li key={i}>{error}</li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            </div>
+          )}
+
+          <ScrollArea className="max-h-[400px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Location</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importData.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.quantity}</TableCell>
+                    <TableCell>₱{(item.pricePerPiece ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>{item.brand || "Unknown"}</TableCell>
+                    <TableCell>{item.location || "N/A"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportData([]);
+                setImportErrors([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportConfirm}
+              disabled={importData.length === 0 || isImporting}
+            >
+              {isImporting ? (
+                <>Importing...</>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Import {importData.length} Items
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Preview Dialog */}
+      <Dialog open={isPhotoPreviewOpen} onOpenChange={setIsPhotoPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Product Photo</DialogTitle>
+          </DialogHeader>
+          {photoPreviewUrl && (
+            <div className="flex items-center justify-center">
+              <img
+                src={photoPreviewUrl}
+                alt="Product"
+                className="max-h-[60vh] max-w-full object-contain rounded-md"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -14,6 +14,7 @@ export interface InventoryItem {
   supplierId: string; // Reference to Supplier.id
   maintainStockAt: number; // Target/optimal stock level
   minimumStock: number; // Minimum stock level (same as reorderLevel)
+  photoUrl?: string; // Optional product photo URL
 }
 
 export interface CreateInventoryItemInput {
@@ -29,6 +30,7 @@ export interface CreateInventoryItemInput {
   supplierId: string;
   maintainStockAt: number;
   minimumStock: number;
+  photoUrl?: string;
 }
 
 export interface UpdateInventoryItemInput {
@@ -44,6 +46,7 @@ export interface UpdateInventoryItemInput {
   supplierId?: string;
   maintainStockAt?: number;
   minimumStock?: number;
+  photoUrl?: string;
 }
 
 export interface Supplier {
