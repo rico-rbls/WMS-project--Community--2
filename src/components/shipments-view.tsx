@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star, TrendingUp, Clock, CheckCircle, Filter, Calendar } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
@@ -32,6 +33,10 @@ import { canWrite } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
 
 const SHIPMENT_STATUSES = ["Pending", "In Transit", "Delivered"] as const;
+type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
+
+// Common carriers for suggestions
+const COMMON_CARRIERS = ["FedEx", "UPS", "DHL", "USPS", "LBC Express", "J&T Express", "Ninja Van", "Grab Express"] as const;
 
 interface ShipmentsViewProps {
   initialOpenDialog?: boolean;
@@ -43,6 +48,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -81,11 +87,104 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
   const list = useMemo<Shipment[]>(() => shipmentsData ?? [], [shipmentsData]);
 
+  // Calculate shipment statistics dynamically
+  const shipmentStats = useMemo(() => {
+    const totalShipments = list.length;
+
+    // Status breakdown
+    const pendingShipments = list.filter(s => s.status === "Pending").length;
+    const inTransitShipments = list.filter(s => s.status === "In Transit").length;
+    const deliveredShipments = list.filter(s => s.status === "Delivered").length;
+
+    // Active shipments (Pending + In Transit)
+    const activeShipments = pendingShipments + inTransitShipments;
+
+    // Recent shipments (ETA in last 7 days and 30 days)
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const recentDeliveries7Days = list.filter(shipment => {
+      if (shipment.status !== "Delivered") return false;
+      try {
+        const etaDate = new Date(shipment.eta);
+        return etaDate >= sevenDaysAgo && etaDate <= now;
+      } catch {
+        return false;
+      }
+    }).length;
+
+    const upcomingDeliveries = list.filter(shipment => {
+      if (shipment.status === "Delivered") return false;
+      try {
+        const etaDate = new Date(shipment.eta);
+        return etaDate >= now && etaDate <= sevenDaysFromNow;
+      } catch {
+        return false;
+      }
+    }).length;
+
+    // On-time delivery rate calculation
+    // Consider a shipment on-time if it was delivered on or before ETA
+    const deliveredWithEta = list.filter(s => s.status === "Delivered");
+    const onTimeDeliveries = deliveredWithEta.length; // Assuming all delivered are on-time for now
+    const onTimeRate = deliveredWithEta.length > 0 ? Math.round((onTimeDeliveries / deliveredWithEta.length) * 100) : 0;
+
+    // Fulfillment rate (Delivered / Total)
+    const fulfillmentRate = totalShipments > 0 ? Math.round((deliveredShipments / totalShipments) * 100) : 0;
+
+    // Top carriers by shipment count
+    const carrierCounts = list.reduce((acc, shipment) => {
+      acc[shipment.carrier] = (acc[shipment.carrier] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const topCarriers = Object.entries(carrierCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    // Top destinations by shipment count
+    const destinationCounts = list.reduce((acc, shipment) => {
+      acc[shipment.destination] = (acc[shipment.destination] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const topDestinations = Object.entries(destinationCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    // Average transit time (would need actual dates for real calculation)
+    const avgTransitDays = 3; // Placeholder - would calculate from actual shipment/delivery dates
+
+    return {
+      totalShipments,
+      pendingShipments,
+      inTransitShipments,
+      deliveredShipments,
+      activeShipments,
+      recentDeliveries7Days,
+      upcomingDeliveries,
+      onTimeRate,
+      fulfillmentRate,
+      topCarriers,
+      topDestinations,
+      avgTransitDays,
+    };
+  }, [list]);
+
   // Optimized filtering with early returns and debounced search
   const filteredShipments = useMemo(() => {
     return list.filter(shipment => {
       // Early return for favorites filter
       if (showFavoritesOnly && !isFavorite("shipments", shipment.id)) {
+        return false;
+      }
+
+      // Status filter
+      if (filterStatus !== "all" && shipment.status !== filterStatus) {
         return false;
       }
 
@@ -95,7 +194,8 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
         const matchesSearch =
           shipment.id.toLowerCase().includes(searchLower) ||
           shipment.orderId.toLowerCase().includes(searchLower) ||
-          shipment.destination.toLowerCase().includes(searchLower);
+          shipment.destination.toLowerCase().includes(searchLower) ||
+          shipment.carrier.toLowerCase().includes(searchLower);
 
         if (!matchesSearch) {
           return false;
@@ -129,7 +229,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
       return true;
     });
-  }, [list, debouncedSearchTerm, fromDate, toDate, showFavoritesOnly, isFavorite]);
+  }, [list, debouncedSearchTerm, filterStatus, fromDate, toDate, showFavoritesOnly, isFavorite]);
 
   // Handle applying saved searches
   const handleApplySavedSearch = useCallback((search: SavedSearch) => {
@@ -150,6 +250,9 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   // Get current filter configuration for saving
   const getCurrentFilters = useMemo(() => {
     const filters: Record<string, string | string[]> = {};
+    if (filterStatus !== "all") {
+      filters.status = filterStatus;
+    }
     if (fromDate) {
       filters.fromDate = fromDate;
     }
@@ -160,7 +263,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       filters.favoritesOnly = "true";
     }
     return filters;
-  }, [fromDate, toDate, showFavoritesOnly]);
+  }, [filterStatus, fromDate, toDate, showFavoritesOnly]);
 
   // Sorting - applied before pagination
   const {
@@ -220,12 +323,27 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   }, [toggleAll, deselectAll, hasSelection, isAddOpen, isEditOpen]);
 
   function resetForm() {
-    setForm({ id: "", orderId: "", destination: "", carrier: "", status: "Pending", eta: "" });
+    setForm({
+      id: "",
+      orderId: "",
+      destination: "",
+      carrier: "",
+      status: "Pending",
+      eta: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] // Default ETA: 7 days from now
+    });
   }
 
   function clearDateFilter() {
     setFromDate("");
     setToDate("");
+  }
+
+  function clearAllFilters() {
+    setSearchTerm("");
+    setFilterStatus("all");
+    setFromDate("");
+    setToDate("");
+    setShowFavoritesOnly(false);
   }
 
   function validateForm() {
@@ -300,15 +418,26 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Delivered":
-        return "bg-green-500/10 text-green-700";
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200";
       case "In Transit":
-        return "bg-blue-500/10 text-blue-700";
-      case "Processing":
-        return "bg-orange-500/10 text-orange-700";
+        return "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200";
       case "Pending":
-        return "bg-gray-500/10 text-gray-700";
+        return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
       default:
-        return "bg-gray-500/10 text-gray-700";
+        return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "Delivered":
+        return "✓";
+      case "In Transit":
+        return "🚚";
+      case "Pending":
+        return "○";
+      default:
+        return "○";
     }
   };
 
@@ -374,45 +503,141 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active Shipments</CardTitle>
+      {/* Statistics Dashboard */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Shipments */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Shipments</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              <div className="text-2xl">89</div>
+            <div className="text-2xl font-bold">{shipmentStats.totalShipments}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {shipmentStats.upcomingDeliveries} arriving this week
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Active Shipments */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active Shipments</CardTitle>
+            <Truck className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{shipmentStats.activeShipments}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {shipmentStats.pendingShipments} pending, {shipmentStats.inTransitShipments} in transit
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Delivered */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
+            <CheckCircle className="h-4 w-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{shipmentStats.deliveredShipments}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {shipmentStats.recentDeliveries7Days} in last 7 days
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Fulfillment Rate */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Fulfillment Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{shipmentStats.fulfillmentRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {shipmentStats.deliveredShipments} of {shipmentStats.totalShipments} fulfilled
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Status Breakdown Cards */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Pending" ? "ring-2 ring-primary" : "",
+            "border-l-slate-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Pending" ? "all" : "Pending")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pending</p>
+                <p className="text-xl font-bold mt-1">{shipmentStats.pendingShipments}</p>
+              </div>
+              <Badge variant="outline" className={getStatusColor("Pending")}>
+                {getStatusIcon("Pending")}
+              </Badge>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">In Transit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-orange-600" />
-              <div className="text-2xl">67</div>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "In Transit" ? "ring-2 ring-primary" : "",
+            "border-l-blue-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "In Transit" ? "all" : "In Transit")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">In Transit</p>
+                <p className="text-xl font-bold mt-1">{shipmentStats.inTransitShipments}</p>
+              </div>
+              <Badge variant="outline" className={getStatusColor("In Transit")}>
+                {getStatusIcon("In Transit")}
+              </Badge>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">On-Time Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">94%</div>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Delivered" ? "ring-2 ring-primary" : "",
+            "border-l-emerald-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Delivered" ? "all" : "Delivered")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Delivered</p>
+                <p className="text-xl font-bold mt-1">{shipmentStats.deliveredShipments}</p>
+              </div>
+              <Badge variant="outline" className={getStatusColor("Delivered")}>
+                {getStatusIcon("Delivered")}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Shipment Tracking</CardTitle>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl">Shipment Tracking</CardTitle>
+              <CardDescription className="mt-1">
+                Track and manage all shipments and deliveries
+              </CardDescription>
+            </div>
             <div className="flex gap-2">
-
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button onClick={() => resetForm()} disabled={!canModify} title={!canModify ? "You don't have permission to add shipments" : undefined}>
@@ -420,49 +645,122 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                     Add Shipment
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
-                    <DialogTitle>Add New Shipment</DialogTitle>
+                    <DialogTitle>Create New Shipment</DialogTitle>
                     <DialogDescription>Enter the details for the new shipment.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="orderId">Order ID</Label>
-                      <Input id="orderId" placeholder="ORD-0001" value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })} />
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="orderId">Order ID *</Label>
+                        <Input
+                          id="orderId"
+                          placeholder="ORD-0001"
+                          value={form.orderId}
+                          onChange={(e) => setForm({ ...form, orderId: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="status">Status</Label>
+                        <Select
+                          value={form.status}
+                          onValueChange={(value: ShipmentStatus) => setForm({ ...form, status: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SHIPMENT_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                <span className="flex items-center gap-2">
+                                  <span>{getStatusIcon(status)}</span>
+                                  {status}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="destination">Destination</Label>
-                      <Input id="destination" placeholder="City, ST" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
+                    <div className="grid gap-2">
+                      <Label htmlFor="destination">Destination *</Label>
+                      <Input
+                        id="destination"
+                        placeholder="City, Province/State"
+                        value={form.destination}
+                        onChange={(e) => setForm({ ...form, destination: e.target.value })}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="carrier">Carrier</Label>
-                      <Input id="carrier" placeholder="FedEx/UPS/DHL" value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="carrier">Carrier *</Label>
+                        <Select
+                          value={form.carrier}
+                          onValueChange={(value) => setForm({ ...form, carrier: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select carrier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COMMON_CARRIERS.map((carrier) => (
+                              <SelectItem key={carrier} value={carrier}>
+                                {carrier}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="eta">ETA *</Label>
+                        <Input
+                          id="eta"
+                          type="date"
+                          value={form.eta}
+                          onChange={(e) => setForm({ ...form, eta: e.target.value })}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="status">Status</Label>
-                      <Input id="status" placeholder="Pending" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Shipment["status"] })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="eta">ETA</Label>
-                      <Input id="eta" placeholder="Oct 20, 2025" value={form.eta} onChange={(e) => setForm({ ...form, eta: e.target.value })} />
-                    </div>
-                    <Button className="w-full" onClick={handleAdd}>Add Shipment</Button>
                   </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                    <Button onClick={handleAdd}>Create Shipment</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {/* Search and Filters */}
           <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search shipments..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by ID, order ID, destination, or carrier..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {SHIPMENT_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      <span className="flex items-center gap-2">
+                        <span>{getStatusIcon(status)}</span>
+                        {status}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -494,20 +792,46 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                 currentFilters={getCurrentFilters}
                 onApplySearch={handleApplySavedSearch}
               />
+
+              {/* Clear All Filters */}
+              {(searchTerm || filterStatus !== "all" || fromDate || toDate || showFavoritesOnly) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear All
+                </Button>
+              )}
             </div>
 
             {/* Active Filters Badge */}
-            {(fromDate || toDate) && (
+            {(filterStatus !== "all" || fromDate || toDate) && (
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="gap-1">
-                  ETA: {fromDate || '...'} to {toDate || '...'}
-                  <button
-                    onClick={clearDateFilter}
-                    className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
+                {filterStatus !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Status: {filterStatus}
+                    <button
+                      onClick={() => setFilterStatus("all")}
+                      className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {(fromDate || toDate) && (
+                  <Badge variant="secondary" className="gap-1">
+                    ETA: {fromDate || '...'} to {toDate || '...'}
+                    <button
+                      onClick={clearDateFilter}
+                      className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
               </div>
             )}
           </div>
@@ -562,11 +886,11 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
             <EmptyState
               icon={Truck}
               title="No shipments found"
-              description={(searchTerm || fromDate || toDate)
-                ? "Try adjusting your search or date filters"
+              description={(searchTerm || filterStatus !== "all" || fromDate || toDate)
+                ? "Try adjusting your search or filters"
                 : "Get started by creating your first shipment"}
-              actionLabel={!(searchTerm || fromDate || toDate) ? "Create Shipment" : undefined}
-              onAction={!(searchTerm || fromDate || toDate) ? () => setIsAddOpen(true) : undefined}
+              actionLabel={!(searchTerm || filterStatus !== "all" || fromDate || toDate) ? "Create Shipment" : undefined}
+              onAction={!(searchTerm || filterStatus !== "all" || fromDate || toDate) ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
             <div className="rounded-md border">
@@ -640,7 +964,13 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                   {paginatedData.map((shipment) => {
                     const shipmentIsSelected = isSelected(shipment.id);
                     return (
-                      <TableRow key={shipment.id} className={cn(shipmentIsSelected && "bg-muted/50")}>
+                      <TableRow
+                        key={shipment.id}
+                        className={cn(
+                          "transition-colors hover:bg-muted/50",
+                          shipmentIsSelected && "bg-primary/5 hover:bg-primary/10"
+                        )}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={shipmentIsSelected}
@@ -648,7 +978,9 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                             aria-label={`Select shipment ${shipment.id}`}
                           />
                         </TableCell>
-                        <TableCell>{shipment.id}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-sm font-medium">{shipment.id}</span>
+                        </TableCell>
                         <TableCell>
                           <EditableCell
                             value={shipment.orderId}
@@ -658,12 +990,15 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                           />
                         </TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={shipment.destination}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(shipment.id, "destination", v)}
-                            disabled={!canModify}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                            <EditableCell
+                              value={shipment.destination}
+                              type="text"
+                              onSave={(v) => handleInlineUpdate(shipment.id, "destination", v)}
+                              disabled={!canModify}
+                            />
+                          </div>
                         </TableCell>
                         <TableCell>
                           <EditableCell
@@ -674,22 +1009,18 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                           />
                         </TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={shipment.status}
-                            type="badge"
-                            options={SHIPMENT_STATUSES.map(s => ({ value: s, label: s }))}
-                            badgeClassName={getStatusColor(shipment.status)}
-                            onSave={(v) => handleInlineUpdate(shipment.id, "status", v)}
-                            disabled={!canModify}
-                          />
+                          <Badge variant="outline" className={cn("font-medium", getStatusColor(shipment.status))}>
+                            <span className="mr-1">{getStatusIcon(shipment.status)}</span>
+                            {shipment.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={shipment.eta}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(shipment.id, "eta", v)}
-                            disabled={!canModify}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm">
+                              {new Date(shipment.eta).toLocaleDateString()}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -698,46 +1029,104 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                               entityId={shipment.id}
                               entityName={`${shipment.id} - ${shipment.destination}`}
                             />
-                          <Dialog open={isEditOpen === shipment.id} onOpenChange={(o) => { setIsEditOpen(o ? shipment.id : null); if (o) setForm({ ...shipment }); }}>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit shipments" : undefined}>Track</Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Edit Shipment - {shipment.id}</DialogTitle>
-                                <DialogDescription>Update fields and save your changes.</DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-orderId">Order ID</Label>
-                                  <Input id="edit-orderId" value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="edit-destination">Destination</Label>
-                                <Input id="edit-destination" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="edit-carrier">Carrier</Label>
-                                <Input id="edit-carrier" value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="edit-status">Status</Label>
-                                <Input id="edit-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Shipment["status"] })} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="edit-eta">ETA</Label>
-                                <Input id="edit-eta" value={form.eta} onChange={(e) => setForm({ ...form, eta: e.target.value })} />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button className="flex-1" onClick={handleEditSave}>Save Changes</Button>
-                                <Button variant="destructive" onClick={() => handleDelete(shipment.id)}>Delete</Button>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                            <Dialog open={isEditOpen === shipment.id} onOpenChange={(o) => { setIsEditOpen(o ? shipment.id : null); if (o) setForm({ ...shipment }); }}>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit shipments" : undefined}>
+                                  View / Edit
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                  <DialogTitle>Edit Shipment</DialogTitle>
+                                  <DialogDescription>Shipment ID: {shipment.id}</DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-orderId">Order ID *</Label>
+                                      <Input
+                                        id="edit-orderId"
+                                        value={form.orderId}
+                                        onChange={(e) => setForm({ ...form, orderId: e.target.value })}
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-status">Status</Label>
+                                      <Select
+                                        value={form.status}
+                                        onValueChange={(value: ShipmentStatus) => setForm({ ...form, status: value })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {SHIPMENT_STATUSES.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                              <span className="flex items-center gap-2">
+                                                <span>{getStatusIcon(status)}</span>
+                                                {status}
+                                              </span>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="edit-destination">Destination *</Label>
+                                    <Input
+                                      id="edit-destination"
+                                      value={form.destination}
+                                      onChange={(e) => setForm({ ...form, destination: e.target.value })}
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-carrier">Carrier *</Label>
+                                      <Select
+                                        value={form.carrier}
+                                        onValueChange={(value) => setForm({ ...form, carrier: value })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select carrier" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {COMMON_CARRIERS.map((carrier) => (
+                                            <SelectItem key={carrier} value={carrier}>
+                                              {carrier}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-eta">ETA *</Label>
+                                      <Input
+                                        id="edit-eta"
+                                        type="date"
+                                        value={form.eta}
+                                        onChange={(e) => setForm({ ...form, eta: e.target.value })}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter className="flex-col sm:flex-row gap-2">
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => handleDelete(shipment.id)}
+                                    className="sm:mr-auto"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </Button>
+                                  <Button variant="outline" onClick={() => setIsEditOpen(null)}>Cancel</Button>
+                                  <Button onClick={handleEditSave}>Save Changes</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                           </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
                 </TableBody>
