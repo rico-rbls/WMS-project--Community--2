@@ -239,11 +239,15 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       toast.error(err);
       return;
     }
-    const created = await createShipment({ orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
-    setShipmentsData((prev) => [created, ...(prev ?? [])]);
-    setIsAddOpen(false);
-    resetForm();
-    toast.success("Shipment created successfully");
+    try {
+      const created = await createShipment({ orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      setShipmentsData((prev) => [created, ...(prev ?? [])]);
+      setIsAddOpen(false);
+      resetForm();
+      toast.success("Shipment created successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create shipment");
+    }
   }
 
   async function handleEditSave() {
@@ -256,17 +260,25 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       toast.error("Missing shipment id");
       return;
     }
-    const updated = await updateShipment({ id: form.id, orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
-    setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
-    setIsEditOpen(null);
-    toast.success("Shipment updated successfully");
+    try {
+      const updated = await updateShipment({ id: form.id, orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
+      setIsEditOpen(null);
+      toast.success("Shipment updated successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update shipment");
+    }
   }
 
   async function handleDelete(id: string) {
-    await deleteShipment(id);
-    setShipmentsData((prev) => (prev ?? []).filter((s) => s.id !== id));
-    setIsEditOpen(null);
-    toast.success("Shipment deleted successfully");
+    try {
+      await deleteShipment(id);
+      setShipmentsData((prev) => (prev ?? []).filter((s) => s.id !== id));
+      setIsEditOpen(null);
+      toast.success("Shipment deleted successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete shipment");
+    }
   }
 
   const getStatusColor = (status: string) => {

@@ -684,12 +684,13 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Add New Inventory Item</DialogTitle>
                     <DialogDescription>Enter the details for the new inventory item.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-6 py-4">
+                    {/* Item Name - Full Width */}
                     <div className="space-y-2">
                       <Label htmlFor="item-name">Item Name</Label>
                       <Input
@@ -704,154 +705,175 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       />
                       {fieldErrors.name && <p className="text-sm text-red-500">{fieldErrors.name}</p>}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <Select value={form.category} onValueChange={(v) => {
-                        setForm({ ...form, category: v as InventoryCategory });
-                        clearFieldError("category");
-                      }}>
-                        <SelectTrigger id="category" className={fieldErrors.category ? "border-red-500" : ""}>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATEGORIES.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {fieldErrors.category && <p className="text-sm text-red-500">{fieldErrors.category}</p>}
+
+                    {/* Category & Brand Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
+                        <Select value={form.category} onValueChange={(v) => {
+                          setForm({ ...form, category: v as InventoryCategory });
+                          clearFieldError("category");
+                        }}>
+                          <SelectTrigger id="category" className={fieldErrors.category ? "border-red-500" : ""}>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIES.map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldErrors.category && <p className="text-sm text-red-500">{fieldErrors.category}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="brand">Brand</Label>
+                        <Input
+                          id="brand"
+                          placeholder="Enter brand name"
+                          value={form.brand}
+                          onChange={(e) => {
+                            setForm({ ...form, brand: e.target.value });
+                            clearFieldError("brand");
+                          }}
+                          className={fieldErrors.brand ? "border-red-500" : ""}
+                        />
+                        {fieldErrors.brand && <p className="text-sm text-red-500">{fieldErrors.brand}</p>}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">Quantity</Label>
-                      <Input
-                        id="quantity"
-                        type="number"
-                        placeholder="0"
-                        value={form.quantity}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setForm({ ...form, quantity: val });
-                          clearFieldError("quantity");
-                        }}
-                        className={fieldErrors.quantity ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.quantity && <p className="text-sm text-red-500">{fieldErrors.quantity}</p>}
+
+                    {/* Quantity & Location Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          placeholder="0"
+                          value={form.quantity}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setForm({ ...form, quantity: val });
+                            clearFieldError("quantity");
+                          }}
+                          className={fieldErrors.quantity ? "border-red-500" : ""}
+                        />
+                        {fieldErrors.quantity && <p className="text-sm text-red-500">{fieldErrors.quantity}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Location</Label>
+                        <Input
+                          id="location"
+                          placeholder="e.g., A-12"
+                          value={form.location}
+                          onChange={(e) => {
+                            setForm({ ...form, location: e.target.value });
+                            clearFieldError("location");
+                          }}
+                          className={fieldErrors.location ? "border-red-500" : ""}
+                        />
+                        {fieldErrors.location && <p className="text-sm text-red-500">{fieldErrors.location}</p>}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        placeholder="e.g., A-12"
-                        value={form.location}
-                        onChange={(e) => {
-                          setForm({ ...form, location: e.target.value });
-                          clearFieldError("location");
-                        }}
-                        className={fieldErrors.location ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.location && <p className="text-sm text-red-500">{fieldErrors.location}</p>}
+
+                    {/* Price & Supplier Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="price">Price Per Piece (PHP ₱)</Label>
+                        <Input
+                          id="price"
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={form.pricePerPiece}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setForm({ ...form, pricePerPiece: val });
+                            clearFieldError("pricePerPiece");
+                          }}
+                          className={fieldErrors.pricePerPiece ? "border-red-500" : ""}
+                        />
+                        {fieldErrors.pricePerPiece && <p className="text-sm text-red-500">{fieldErrors.pricePerPiece}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="supplier">Supplier</Label>
+                        <Select value={form.supplierId} onValueChange={(v) => {
+                          setForm({ ...form, supplierId: v });
+                          clearFieldError("supplierId");
+                        }}>
+                          <SelectTrigger id="supplier" className={fieldErrors.supplierId ? "border-red-500" : ""}>
+                            <SelectValue placeholder="Select supplier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers?.filter(s => s.status === "Active").map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldErrors.supplierId && <p className="text-sm text-red-500">{fieldErrors.supplierId}</p>}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reorder">Reorder Level</Label>
-                      <Input
-                        id="reorder"
-                        type="number"
-                        placeholder="0"
-                        value={form.reorderLevel}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setForm({ ...form, reorderLevel: val });
-                          clearFieldError("reorderLevel");
-                        }}
-                        className={fieldErrors.reorderLevel ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.reorderLevel && <p className="text-sm text-red-500">{fieldErrors.reorderLevel}</p>}
+
+                    {/* Stock Management Section */}
+                    <div className="space-y-4 border-t pt-4">
+                      <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reorder">Reorder Level</Label>
+                          <Input
+                            id="reorder"
+                            type="number"
+                            placeholder="0"
+                            value={form.reorderLevel}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setForm({ ...form, reorderLevel: val });
+                              clearFieldError("reorderLevel");
+                            }}
+                            className={fieldErrors.reorderLevel ? "border-red-500" : ""}
+                          />
+                          {fieldErrors.reorderLevel && <p className="text-sm text-red-500">{fieldErrors.reorderLevel}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="minimumStock">Minimum Stock</Label>
+                          <Input
+                            id="minimumStock"
+                            type="number"
+                            placeholder="0"
+                            value={form.minimumStock}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setForm({ ...form, minimumStock: val });
+                              clearFieldError("minimumStock");
+                            }}
+                            className={fieldErrors.minimumStock ? "border-red-500" : ""}
+                          />
+                          {fieldErrors.minimumStock && <p className="text-sm text-red-500">{fieldErrors.minimumStock}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="maintainStock">Maintain Stock At</Label>
+                          <Input
+                            id="maintainStock"
+                            type="number"
+                            placeholder="0"
+                            value={form.maintainStockAt}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setForm({ ...form, maintainStockAt: val });
+                              clearFieldError("maintainStockAt");
+                            }}
+                            className={fieldErrors.maintainStockAt ? "border-red-500" : ""}
+                          />
+                          {fieldErrors.maintainStockAt && <p className="text-sm text-red-500">{fieldErrors.maintainStockAt}</p>}
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="brand">Brand</Label>
-                      <Input
-                        id="brand"
-                        placeholder="Enter brand name"
-                        value={form.brand}
-                        onChange={(e) => {
-                          setForm({ ...form, brand: e.target.value });
-                          clearFieldError("brand");
-                        }}
-                        className={fieldErrors.brand ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.brand && <p className="text-sm text-red-500">{fieldErrors.brand}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Price Per Piece (PHP ₱)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={form.pricePerPiece}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setForm({ ...form, pricePerPiece: val });
-                          clearFieldError("pricePerPiece");
-                        }}
-                        className={fieldErrors.pricePerPiece ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.pricePerPiece && <p className="text-sm text-red-500">{fieldErrors.pricePerPiece}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="supplier">Supplier</Label>
-                      <Select value={form.supplierId} onValueChange={(v) => {
-                        setForm({ ...form, supplierId: v });
-                        clearFieldError("supplierId");
-                      }}>
-                        <SelectTrigger id="supplier" className={fieldErrors.supplierId ? "border-red-500" : ""}>
-                          <SelectValue placeholder="Select supplier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers?.filter(s => s.status === "Active").map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {fieldErrors.supplierId && <p className="text-sm text-red-500">{fieldErrors.supplierId}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="minimumStock">Minimum Stock</Label>
-                      <Input
-                        id="minimumStock"
-                        type="number"
-                        placeholder="0"
-                        value={form.minimumStock}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setForm({ ...form, minimumStock: val });
-                          clearFieldError("minimumStock");
-                        }}
-                        className={fieldErrors.minimumStock ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.minimumStock && <p className="text-sm text-red-500">{fieldErrors.minimumStock}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="maintainStock">Maintain Stock At</Label>
-                      <Input
-                        id="maintainStock"
-                        type="number"
-                        placeholder="0"
-                        value={form.maintainStockAt}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setForm({ ...form, maintainStockAt: val });
-                          clearFieldError("maintainStockAt");
-                        }}
-                        className={fieldErrors.maintainStockAt ? "border-red-500" : ""}
-                      />
-                      {fieldErrors.maintainStockAt && <p className="text-sm text-red-500">{fieldErrors.maintainStockAt}</p>}
-                    </div>
-                    <div className="space-y-2">
+
+                    {/* Product Photo Section */}
+                    <div className="space-y-2 border-t pt-4">
                       <Label htmlFor="photo">Product Photo</Label>
                       <div className="flex items-center gap-4">
                         {form.photoUrl ? (
-                          <div className="relative h-16 w-16 rounded-md border overflow-hidden">
+                          <div className="relative h-20 w-20 rounded-md border overflow-hidden">
                             <img
                               src={form.photoUrl}
                               alt="Product preview"
@@ -866,26 +888,32 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             </button>
                           </div>
                         ) : (
-                          <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
-                            <ImageIcon className="h-6 w-6" />
+                          <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-8 w-8" />
                           </div>
                         )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => photoInputRef.current?.click()}
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload Photo
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => photoInputRef.current?.click()}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload Photo
+                          </Button>
+                          <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
                     </div>
+
+                    {/* Submit Button */}
                     <Button
                       className="w-full"
+                      size="lg"
                       onClick={handleAdd}
                     >
+                      <Plus className="h-4 w-4 mr-2" />
                       Add Item
                     </Button>
                   </div>
@@ -1173,75 +1201,97 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit items" : undefined}>Edit</Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>Edit Inventory Item</DialogTitle>
                                 <DialogDescription>Update fields and save your changes.</DialogDescription>
                               </DialogHeader>
-                              <div className="space-y-4 py-4">
+                              <div className="space-y-6 py-4">
+                                {/* Item Name - Full Width */}
                                 <div className="space-y-2">
                                   <Label htmlFor="edit-name">Item Name</Label>
                                   <Input id="edit-name" placeholder="Enter item name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-category">Category</Label>
-                                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as InventoryCategory })}>
-                                    <SelectTrigger id="edit-category">
-                                      <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {CATEGORIES.map((c) => (
-                                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+
+                                {/* Category & Brand Row */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-category">Category</Label>
+                                    <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as InventoryCategory })}>
+                                      <SelectTrigger id="edit-category">
+                                        <SelectValue placeholder="Select category" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {CATEGORIES.map((c) => (
+                                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-brand">Brand</Label>
+                                    <Input id="edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-quantity">Quantity</Label>
-                                  <Input id="edit-quantity" type="number" placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} />
+
+                                {/* Quantity & Location Row */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-quantity">Quantity</Label>
+                                    <Input id="edit-quantity" type="number" placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-location">Location</Label>
+                                    <Input id="edit-location" placeholder="e.g., A-12" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-location">Location</Label>
-                                  <Input id="edit-location" placeholder="e.g., A-12" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+
+                                {/* Price & Supplier Row */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-price">Price Per Piece (PHP ₱)</Label>
+                                    <Input id="edit-price" type="number" step="0.01" placeholder="0.00" value={form.pricePerPiece} onChange={(e) => setForm({ ...form, pricePerPiece: Number(e.target.value) })} />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="edit-supplier">Supplier</Label>
+                                    <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
+                                      <SelectTrigger id="edit-supplier">
+                                        <SelectValue placeholder="Select supplier" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {suppliers?.filter(s => s.status === "Active").map((s) => (
+                                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-reorder">Reorder Level</Label>
-                                  <Input id="edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} />
+
+                                {/* Stock Management Section */}
+                                <div className="space-y-4 border-t pt-4">
+                                  <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-reorder">Reorder Level</Label>
+                                      <Input id="edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-minimumStock">Minimum Stock</Label>
+                                      <Input id="edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: Number(e.target.value) })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-maintainStock">Maintain Stock At</Label>
+                                      <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: Number(e.target.value) })} />
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-brand">Brand</Label>
-                                  <Input id="edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-price">Price Per Piece (PHP ₱)</Label>
-                                  <Input id="edit-price" type="number" step="0.01" placeholder="0.00" value={form.pricePerPiece} onChange={(e) => setForm({ ...form, pricePerPiece: Number(e.target.value) })} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-supplier">Supplier</Label>
-                                  <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
-                                    <SelectTrigger id="edit-supplier">
-                                      <SelectValue placeholder="Select supplier" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {suppliers?.filter(s => s.status === "Active").map((s) => (
-                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-minimumStock">Minimum Stock</Label>
-                                  <Input id="edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: Number(e.target.value) })} />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-maintainStock">Maintain Stock At</Label>
-                                  <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: Number(e.target.value) })} />
-                                </div>
-                                <div className="space-y-2">
+
+                                {/* Product Photo Section */}
+                                <div className="space-y-2 border-t pt-4">
                                   <Label htmlFor="edit-photo">Product Photo</Label>
                                   <div className="flex items-center gap-4">
                                     {form.photoUrl ? (
-                                      <div className="relative h-16 w-16 rounded-md border overflow-hidden">
+                                      <div className="relative h-20 w-20 rounded-md border overflow-hidden">
                                         <img
                                           src={form.photoUrl}
                                           alt="Product preview"
@@ -1256,25 +1306,29 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                         </button>
                                       </div>
                                     ) : (
-                                      <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
-                                        <ImageIcon className="h-6 w-6" />
+                                      <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                                        <ImageIcon className="h-8 w-8" />
                                       </div>
                                     )}
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => photoInputRef.current?.click()}
-                                    >
-                                      <Upload className="h-4 w-4 mr-2" />
-                                      Upload Photo
-                                    </Button>
+                                    <div className="flex flex-col gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => photoInputRef.current?.click()}
+                                      >
+                                        <Upload className="h-4 w-4 mr-2" />
+                                        Upload Photo
+                                      </Button>
+                                      <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                                    </div>
                                   </div>
-                                  <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
                                 </div>
-                                <div className="flex gap-2">
-                                  <Button className="flex-1" onClick={handleEditSave}>Save Changes</Button>
-                                  <Button variant="destructive" onClick={() => handleDelete(item.id)}>Delete</Button>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-2 pt-2">
+                                  <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
+                                  <Button variant="destructive" size="lg" onClick={() => handleDelete(item.id)}>Delete</Button>
                                 </div>
                               </div>
                             </DialogContent>

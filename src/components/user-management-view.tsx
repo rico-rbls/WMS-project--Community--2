@@ -83,34 +83,50 @@ export function UserManagementView() {
   };
 
   const handleApprove = (userId: string) => {
-    approveUser(userId);
-    toast.success("User approved successfully");
+    try {
+      approveUser(userId);
+      toast.success("User approved successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to approve user");
+    }
   };
 
   const handleReject = (userId: string) => {
-    rejectUser(userId);
-    toast.success("User rejected and removed");
+    try {
+      rejectUser(userId);
+      toast.success("User rejected and removed");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to reject user");
+    }
   };
 
   const handleSaveEdit = () => {
     if (!selectedUser) return;
-    if (editForm.role !== selectedUser.role) {
-      updateUserRole(selectedUser.id, editForm.role);
+    try {
+      if (editForm.role !== selectedUser.role) {
+        updateUserRole(selectedUser.id, editForm.role);
+      }
+      if (editForm.status !== selectedUser.status) {
+        updateUserStatus(selectedUser.id, editForm.status);
+      }
+      toast.success("User updated successfully");
+      setIsEditDialogOpen(false);
+      setSelectedUser(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update user");
     }
-    if (editForm.status !== selectedUser.status) {
-      updateUserStatus(selectedUser.id, editForm.status);
-    }
-    toast.success("User updated successfully");
-    setIsEditDialogOpen(false);
-    setSelectedUser(null);
   };
 
   const handleDelete = () => {
     if (!selectedUser) return;
-    deleteUser(selectedUser.id);
-    toast.success("User deleted successfully");
-    setIsDeleteDialogOpen(false);
-    setSelectedUser(null);
+    try {
+      deleteUser(selectedUser.id);
+      toast.success("User deleted successfully");
+      setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete user");
+    }
   };
 
   const getStatusBadge = (status: UserStatus) => {

@@ -241,11 +241,15 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
       toast.error(err);
       return;
     }
-    const created = await createOrder({ customer: form.customer, items: form.items, total: form.total, status: form.status, date: form.date });
-    setOrdersData((prev) => [created, ...(prev ?? [])]);
-    setIsAddOpen(false);
-    resetForm();
-    toast.success("Order created successfully");
+    try {
+      const created = await createOrder({ customer: form.customer, items: form.items, total: form.total, status: form.status, date: form.date });
+      setOrdersData((prev) => [created, ...(prev ?? [])]);
+      setIsAddOpen(false);
+      resetForm();
+      toast.success("Order created successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create order");
+    }
   }
 
   async function handleEditSave() {
@@ -258,17 +262,25 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
       toast.error("Missing order id");
       return;
     }
-    const updated = await updateOrder({ id: form.id, customer: form.customer, items: form.items, total: form.total, status: form.status, date: form.date });
-    setOrdersData((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)));
-    setIsEditOpen(null);
-    toast.success("Order updated successfully");
+    try {
+      const updated = await updateOrder({ id: form.id, customer: form.customer, items: form.items, total: form.total, status: form.status, date: form.date });
+      setOrdersData((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)));
+      setIsEditOpen(null);
+      toast.success("Order updated successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update order");
+    }
   }
 
   async function handleDelete(id: string) {
-    await deleteOrder(id);
-    setOrdersData((prev) => (prev ?? []).filter((o) => o.id !== id));
-    setIsEditOpen(null);
-    toast.success("Order deleted successfully");
+    try {
+      await deleteOrder(id);
+      setOrdersData((prev) => (prev ?? []).filter((o) => o.id !== id));
+      setIsEditOpen(null);
+      toast.success("Order deleted successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete order");
+    }
   }
 
   const getStatusColor = (status: string) => {
