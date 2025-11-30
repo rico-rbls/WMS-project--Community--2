@@ -99,18 +99,19 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
+  // Use strings for numeric fields to allow empty input during typing
   const [form, setForm] = useState({
     id: "",
     name: "",
     category: "Electronics" as InventoryCategory,
-    quantity: 0,
+    quantity: "" as string | number,
     location: "",
-    reorderLevel: 0,
+    reorderLevel: "" as string | number,
     brand: "",
-    pricePerPiece: 0,
+    pricePerPiece: "" as string | number,
     supplierId: "",
-    maintainStockAt: 0,
-    minimumStock: 0,
+    maintainStockAt: "" as string | number,
+    minimumStock: "" as string | number,
     photoUrl: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -262,14 +263,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       id: "",
       name: "",
       category: defaultCategory,
-      quantity: 0,
+      quantity: "",
       location: autoLocation,
-      reorderLevel: 0,
+      reorderLevel: "",
       brand: "",
-      pricePerPiece: 0,
+      pricePerPiece: "",
       supplierId: "",
-      maintainStockAt: 0,
-      minimumStock: 0,
+      maintainStockAt: "",
+      minimumStock: "",
       photoUrl: "",
     });
     setFieldErrors({});
@@ -340,14 +341,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       const created = await createInventoryItem({
         name: form.name,
         category: form.category,
-        quantity: form.quantity,
+        quantity: Number(form.quantity) || 0,
         location: form.location,
-        reorderLevel: form.reorderLevel,
+        reorderLevel: Number(form.reorderLevel) || 0,
         brand: form.brand,
-        pricePerPiece: form.pricePerPiece,
+        pricePerPiece: Number(form.pricePerPiece) || 0,
         supplierId: form.supplierId,
-        maintainStockAt: form.maintainStockAt,
-        minimumStock: form.minimumStock,
+        maintainStockAt: Number(form.maintainStockAt) || 0,
+        minimumStock: Number(form.minimumStock) || 0,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory([created, ...(inventory ?? [])]);
@@ -374,14 +375,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         id: form.id,
         name: form.name,
         category: form.category,
-        quantity: form.quantity,
+        quantity: Number(form.quantity) || 0,
         location: form.location,
-        reorderLevel: form.reorderLevel,
+        reorderLevel: Number(form.reorderLevel) || 0,
         brand: form.brand,
-        pricePerPiece: form.pricePerPiece,
+        pricePerPiece: Number(form.pricePerPiece) || 0,
         supplierId: form.supplierId,
-        maintainStockAt: form.maintainStockAt,
-        minimumStock: form.minimumStock,
+        maintainStockAt: Number(form.maintainStockAt) || 0,
+        minimumStock: Number(form.minimumStock) || 0,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory((inventory ?? []).map((i) => (i.id === updated.id ? updated : i)));
@@ -822,8 +823,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                           placeholder="0"
                           value={form.quantity}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setForm({ ...form, quantity: val });
+                            setForm({ ...form, quantity: e.target.value });
                             clearFieldError("quantity");
                           }}
                           className={fieldErrors.quantity ? "border-red-500" : ""}
@@ -857,8 +857,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                           placeholder="0.00"
                           value={form.pricePerPiece}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setForm({ ...form, pricePerPiece: val });
+                            setForm({ ...form, pricePerPiece: e.target.value });
                             clearFieldError("pricePerPiece");
                           }}
                           className={fieldErrors.pricePerPiece ? "border-red-500" : ""}
@@ -896,8 +895,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             placeholder="0"
                             value={form.reorderLevel}
                             onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setForm({ ...form, reorderLevel: val });
+                              setForm({ ...form, reorderLevel: e.target.value });
                               clearFieldError("reorderLevel");
                             }}
                             className={fieldErrors.reorderLevel ? "border-red-500" : ""}
@@ -912,8 +910,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             placeholder="0"
                             value={form.minimumStock}
                             onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setForm({ ...form, minimumStock: val });
+                              setForm({ ...form, minimumStock: e.target.value });
                               clearFieldError("minimumStock");
                             }}
                             className={fieldErrors.minimumStock ? "border-red-500" : ""}
@@ -928,8 +925,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             placeholder="0"
                             value={form.maintainStockAt}
                             onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setForm({ ...form, maintainStockAt: val });
+                              setForm({ ...form, maintainStockAt: e.target.value });
                               clearFieldError("maintainStockAt");
                             }}
                             className={fieldErrors.maintainStockAt ? "border-red-500" : ""}
@@ -1372,7 +1368,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-2">
                                     <Label htmlFor="edit-quantity">Quantity</Label>
-                                    <Input id="edit-quantity" type="number" placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} />
+                                    <Input id="edit-quantity" type="number" placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                                   </div>
                                   <div className="space-y-2">
                                     <Label htmlFor="edit-location">Location</Label>
@@ -1384,7 +1380,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-2">
                                     <Label htmlFor="edit-price">Price Per Piece (PHP ₱)</Label>
-                                    <Input id="edit-price" type="number" step="0.01" placeholder="0.00" value={form.pricePerPiece} onChange={(e) => setForm({ ...form, pricePerPiece: Number(e.target.value) })} />
+                                    <Input id="edit-price" type="number" step="0.01" placeholder="0.00" value={form.pricePerPiece} onChange={(e) => setForm({ ...form, pricePerPiece: e.target.value })} />
                                   </div>
                                   <div className="space-y-2">
                                     <Label htmlFor="edit-supplier">Supplier</Label>
@@ -1407,15 +1403,15 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-reorder">Reorder Level</Label>
-                                      <Input id="edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) })} />
+                                      <Input id="edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-minimumStock">Minimum Stock</Label>
-                                      <Input id="edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: Number(e.target.value) })} />
+                                      <Input id="edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-maintainStock">Maintain Stock At</Label>
-                                      <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: Number(e.target.value) })} />
+                                      <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: e.target.value })} />
                                     </div>
                                   </div>
                                 </div>
