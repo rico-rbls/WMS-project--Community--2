@@ -42,6 +42,10 @@ import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
+import { EditableCell } from "./ui/editable-cell";
+
+const SUPPLIER_STATUSES = ["Active", "Inactive"] as const;
+const SUPPLIER_CATEGORIES = ["Electronics", "Furniture", "Clothing", "Food", "Other"] as const;
 
 interface SuppliersViewProps {
   initialOpenDialog?: boolean;
@@ -196,6 +200,19 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
       ? "bg-green-500/10 text-green-700"
       : "bg-gray-500/10 text-gray-700";
   };
+
+  // Inline edit handler for quick cell updates
+  const handleInlineUpdate = useCallback(async (supplierId: string, field: keyof Supplier, value: string | number) => {
+    try {
+      const updates: Partial<Supplier> = { [field]: value };
+      const updated = await updateSupplier({ id: supplierId, ...updates });
+      setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === supplierId ? updated : s)));
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+      throw e;
+    }
+  }, [setSuppliersData]);
 
   // Bulk delete handler
   const handleBulkDelete = useCallback(async () => {
@@ -520,24 +537,56 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                           />
                         </TableCell>
                         <TableCell>{supplier.id}</TableCell>
-                        <TableCell>{supplier.name}</TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={supplier.name}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(supplier.id, "name", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <div className="flex items-center gap-1 text-sm">
                               <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">{supplier.email}</span>
+                              <EditableCell
+                                value={supplier.email}
+                                type="text"
+                                onSave={(v) => handleInlineUpdate(supplier.id, "email", v)}
+                                disabled={!canModify}
+                                className="text-xs text-muted-foreground"
+                              />
                             </div>
                             <div className="flex items-center gap-1 text-sm">
                               <Phone className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">{supplier.phone}</span>
+                              <EditableCell
+                                value={supplier.phone}
+                                type="text"
+                                onSave={(v) => handleInlineUpdate(supplier.id, "phone", v)}
+                                disabled={!canModify}
+                                className="text-xs text-muted-foreground"
+                              />
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{supplier.category}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(supplier.status)}>
-                            {supplier.status}
-                          </Badge>
+                          <EditableCell
+                            value={supplier.category}
+                            type="select"
+                            options={SUPPLIER_CATEGORIES.map(c => ({ value: c, label: c }))}
+                            onSave={(v) => handleInlineUpdate(supplier.id, "category", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={supplier.status}
+                            type="badge"
+                            options={SUPPLIER_STATUSES.map(s => ({ value: s, label: s }))}
+                            badgeClassName={getStatusColor(supplier.status)}
+                            onSave={(v) => handleInlineUpdate(supplier.id, "status", v)}
+                            disabled={!canModify}
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">

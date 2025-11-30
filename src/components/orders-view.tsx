@@ -31,6 +31,9 @@ import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
+import { EditableCell } from "./ui/editable-cell";
+
+const ORDER_STATUSES = ["Pending", "Processing", "Shipped", "Delivered"] as const;
 
 interface OrdersViewProps {
   initialOpenDialog?: boolean;
@@ -282,6 +285,19 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
       toast.error(e?.message || "Failed to delete order");
     }
   }
+
+  // Inline edit handler for quick cell updates
+  const handleInlineUpdate = useCallback(async (orderId: string, field: keyof Order, value: string | number) => {
+    try {
+      const updates: Partial<Order> = { [field]: value };
+      const updated = await updateOrder({ id: orderId, ...updates });
+      setOrdersData((prev) => (prev ?? []).map((o) => (o.id === orderId ? updated : o)));
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+      throw e;
+    }
+  }, [setOrdersData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -638,15 +654,50 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
                           />
                         </TableCell>
                         <TableCell>{order.id}</TableCell>
-                        <TableCell>{order.customer}</TableCell>
-                        <TableCell>{order.items}</TableCell>
-                        <TableCell>{order.total}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(order.status)}>
-                            {order.status}
-                          </Badge>
+                          <EditableCell
+                            value={order.customer}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(order.id, "customer", v)}
+                            disabled={!canModify}
+                          />
                         </TableCell>
-                        <TableCell>{order.date}</TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={order.items}
+                            type="number"
+                            min={0}
+                            step={1}
+                            onSave={(v) => handleInlineUpdate(order.id, "items", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={order.total}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(order.id, "total", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={order.status}
+                            type="badge"
+                            options={ORDER_STATUSES.map(s => ({ value: s, label: s }))}
+                            badgeClassName={getStatusColor(order.status)}
+                            onSave={(v) => handleInlineUpdate(order.id, "status", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={order.date}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(order.id, "date", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <FavoriteButton

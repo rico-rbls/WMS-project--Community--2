@@ -29,6 +29,9 @@ import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
+import { EditableCell } from "./ui/editable-cell";
+
+const SHIPMENT_STATUSES = ["Pending", "In Transit", "Delivered"] as const;
 
 interface ShipmentsViewProps {
   initialOpenDialog?: boolean;
@@ -280,6 +283,19 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       toast.error(e?.message || "Failed to delete shipment");
     }
   }
+
+  // Inline edit handler for quick cell updates
+  const handleInlineUpdate = useCallback(async (shipmentId: string, field: keyof Shipment, value: string | number) => {
+    try {
+      const updates: Partial<Shipment> = { [field]: value };
+      const updated = await updateShipment({ id: shipmentId, ...updates });
+      setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === shipmentId ? updated : s)));
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+      throw e;
+    }
+  }, [setShipmentsData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -633,15 +649,48 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                           />
                         </TableCell>
                         <TableCell>{shipment.id}</TableCell>
-                        <TableCell>{shipment.orderId}</TableCell>
-                        <TableCell>{shipment.destination}</TableCell>
-                        <TableCell>{shipment.carrier}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(shipment.status)}>
-                            {shipment.status}
-                          </Badge>
+                          <EditableCell
+                            value={shipment.orderId}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(shipment.id, "orderId", v)}
+                            disabled={!canModify}
+                          />
                         </TableCell>
-                        <TableCell>{shipment.eta}</TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={shipment.destination}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(shipment.id, "destination", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={shipment.carrier}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(shipment.id, "carrier", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={shipment.status}
+                            type="badge"
+                            options={SHIPMENT_STATUSES.map(s => ({ value: s, label: s }))}
+                            badgeClassName={getStatusColor(shipment.status)}
+                            onSave={(v) => handleInlineUpdate(shipment.id, "status", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={shipment.eta}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(shipment.id, "eta", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <FavoriteButton

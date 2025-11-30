@@ -49,8 +49,39 @@ import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
+import { EditableCell } from "./ui/editable-cell";
 
 const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
+const STATUSES = ["In Stock", "Low Stock", "Critical"] as const;
+
+// Category prefixes for auto-generating location codes
+const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
+  Electronics: "E",
+  Furniture: "F",
+  Clothing: "C",
+  Food: "D", // D for Dry goods/Food storage
+};
+
+// Generate auto-location code based on category and existing items
+function generateLocationCode(category: InventoryCategory, existingItems: InventoryItem[]): string {
+  const prefix = CATEGORY_LOCATION_PREFIX[category];
+
+  // Find existing locations with this prefix
+  const existingLocations = existingItems
+    .filter(item => item.location.startsWith(`${prefix}-`))
+    .map(item => {
+      const match = item.location.match(new RegExp(`^${prefix}-(\\d+)$`));
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .filter(num => !isNaN(num));
+
+  // Find the next available number
+  const maxNumber = existingLocations.length > 0 ? Math.max(...existingLocations) : 0;
+  const nextNumber = maxNumber + 1;
+
+  // Format with leading zero for numbers < 10
+  return `${prefix}-${nextNumber.toString().padStart(2, '0')}`;
+}
 
 interface InventoryViewProps {
   initialOpenDialog?: boolean;
@@ -221,16 +252,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   // Bulk operation states
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [bulkUpdateType, setBulkUpdateType] = useState<"price" | "location" | "reorderLevel" | "supplier" | null>(null);
+  const [bulkUpdateType, setBulkUpdateType] = useState<"category" | "status" | "location" | "reorderLevel" | "supplier" | null>(null);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   function resetForm() {
+    const defaultCategory: InventoryCategory = "Electronics";
+    const autoLocation = generateLocationCode(defaultCategory, inventoryItems);
     setForm({
       id: "",
       name: "",
-      category: "Electronics",
+      category: defaultCategory,
       quantity: 0,
-      location: "",
+      location: autoLocation,
       reorderLevel: 0,
       brand: "",
       pricePerPiece: 0,
@@ -240,6 +273,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       photoUrl: "",
     });
     setFieldErrors({});
+  }
+
+  // Handler to update location when category changes (for Add dialog only)
+  function handleCategoryChange(newCategory: InventoryCategory, isEditMode: boolean) {
+    if (!isEditMode) {
+      // Auto-generate new location for the new category
+      const autoLocation = generateLocationCode(newCategory, inventoryItems);
+      setForm(prev => ({ ...prev, category: newCategory, location: autoLocation }));
+    } else {
+      // In edit mode, just change the category without changing location
+      setForm(prev => ({ ...prev, category: newCategory }));
+    }
   }
 
   function clearFieldError(field: string) {
@@ -357,6 +402,22 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       toast.error(e?.message || "Failed to delete item");
     }
   }
+
+  // Inline edit handler for quick cell updates
+  const handleInlineUpdate = useCallback(async (itemId: string, field: keyof InventoryItem, value: string | number) => {
+    try {
+      const updates: Partial<InventoryItem> = { [field]: value };
+      const updated = await updateInventoryItem({ id: itemId, ...updates });
+      setInventory((prev) => {
+        if (!prev) return prev;
+        return prev.map((item) => (item.id === itemId ? updated : item));
+      });
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+      throw e; // Re-throw so EditableCell can revert
+    }
+  }, [setInventory]);
 
   // Excel import handler
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -553,8 +614,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       let updates: Partial<InventoryItem> = {};
 
       switch (bulkUpdateType) {
-        case "price":
-          updates = { pricePerPiece: parseFloat(value) };
+        case "category":
+          updates = { category: value as InventoryCategory };
+          break;
+        case "status":
+          updates = { status: value as InventoryItem["status"] };
           break;
         case "location":
           updates = { location: value };
@@ -598,14 +662,19 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   // Get bulk update field config
   const getBulkUpdateField = (): BulkUpdateField | null => {
     switch (bulkUpdateType) {
-      case "price":
+      case "category":
         return {
-          type: "number",
-          label: "New Price (₱)",
-          placeholder: "Enter new price",
-          min: 0,
-          step: 0.01,
-          validate: (v) => parseFloat(v) < 0 ? "Price must be positive" : null,
+          type: "select",
+          label: "New Category",
+          placeholder: "Select category",
+          options: CATEGORIES.map(c => ({ value: c, label: c })),
+        };
+      case "status":
+        return {
+          type: "select",
+          label: "New Status",
+          placeholder: "Select status",
+          options: STATUSES.map(s => ({ value: s, label: s })),
         };
       case "location":
         return {
@@ -711,7 +780,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       <div className="space-y-2">
                         <Label htmlFor="category">Category</Label>
                         <Select value={form.category} onValueChange={(v) => {
-                          setForm({ ...form, category: v as InventoryCategory });
+                          handleCategoryChange(v as InventoryCategory, false);
                           clearFieldError("category");
                         }}>
                           <SelectTrigger id="category" className={fieldErrors.category ? "border-red-500" : ""}>
@@ -760,7 +829,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         {fieldErrors.quantity && <p className="text-sm text-red-500">{fieldErrors.quantity}</p>}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="location">Location</Label>
+                        <Label htmlFor="location">Location <span className="text-xs text-muted-foreground font-normal">(auto-assigned, editable)</span></Label>
                         <Input
                           id="location"
                           placeholder="e.g., A-12"
@@ -989,12 +1058,13 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                   label: "Bulk Update",
                   icon: <Edit className="h-4 w-4 mr-1" />,
                   options: [
-                    { value: "price", label: "Update Price" },
+                    { value: "category", label: "Update Category" },
+                    { value: "status", label: "Update Status" },
                     { value: "location", label: "Update Location" },
                     { value: "reorderLevel", label: "Update Reorder Level" },
                     { value: "supplier", label: "Update Supplier" },
                   ],
-                  onSelect: (value) => setBulkUpdateType(value as "price" | "location" | "reorderLevel" | "supplier"),
+                  onSelect: (value) => setBulkUpdateType(value as "category" | "status" | "location" | "reorderLevel" | "supplier"),
                 },
               ]}
               className="mb-4"
@@ -1162,17 +1232,79 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                           )}
                         </TableCell>
                         <TableCell>{item.id}</TableCell>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.brand || 'Unknown'}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>₱{(item.pricePerPiece ?? 0).toFixed(2)}</TableCell>
-                        <TableCell>{supplierName}</TableCell>
-                        <TableCell>{item.location}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(item.status)}>
-                            {item.status}
-                          </Badge>
+                          <EditableCell
+                            value={item.name}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(item.id, "name", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.brand || 'Unknown'}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(item.id, "brand", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.category}
+                            type="select"
+                            options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                            onSave={(v) => handleInlineUpdate(item.id, "category", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.quantity}
+                            type="number"
+                            min={0}
+                            step={1}
+                            onSave={(v) => handleInlineUpdate(item.id, "quantity", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.pricePerPiece ?? 0}
+                            displayValue={`₱${(item.pricePerPiece ?? 0).toFixed(2)}`}
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            onSave={(v) => handleInlineUpdate(item.id, "pricePerPiece", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.supplierId}
+                            displayValue={supplierName}
+                            type="select"
+                            options={suppliers?.filter(s => s.status === "Active").map(s => ({ value: s.id, label: s.name })) || []}
+                            onSave={(v) => handleInlineUpdate(item.id, "supplierId", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.location}
+                            type="text"
+                            onSave={(v) => handleInlineUpdate(item.id, "location", v)}
+                            disabled={!canModify}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={item.status}
+                            type="badge"
+                            options={STATUSES.map(s => ({ value: s, label: s }))}
+                            badgeClassName={getStatusColor(item.status)}
+                            onSave={(v) => handleInlineUpdate(item.id, "status", v)}
+                            disabled={!canModify}
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">

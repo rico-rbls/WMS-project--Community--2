@@ -50,6 +50,7 @@ import { useAuth } from "../context/auth-context";
 import { getUserRole, hasPermission } from "../lib/permissions";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import type { SortDirection } from "../hooks/useTableSort";
+import { EditableCell } from "./ui/editable-cell";
 
 const PO_STATUSES: POStatus[] = [
   "Draft",
@@ -368,6 +369,19 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       setIsEditOpen(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete purchase order");
+    }
+  };
+
+  // Inline edit handler for quick cell updates
+  const handleInlineUpdate = async (poId: string, field: keyof PurchaseOrder, value: string | number) => {
+    try {
+      const updates: Partial<PurchaseOrder> = { [field]: value };
+      const updated = await updatePurchaseOrder({ id: poId, ...updates });
+      setPurchaseOrdersData((prev) => prev?.map((po) => (po.id === poId ? updated : po)) ?? []);
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update");
+      throw e;
     }
   };
 
@@ -787,14 +801,34 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                       </TableCell>
                     )}
                     <TableCell className="font-medium">{po.id}</TableCell>
-                    <TableCell>{po.supplierName}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <EditableCell
+                        value={po.supplierId}
+                        displayValue={po.supplierName}
+                        type="select"
+                        options={suppliersData.filter(s => s.status === "Active").map(s => ({ value: s.id, label: s.name }))}
+                        onSave={(v) => {
+                          const supplier = suppliersData.find(s => s.id === v);
+                          return handleInlineUpdate(po.id, "supplierName", supplier?.name ?? "");
+                        }}
+                        disabled={po.status !== "Draft" || !canCreate}
+                      />
+                    </TableCell>
                     <TableCell>
                       <span className="text-sm">{(po.items ?? []).length} item{(po.items ?? []).length !== 1 ? "s" : ""}</span>
                     </TableCell>
                     <TableCell className="text-right font-medium">₱{(po.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{getStatusBadge(po.status)}</TableCell>
                     <TableCell>{po.createdDate}</TableCell>
-                    <TableCell>{po.expectedDeliveryDate}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <EditableCell
+                        value={po.expectedDeliveryDate}
+                        type="text"
+                        placeholder="YYYY-MM-DD"
+                        onSave={(v) => handleInlineUpdate(po.id, "expectedDeliveryDate", v)}
+                        disabled={po.status !== "Draft" || !canCreate}
+                      />
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1">
                         {po.status === "Draft" && (
