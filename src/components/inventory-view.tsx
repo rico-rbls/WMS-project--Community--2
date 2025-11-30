@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier } from "../services/api";
@@ -53,6 +53,10 @@ import { EditableCell } from "./ui/editable-cell";
 
 const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
 const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
+
+// View modes for inventory display
+type ViewMode = "table" | "catalog";
+const VIEW_MODE_STORAGE_KEY = "inventory-view-mode";
 
 // Category prefixes for auto-generating location codes
 const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
@@ -138,6 +142,20 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     phone: "",
     category: "",
   });
+
+  // View mode state with localStorage persistence
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      return (saved === "catalog" || saved === "table") ? saved : "table";
+    }
+    return "table";
+  });
+
+  // Save view mode to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   // Open dialog when triggered from Dashboard Quick Actions
   useEffect(() => {
@@ -1157,6 +1175,28 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               currentFilters={getCurrentFilters}
               onApplySearch={handleApplySavedSearch}
             />
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center border rounded-md">
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+                className="rounded-r-none"
+                title="Table View"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "catalog" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("catalog")}
+                className="rounded-l-none"
+                title="Catalog View"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Bulk Actions Toolbar */}
@@ -1231,7 +1271,146 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               actionLabel={!searchTerm && filterCategory === "all" ? "Add Item" : undefined}
               onAction={!searchTerm && filterCategory === "all" ? () => setIsAddOpen(true) : undefined}
             />
+          ) : viewMode === "catalog" ? (
+            /* ============ CATALOG VIEW ============ */
+            <div>
+              {/* Catalog Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedData.map((item) => {
+                  const supplierName = supplierById.get(item.supplierId) ?? (item.supplierId || 'N/A');
+                  const itemIsSelected = isSelected(item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "group relative bg-card rounded-lg border overflow-hidden transition-all hover:shadow-lg hover:border-primary/50",
+                        itemIsSelected && "ring-2 ring-primary border-primary"
+                      )}
+                    >
+                      {/* Selection Checkbox */}
+                      <div className="absolute top-2 left-2 z-10">
+                        <Checkbox
+                          checked={itemIsSelected}
+                          onCheckedChange={() => toggleItem(item.id)}
+                          aria-label={`Select ${item.name}`}
+                          className="bg-background/80 backdrop-blur-sm"
+                        />
+                      </div>
+
+                      {/* Favorite Button */}
+                      <div className="absolute top-2 right-2 z-10">
+                        <FavoriteButton
+                          entityType="inventory"
+                          entityId={item.id}
+                          entityName={item.name}
+                        />
+                      </div>
+
+                      {/* Product Image */}
+                      <button
+                        type="button"
+                        onClick={() => item.photoUrl ? openPhotoPreview(item.photoUrl) : setIsEditOpen(item.id)}
+                        className="w-full aspect-square bg-muted flex items-center justify-center overflow-hidden"
+                      >
+                        {item.photoUrl ? (
+                          <img
+                            src={item.photoUrl}
+                            alt={item.name}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-12 w-12 mb-2" />
+                            <span className="text-xs">No image</span>
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Product Info */}
+                      <div className="p-4 space-y-3">
+                        {/* Category Badge & Status */}
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {item.category}
+                          </Badge>
+                          <Badge className={cn("text-xs", getStatusColor(item.status))}>
+                            {item.status}
+                          </Badge>
+                        </div>
+
+                        {/* Item Name */}
+                        <h3 className="font-semibold text-base line-clamp-2 min-h-[2.5rem]">
+                          {item.name}
+                        </h3>
+
+                        {/* Price */}
+                        <div className="text-lg font-bold text-primary">
+                          ₱{(item.pricePerPiece ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+
+                        {/* Stock & Brand */}
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>Stock: <span className="font-medium text-foreground">{item.quantity}</span></span>
+                          <span className="truncate max-w-[50%]">{item.brand || 'Unknown'}</span>
+                        </div>
+
+                        {/* Location & Supplier */}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span>{item.location}</span>
+                          </div>
+                          <span className="truncate max-w-[50%]" title={supplierName}>{supplierName}</span>
+                        </div>
+
+                        {/* Edit Button */}
+                        {canModify && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2"
+                            onClick={() => {
+                              setIsEditOpen(item.id);
+                              setForm({
+                                id: item.id,
+                                name: item.name,
+                                category: item.category,
+                                quantity: item.quantity,
+                                location: item.location,
+                                reorderLevel: item.reorderLevel,
+                                brand: item.brand || "Unknown",
+                                pricePerPiece: item.pricePerPiece ?? 0,
+                                supplierId: item.supplierId || "SUP-001",
+                                maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
+                                minimumStock: item.minimumStock ?? item.reorderLevel,
+                                photoUrl: item.photoUrl || "",
+                              });
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            View / Edit
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {filteredItems.length > 0 && (
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={goToPage}
+                  itemsPerPage={itemsPerPage}
+                  totalItems={totalItems}
+                />
+              )}
+            </div>
           ) : (
+            /* ============ TABLE VIEW ============ */
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
