@@ -702,9 +702,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     <TableHead className="w-12">
                       <input
                         type="checkbox"
-                        checked={isAllSelected(paginatedData.map((po) => po.id))}
-                        ref={(el) => { if (el) el.indeterminate = isPartiallySelected(paginatedData.map((po) => po.id)); }}
-                        onChange={() => toggleAll(paginatedData.map((po) => po.id))}
+                        checked={isAllSelected}
+                        ref={(el) => { if (el) el.indeterminate = isPartiallySelected; }}
+                        onChange={() => toggleAll()}
                         className="h-4 w-4"
                       />
                     </TableHead>
