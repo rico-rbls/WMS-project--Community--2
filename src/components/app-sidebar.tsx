@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +11,7 @@ import {
   SidebarHeader,
   SidebarFooter,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from "./ui/sidebar";
 import {
@@ -18,9 +20,19 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "./ui/tooltip";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, PanelLeft, PanelLeftClose } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Switch } from "./ui/switch";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, PanelLeft, PanelLeftClose, Settings, Bell, ChevronUp, Sun, Moon } from "lucide-react";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
+import { useTheme } from "next-themes";
 
 interface AppSidebarProps {
   currentView: ViewType;
@@ -30,7 +42,9 @@ interface AppSidebarProps {
 export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
   const { user } = useAuth();
   const { state, toggleSidebar } = useSidebar();
+  const { theme, setTheme } = useTheme();
   const isCollapsed = state === "collapsed";
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const menuItems = [
     { id: "dashboard" as ViewType, label: "Dashboard", icon: LayoutDashboard },
@@ -121,6 +135,67 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
+          {/* Settings with Dropdown */}
+          <SidebarMenuItem>
+            <DropdownMenu modal={false}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                      >
+                        <Settings className="h-4 w-4 shrink-0" />
+                        <span className="group-data-[collapsible=icon]:hidden flex-1 text-left">Settings</span>
+                        <ChevronUp className="h-4 w-4 shrink-0 group-data-[collapsible=icon]:hidden" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="group-data-[collapsible=icon]:block hidden">
+                    Settings
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenuContent
+                side={isCollapsed ? "right" : "top"}
+                align="start"
+                className="w-56"
+                sideOffset={8}
+              >
+                <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e: Event) => e.preventDefault()}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    <span>Notifications</span>
+                  </div>
+                  <Switch
+                    checked={notificationsEnabled}
+                    onCheckedChange={setNotificationsEnabled}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="cursor-pointer"
+                >
+                  {theme === "dark" ? (
+                    <Sun className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Moon className="mr-2 h-4 w-4" />
+                  )}
+                  {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+
+          <SidebarSeparator className="my-1" />
+
+          {/* Collapse/Expand Toggle */}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}

@@ -119,12 +119,12 @@ export default function App() {
     <ErrorBoundary onError={reportError}>
       <SidebarProvider>
         <AppSidebar currentView={currentView} setCurrentView={setCurrentView} />
-        <SidebarInset className="flex flex-col bg-muted/30 overflow-y-auto">
+        <SidebarInset className="flex flex-col bg-muted/30 h-screen overflow-hidden">
           <Topbar
             setCurrentView={setCurrentView}
             setCommandPaletteOpen={setCommandPaletteOpen}
           />
-          <div className="flex-1 overflow-x-hidden p-6">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
             <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
               {renderView()}
             </Suspense>

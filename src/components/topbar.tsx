@@ -1,5 +1,4 @@
-import { Search, Command, User, Sun, Moon, LogOut, ChevronDown } from "lucide-react";
-import { useTheme } from "next-themes";
+import { Search, Command, User, LogOut, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
@@ -19,7 +18,6 @@ interface TopbarProps {
 }
 
 export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
-  const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
@@ -28,15 +26,12 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
+    <header className="shrink-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
       {/* Left Side - Application Title */}
       <div className="min-w-0 flex-1">
         <h1 className="text-sm font-semibold truncate sm:text-base">
-          <span className="hidden lg:inline">Warehouse Management System: </span>
+          <span className="hidden lg:inline">Warehouse Management System </span>
           <span className="lg:hidden">WMS</span>
-          <span className="hidden lg:inline text-muted-foreground font-normal">
-            A Comprehensive Solution for Inventory Optimization and Supply Chain Efficiency
-          </span>
         </h1>
         <p className="text-xs text-muted-foreground truncate lg:hidden">
           Inventory & Supply Chain
@@ -69,9 +64,12 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
 
       {/* Right Side - User Profile Dropdown */}
       {user && (
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                 <User className="h-4 w-4 text-primary" />
               </div>
@@ -84,9 +82,9 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
                 </span>
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
-            </Button>
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56" sideOffset={8}>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{user.name}</p>
@@ -96,21 +94,12 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setCurrentView("profile")}>
+            <DropdownMenuItem onSelect={() => setCurrentView("profile")}>
               <User className="mr-2 h-4 w-4" />
               View Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? (
-                <Sun className="mr-2 h-4 w-4" />
-              ) : (
-                <Moon className="mr-2 h-4 w-4" />
-              )}
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={handleLogout}
+              onSelect={handleLogout}
               className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
             >
               <LogOut className="mr-2 h-4 w-4" />
