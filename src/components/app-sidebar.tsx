@@ -10,15 +10,12 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "./ui/sidebar";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, Star, Bookmark, AlertTriangle, Clock, FileText, ClipboardList, Shield, Settings } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, ClipboardList, Shield, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
 import { toast } from "sonner";
 import { Separator } from "./ui/separator";
-import { useFavorites } from "../context/favorites-context";
-import { Badge } from "./ui/badge";
-import type { EntityType } from "../types";
 
 interface AppSidebarProps {
   currentView: ViewType;
@@ -28,7 +25,6 @@ interface AppSidebarProps {
 export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { getRecentFavorites, savedSearches, quickLinks } = useFavorites();
 
   const handleLogout = () => {
     logout();
@@ -48,28 +44,6 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
   const adminMenuItems = [
     { id: "users" as ViewType, label: "User Management", icon: Shield },
   ];
-
-  const recentFavorites = getRecentFavorites(5);
-
-  const getEntityIcon = (entityType: EntityType) => {
-    switch (entityType) {
-      case "inventory": return Package;
-      case "orders": return ShoppingCart;
-      case "purchase-orders": return ClipboardList;
-      case "shipments": return Truck;
-      case "suppliers": return Users;
-      default: return Package;
-    }
-  };
-
-  const getQuickLinkIcon = (iconName?: string) => {
-    switch (iconName) {
-      case "AlertTriangle": return AlertTriangle;
-      case "Clock": return Clock;
-      case "FileText": return FileText;
-      default: return Star;
-    }
-  };
 
   return (
     <Sidebar>
@@ -121,89 +95,6 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Quick Access Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Quick Access</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {/* Quick Links */}
-              {quickLinks.map((link) => {
-                const IconComponent = getQuickLinkIcon(link.icon);
-                return (
-                  <SidebarMenuItem key={link.id}>
-                    <SidebarMenuButton
-                      onClick={() => setCurrentView(link.entityType as ViewType)}
-                      className="text-xs"
-                    >
-                      <IconComponent className="h-3.5 w-3.5" />
-                      <span className="truncate">{link.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Recent Favorites */}
-        {recentFavorites.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center gap-1">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              Recent Favorites
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {recentFavorites.map((fav) => {
-                  const IconComponent = getEntityIcon(fav.entityType);
-                  return (
-                    <SidebarMenuItem key={fav.id}>
-                      <SidebarMenuButton
-                        onClick={() => setCurrentView(fav.entityType as ViewType)}
-                        className="text-xs"
-                      >
-                        <IconComponent className="h-3.5 w-3.5" />
-                        <span className="truncate">{fav.entityName}</span>
-                        <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0">
-                          {fav.entityType}
-                        </Badge>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Saved Searches */}
-        {savedSearches.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center gap-1">
-              <Bookmark className="h-3 w-3" />
-              Saved Searches
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {savedSearches.slice(0, 5).map((search) => {
-                  const IconComponent = getEntityIcon(search.entityType);
-                  return (
-                    <SidebarMenuItem key={search.id}>
-                      <SidebarMenuButton
-                        onClick={() => setCurrentView(search.entityType as ViewType)}
-                        className="text-xs"
-                      >
-                        <IconComponent className="h-3.5 w-3.5" />
-                        <span className="truncate">{search.name}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
