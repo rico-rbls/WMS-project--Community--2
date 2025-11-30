@@ -228,17 +228,27 @@ function migrateOrdersCurrency(orders: Order[]): Order[] {
   });
 }
 
+// Migration function for purchase orders to ensure items array exists
+function migratePurchaseOrders(purchaseOrdersData: PurchaseOrder[]): PurchaseOrder[] {
+  return purchaseOrdersData.map(po => ({
+    ...po,
+    items: po.items ?? [],
+    totalAmount: po.totalAmount ?? 0,
+    status: po.status ?? "Draft",
+    createdDate: po.createdDate ?? new Date().toISOString().split('T')[0],
+  }));
+}
+
 let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STORAGE_KEYS.INVENTORY, DEFAULT_INVENTORY));
 let suppliers: Supplier[] = loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS);
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
-let purchaseOrders: PurchaseOrder[] = loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS);
+let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
 
-// Save migrated orders back to localStorage
+// Save migrated data back to localStorage
 saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
-
-// Save migrated inventory back to localStorage
 saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
 
 // ============================================================================
 // Helper Functions

@@ -177,7 +177,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
         (po) =>
           po.id.toLowerCase().includes(term) ||
           po.supplierName.toLowerCase().includes(term) ||
-          po.items.some((item) => item.itemName.toLowerCase().includes(term))
+          (po.items ?? []).some((item) => item.itemName.toLowerCase().includes(term))
       );
     }
 
@@ -412,7 +412,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const openReceiveDialog = (po: PurchaseOrder) => {
     const initialReceive: { [itemId: string]: number } = {};
-    po.items.forEach((item) => {
+    (po.items ?? []).forEach((item) => {
       const remaining = item.quantity - (item.quantityReceived ?? 0);
       initialReceive[item.inventoryItemId] = remaining;
     });
@@ -469,7 +469,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     setForm({
       supplierId: po.supplierId,
       supplierName: po.supplierName,
-      items: po.items.map((item) => ({
+      items: (po.items ?? []).map((item) => ({
         inventoryItemId: item.inventoryItemId,
         itemName: item.itemName,
         quantity: item.quantity,
@@ -487,8 +487,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     const rows = filteredData.map((po) => [
       po.id,
       po.supplierName,
-      po.items.map((i) => `${i.itemName} (${i.quantity})`).join("; "),
-      po.totalAmount.toFixed(2),
+      (po.items ?? []).map((i) => `${i.itemName} (${i.quantity})`).join("; "),
+      (po.totalAmount ?? 0).toFixed(2),
       po.status,
       po.createdDate,
       po.expectedDeliveryDate,
@@ -746,9 +746,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     <TableCell className="font-medium">{po.id}</TableCell>
                     <TableCell>{po.supplierName}</TableCell>
                     <TableCell>
-                      <span className="text-sm">{po.items.length} item{po.items.length !== 1 ? "s" : ""}</span>
+                      <span className="text-sm">{(po.items ?? []).length} item{(po.items ?? []).length !== 1 ? "s" : ""}</span>
                     </TableCell>
-                    <TableCell className="text-right font-medium">₱{po.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right font-medium">₱{(po.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{getStatusBadge(po.status)}</TableCell>
                     <TableCell>{po.createdDate}</TableCell>
                     <TableCell>{po.expectedDeliveryDate}</TableCell>
@@ -954,7 +954,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                 return (
                   <>
                     <div className="space-y-2">
-                      {po.items.map((item) => {
+                      {(po.items ?? []).map((item) => {
                         const remaining = item.quantity - (item.quantityReceived ?? 0);
                         return (
                           <div key={item.inventoryItemId} className="flex items-center gap-4 p-3 border rounded-lg">
