@@ -1964,6 +1964,217 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Standalone Edit Dialog - Used by Catalog View */}
+      {viewMode === "catalog" && isEditOpen && (
+        <Dialog open={!!isEditOpen} onOpenChange={(o) => setIsEditOpen(o ? isEditOpen : null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Inventory Item</DialogTitle>
+              <DialogDescription>Update fields and save your changes.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* Item Name - Full Width */}
+              <div className="space-y-2">
+                <Label htmlFor="catalog-edit-name">Item Name</Label>
+                <Input id="catalog-edit-name" placeholder="Enter item name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+
+              {/* Category & Brand Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-category">Category</Label>
+                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as InventoryCategory })}>
+                    <SelectTrigger id="catalog-edit-category">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-brand">Brand</Label>
+                  <Input id="catalog-edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Quantity & Location Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-quantity">Quantity</Label>
+                  <Input id="catalog-edit-quantity" type="number" placeholder="0" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-location">Location</Label>
+                  <Input id="catalog-edit-location" placeholder="e.g., A-12" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Price & Supplier Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-price">Price Per Piece (PHP ₱)</Label>
+                  <Input id="catalog-edit-price" type="number" step="0.01" placeholder="0.00" value={form.pricePerPiece} onChange={(e) => setForm({ ...form, pricePerPiece: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-edit-supplier">Supplier</Label>
+                  <div className="flex gap-2">
+                    <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
+                      <SelectTrigger id="catalog-edit-supplier" className="flex-1">
+                        <SelectValue placeholder="Select supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers?.filter(s => s.status === "Active").map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Dialog open={isAddSupplierOpen} onOpenChange={(open) => {
+                      setIsAddSupplierOpen(open);
+                      if (!open) resetSupplierForm();
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="icon" title="Add New Supplier">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Add New Supplier</DialogTitle>
+                          <DialogDescription>Create a new supplier to use for this inventory item.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="catalog-new-supplier-name">Company Name <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="catalog-new-supplier-name"
+                              placeholder="Enter company name"
+                              value={supplierForm.name}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="catalog-new-supplier-contact">Contact Person <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="catalog-new-supplier-contact"
+                              placeholder="Enter contact name"
+                              value={supplierForm.contact}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="catalog-new-supplier-email">Email <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="catalog-new-supplier-email"
+                              type="email"
+                              placeholder="email@example.com"
+                              value={supplierForm.email}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="catalog-new-supplier-phone">Phone <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="catalog-new-supplier-phone"
+                              placeholder="+1 (555) 000-0000"
+                              value={supplierForm.phone}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="catalog-new-supplier-category">Category <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="catalog-new-supplier-category"
+                              placeholder="e.g., Electronics"
+                              value={supplierForm.category}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, category: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddSupplierOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateSupplier} disabled={isCreatingSupplier}>
+                            {isCreatingSupplier ? "Creating..." : "Create Supplier"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stock Management Section */}
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="catalog-edit-reorder">Reorder Level</Label>
+                    <Input id="catalog-edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="catalog-edit-minimumStock">Minimum Stock</Label>
+                    <Input id="catalog-edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="catalog-edit-maintainStock">Maintain Stock At</Label>
+                    <Input id="catalog-edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Photo Section */}
+              <div className="space-y-2 border-t pt-4">
+                <Label htmlFor="catalog-edit-photo">Product Photo</Label>
+                <div className="flex items-center gap-4">
+                  {form.photoUrl ? (
+                    <div className="relative h-20 w-20 rounded-md border overflow-hidden">
+                      <img
+                        src={form.photoUrl}
+                        alt="Product preview"
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, photoUrl: "" })}
+                        className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-8 w-8" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Photo
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
+                <Button variant="destructive" size="lg" onClick={() => handleDelete(form.id)}>Delete</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
