@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "./ui/sidebar";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, ClipboardList, Shield, Settings } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, ClipboardList, Shield } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
@@ -101,11 +101,14 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
         )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        {/* User Profile Section */}
+        {/* User Profile Section - Clickable to navigate to profile */}
         {user && (
           <>
-            <div className="mb-3 px-2">
-              <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCurrentView("profile")}
+              className="mb-3 px-2 w-full text-left rounded-md hover:bg-sidebar-accent transition-colors"
+            >
+              <div className="flex items-center gap-3 py-1">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                   <User className="h-4 w-4 text-primary" />
                 </div>
@@ -118,21 +121,12 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
             <Separator className="mb-2" />
           </>
         )}
 
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => setCurrentView("profile")}
-              isActive={currentView === "profile"}
-            >
-              <Settings className="h-4 w-4" />
-              <span>My Profile</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={() => setTheme(theme === "dark" ? "light" : "dark") }>
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
