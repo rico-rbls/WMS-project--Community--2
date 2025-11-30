@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -37,7 +37,7 @@ import {
   getInventory,
   bulkDeletePurchaseOrders,
 } from "../services/api";
-import type { PurchaseOrder, POStatus, POLineItem, Supplier, InventoryItem } from "../types";
+import type { PurchaseOrder, POStatus, Supplier, InventoryItem } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { useDebounce } from "../hooks/useDebounce";
@@ -46,7 +46,6 @@ import { useBatchSelection } from "../hooks/useBatchSelection";
 import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
-import { cn } from "./ui/utils";
 import { useAuth } from "../context/auth-context";
 import { getUserRole, hasPermission } from "../lib/permissions";
 
@@ -102,6 +101,10 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   // Bulk operations
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const list = useMemo(() => purchaseOrdersData ?? [], [purchaseOrdersData]);
+
   const {
     selectedIds,
     toggleItem,
@@ -112,10 +115,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     selectionCount,
     hasSelection,
     deselectAll,
-  } = useBatchSelection<string>();
-
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const list = useMemo<PurchaseOrder[]>(() => purchaseOrdersData ?? [], [purchaseOrdersData]);
+  } = useBatchSelection(list);
 
   // Fetch data on mount
   useEffect(() => {
@@ -206,7 +206,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     return result;
   }, [list, debouncedSearchTerm, filterStatus, sortColumn, sortDirection]);
 
-  const { paginatedData, currentPage, totalPages, setCurrentPage, pageSize, setPageSize } = usePagination(filteredData, 10);
+  const { paginatedData, currentPage, totalPages, goToPage, itemsPerPage, totalItems } = usePagination<PurchaseOrder>(filteredData, 10);
 
   const handleSort = (column: keyof PurchaseOrder) => {
     if (sortColumn === column) {
@@ -423,7 +423,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const handleReceive = async (id: string) => {
     try {
-      const receivedItems = Object.entries(receiveForm)
+      const receivedItems = (Object.entries(receiveForm) as [string, number][])
         .filter(([_, qty]) => qty > 0)
         .map(([inventoryItemId, quantityReceived]) => ({ inventoryItemId, quantityReceived }));
 
@@ -510,7 +510,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   if (isLoading) {
     return (
       <div className="p-6">
-        <TableLoadingSkeleton rows={8} columns={7} />
+        <TableLoadingSkeleton rows={8} />
       </div>
     );
   }
@@ -675,8 +675,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       {/* Bulk Actions */}
       {hasSelection && canDelete && (
         <BulkActionsToolbar
-          selectedCount={selectionCount}
-          onDeselectAll={deselectAll}
+          selectionCount={selectionCount}
+          onClearSelection={deselectAll}
           actions={[
             { label: "Delete Selected", onClick: () => setBulkDeleteOpen(true), variant: "destructive" },
           ]}
@@ -689,7 +689,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
           icon={ShoppingBag}
           title="No purchase orders found"
           description={searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : "Create your first purchase order to get started"}
-          action={canCreate ? { label: "Create PO", onClick: () => setIsAddOpen(true) } : undefined}
+          actionLabel={canCreate ? "Create PO" : undefined}
+          onAction={canCreate ? () => setIsAddOpen(true) : undefined}
         />
       ) : (
         <>
@@ -795,10 +796,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-            totalItems={filteredData.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={goToPage}
+            totalItems={totalItems}
           />
         </>
       )}

@@ -1,4 +1,4 @@
-import { useMemo, useState, memo, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -236,8 +236,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
       if (!result.success) {
         const errors: Record<string, string> = {};
-        if (result.error && result.error.errors) {
-          result.error.errors.forEach((err) => {
+        if (result.error && result.error.issues) {
+          result.error.issues.forEach((err) => {
             const path = err.path.join(".");
             errors[path] = err.message;
           });
@@ -342,7 +342,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const handleBulkDelete = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
+      const ids = Array.from(selectedIds) as string[];
       const result = await bulkDeleteInventoryItems(ids);
 
       // Update local state - remove deleted items
@@ -369,7 +369,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
     setIsBulkUpdating(true);
     try {
-      const ids = Array.from(selectedIds);
+      const ids = Array.from(selectedIds) as string[];
       let updates: Partial<InventoryItem> = {};
 
       switch (bulkUpdateType) {
