@@ -27,8 +27,8 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems } from "../services/api";
-import type { InventoryCategory, InventoryItem, SavedSearch } from "../types";
+import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier } from "../services/api";
+import type { InventoryCategory, InventoryItem, SavedSearch, Supplier } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { useInventory, useSuppliers } from "../context/app-context";
@@ -90,7 +90,7 @@ interface InventoryViewProps {
 
 export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryViewProps) {
   const { inventory, isLoading, setInventory } = useInventory();
-  const { suppliers } = useSuppliers();
+  const { suppliers, setSuppliers } = useSuppliers();
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
@@ -127,6 +127,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline supplier creation states
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({
+    name: "",
+    contact: "",
+    email: "",
+    phone: "",
+    category: "",
+  });
 
   // Open dialog when triggered from Dashboard Quick Actions
   useEffect(() => {
@@ -274,6 +285,45 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       photoUrl: "",
     });
     setFieldErrors({});
+  }
+
+  function resetSupplierForm() {
+    setSupplierForm({
+      name: "",
+      contact: "",
+      email: "",
+      phone: "",
+      category: "",
+    });
+  }
+
+  async function handleCreateSupplier() {
+    if (!supplierForm.name.trim() || !supplierForm.contact.trim() || !supplierForm.email.trim() || !supplierForm.phone.trim() || !supplierForm.category.trim()) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    setIsCreatingSupplier(true);
+    try {
+      const created = await createSupplier({
+        name: supplierForm.name,
+        contact: supplierForm.contact,
+        email: supplierForm.email,
+        phone: supplierForm.phone,
+        category: supplierForm.category,
+        status: "Active",
+      });
+      // Add new supplier to the context so it appears in all dropdowns
+      setSuppliers((prev: Supplier[] | null) => [created, ...(prev ?? [])]);
+      // Select the newly created supplier in the form
+      setForm(prev => ({ ...prev, supplierId: created.id }));
+      setIsAddSupplierOpen(false);
+      resetSupplierForm();
+      toast.success(`Supplier "${created.name}" created and selected`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create supplier");
+    } finally {
+      setIsCreatingSupplier(false);
+    }
   }
 
   // Handler to update location when category changes (for Add dialog only)
@@ -866,19 +916,93 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="supplier">Supplier</Label>
-                        <Select value={form.supplierId} onValueChange={(v) => {
-                          setForm({ ...form, supplierId: v });
-                          clearFieldError("supplierId");
-                        }}>
-                          <SelectTrigger id="supplier" className={fieldErrors.supplierId ? "border-red-500" : ""}>
-                            <SelectValue placeholder="Select supplier" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {suppliers?.filter(s => s.status === "Active").map((s) => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-2">
+                          <Select value={form.supplierId} onValueChange={(v) => {
+                            setForm({ ...form, supplierId: v });
+                            clearFieldError("supplierId");
+                          }}>
+                            <SelectTrigger id="supplier" className={cn("flex-1", fieldErrors.supplierId ? "border-red-500" : "")}>
+                              <SelectValue placeholder="Select supplier" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {suppliers?.filter(s => s.status === "Active").map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Dialog open={isAddSupplierOpen} onOpenChange={(open) => {
+                            setIsAddSupplierOpen(open);
+                            if (!open) resetSupplierForm();
+                          }}>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="icon" title="Add New Supplier">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md">
+                              <DialogHeader>
+                                <DialogTitle>Add New Supplier</DialogTitle>
+                                <DialogDescription>Create a new supplier to use for this inventory item.</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-supplier-name">Company Name <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    id="new-supplier-name"
+                                    placeholder="Enter company name"
+                                    value={supplierForm.name}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-supplier-contact">Contact Person <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    id="new-supplier-contact"
+                                    placeholder="Enter contact name"
+                                    value={supplierForm.contact}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-supplier-email">Email <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    id="new-supplier-email"
+                                    type="email"
+                                    placeholder="email@example.com"
+                                    value={supplierForm.email}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-supplier-phone">Phone <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    id="new-supplier-phone"
+                                    placeholder="+1 (555) 000-0000"
+                                    value={supplierForm.phone}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-supplier-category">Category <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    id="new-supplier-category"
+                                    placeholder="e.g., Electronics"
+                                    value={supplierForm.category}
+                                    onChange={(e) => setSupplierForm({ ...supplierForm, category: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsAddSupplierOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleCreateSupplier} disabled={isCreatingSupplier}>
+                                  {isCreatingSupplier ? "Creating..." : "Create Supplier"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                         {fieldErrors.supplierId && <p className="text-sm text-red-500">{fieldErrors.supplierId}</p>}
                       </div>
                     </div>
@@ -1384,16 +1508,90 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   </div>
                                   <div className="space-y-2">
                                     <Label htmlFor="edit-supplier">Supplier</Label>
-                                    <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
-                                      <SelectTrigger id="edit-supplier">
-                                        <SelectValue placeholder="Select supplier" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {suppliers?.filter(s => s.status === "Active").map((s) => (
-                                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2">
+                                      <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
+                                        <SelectTrigger id="edit-supplier" className="flex-1">
+                                          <SelectValue placeholder="Select supplier" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {suppliers?.filter(s => s.status === "Active").map((s) => (
+                                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <Dialog open={isAddSupplierOpen} onOpenChange={(open) => {
+                                        setIsAddSupplierOpen(open);
+                                        if (!open) resetSupplierForm();
+                                      }}>
+                                        <DialogTrigger asChild>
+                                          <Button type="button" variant="outline" size="icon" title="Add New Supplier">
+                                            <Plus className="h-4 w-4" />
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-md">
+                                          <DialogHeader>
+                                            <DialogTitle>Add New Supplier</DialogTitle>
+                                            <DialogDescription>Create a new supplier to use for this inventory item.</DialogDescription>
+                                          </DialogHeader>
+                                          <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                              <Label htmlFor="edit-new-supplier-name">Company Name <span className="text-red-500">*</span></Label>
+                                              <Input
+                                                id="edit-new-supplier-name"
+                                                placeholder="Enter company name"
+                                                value={supplierForm.name}
+                                                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="edit-new-supplier-contact">Contact Person <span className="text-red-500">*</span></Label>
+                                              <Input
+                                                id="edit-new-supplier-contact"
+                                                placeholder="Enter contact name"
+                                                value={supplierForm.contact}
+                                                onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })}
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="edit-new-supplier-email">Email <span className="text-red-500">*</span></Label>
+                                              <Input
+                                                id="edit-new-supplier-email"
+                                                type="email"
+                                                placeholder="email@example.com"
+                                                value={supplierForm.email}
+                                                onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="edit-new-supplier-phone">Phone <span className="text-red-500">*</span></Label>
+                                              <Input
+                                                id="edit-new-supplier-phone"
+                                                placeholder="+1 (555) 000-0000"
+                                                value={supplierForm.phone}
+                                                onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="edit-new-supplier-category">Category <span className="text-red-500">*</span></Label>
+                                              <Input
+                                                id="edit-new-supplier-category"
+                                                placeholder="e.g., Electronics"
+                                                value={supplierForm.category}
+                                                onChange={(e) => setSupplierForm({ ...supplierForm, category: e.target.value })}
+                                              />
+                                            </div>
+                                          </div>
+                                          <DialogFooter>
+                                            <Button variant="outline" onClick={() => setIsAddSupplierOpen(false)}>
+                                              Cancel
+                                            </Button>
+                                            <Button onClick={handleCreateSupplier} disabled={isCreatingSupplier}>
+                                              {isCreatingSupplier ? "Creating..." : "Create Supplier"}
+                                            </Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
+                                    </div>
                                   </div>
                                 </div>
 

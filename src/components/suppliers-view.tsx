@@ -25,8 +25,8 @@ import { Label } from "./ui/label";
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
-import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus } from "../services/api";
-import type { Supplier, SavedSearch } from "../types";
+import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus, getPurchaseOrders, getInventory } from "../services/api";
+import type { Supplier, SavedSearch, PurchaseOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -59,6 +59,8 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
   const [searchTerm, setSearchTerm] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
+  const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[]>([]);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
@@ -78,8 +80,14 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const data = await getSuppliers();
-      setSuppliersData(data);
+      const [suppliers, purchaseOrders, inventory] = await Promise.all([
+        getSuppliers(),
+        getPurchaseOrders(),
+        getInventory(),
+      ]);
+      setSuppliersData(suppliers);
+      setPurchaseOrdersData(purchaseOrders);
+      setInventoryData(inventory);
       setIsLoading(false);
     })();
   }, []);
@@ -93,6 +101,68 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
   }, [initialOpenDialog, onDialogOpened, isAddOpen]);
 
   const list = useMemo<Supplier[]>(() => suppliersData ?? [], [suppliersData]);
+
+  // Calculate supplier statistics
+  const supplierStats = useMemo(() => {
+    const totalSuppliers = list.length;
+    const activeSuppliers = list.filter(s => s.status === "Active").length;
+    const inactiveSuppliers = list.filter(s => s.status === "Inactive").length;
+    const uniqueCategories = new Set(list.map(s => s.category)).size;
+
+    // Calculate PO-related stats
+    const totalPurchaseOrders = purchaseOrdersData.length;
+    const poBySupplier = purchaseOrdersData.reduce((acc, po) => {
+      acc[po.supplierId] = (acc[po.supplierId] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Find top supplier by PO count
+    let topSupplierByPO: { id: string; name: string; count: number } | null = null;
+    if (Object.keys(poBySupplier).length > 0) {
+      const topSupplierId = Object.entries(poBySupplier).sort((a, b) => b[1] - a[1])[0];
+      const supplier = list.find(s => s.id === topSupplierId[0]);
+      if (supplier) {
+        topSupplierByPO = { id: supplier.id, name: supplier.name, count: topSupplierId[1] };
+      }
+    }
+
+    // Calculate total PO value by supplier
+    const poValueBySupplier = purchaseOrdersData.reduce((acc, po) => {
+      acc[po.supplierId] = (acc[po.supplierId] || 0) + po.totalAmount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Find top supplier by value
+    let topSupplierByValue: { id: string; name: string; value: number } | null = null;
+    if (Object.keys(poValueBySupplier).length > 0) {
+      const topSupplierId = Object.entries(poValueBySupplier).sort((a, b) => b[1] - a[1])[0];
+      const supplier = list.find(s => s.id === topSupplierId[0]);
+      if (supplier) {
+        topSupplierByValue = { id: supplier.id, name: supplier.name, value: topSupplierId[1] };
+      }
+    }
+
+    // Count products per supplier
+    const productsBySupplier = inventoryData.reduce((acc, item) => {
+      if (item.supplierId) {
+        acc[item.supplierId] = (acc[item.supplierId] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    const suppliersWithProducts = Object.keys(productsBySupplier).length;
+
+    return {
+      totalSuppliers,
+      activeSuppliers,
+      inactiveSuppliers,
+      uniqueCategories,
+      totalPurchaseOrders,
+      topSupplierByPO,
+      topSupplierByValue,
+      suppliersWithProducts,
+    };
+  }, [list, purchaseOrdersData, inventoryData]);
 
   // Optimized filtering with early returns and debounced search
   const filteredSuppliers = useMemo(() => {
@@ -276,21 +346,42 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">Total Suppliers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">48</div>
+            <div className="text-2xl font-bold">{supplierStats.totalSuppliers}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {supplierStats.activeSuppliers} active, {supplierStats.inactiveSuppliers} inactive
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">Active Suppliers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">42</div>
+            <div className="text-2xl font-bold text-green-600">{supplierStats.activeSuppliers}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {supplierStats.totalSuppliers > 0
+                ? `${Math.round((supplierStats.activeSuppliers / supplierStats.totalSuppliers) * 100)}% of total`
+                : "No suppliers yet"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Total Purchase Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{supplierStats.totalPurchaseOrders}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {supplierStats.topSupplierByPO
+                ? `Top: ${supplierStats.topSupplierByPO.name} (${supplierStats.topSupplierByPO.count})`
+                : "No orders yet"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -298,7 +389,10 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
             <CardTitle className="text-sm text-muted-foreground">Categories</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">8</div>
+            <div className="text-2xl font-bold">{supplierStats.uniqueCategories}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {supplierStats.suppliersWithProducts} suppliers with products
+            </p>
           </CardContent>
         </Card>
       </div>
