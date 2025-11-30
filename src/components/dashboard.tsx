@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, RefreshCw, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, RefreshCw, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAppContext } from "../context/app-context";
 import { useIsMobile } from "./ui/use-mobile";
@@ -9,8 +9,9 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toast } from "sonner";
-import type { InventoryCategory } from "../types";
+import type { InventoryCategory, PurchaseOrder } from "../types";
 import type { ViewType } from "../App";
+import { getPurchaseOrders } from "../services/api";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -22,6 +23,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   const { inventory, orders, shipments, suppliers, isLoading, refreshInventory, refreshOrders, refreshShipments, refreshSuppliers } = useAppContext();
   const isMobile = useIsMobile();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+
+  // Fetch purchase orders
+  useEffect(() => {
+    getPurchaseOrders().then(setPurchaseOrders).catch(console.error);
+  }, []);
 
   const handleRefresh = async (silent = false) => {
     setIsRefreshing(true);
@@ -31,6 +38,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         refreshOrders(),
         refreshShipments(),
         refreshSuppliers(),
+        getPurchaseOrders().then(setPurchaseOrders),
       ]);
       if (!silent) {
         toast.success("Dashboard refreshed");
@@ -51,6 +59,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     const inTransit = shipments.filter(s => s.status === "In Transit").length;
     const lowStockItems = inventory.filter(i => i.status === "Low Stock" || i.status === "Critical");
 
+    // PO stats
+    const pendingPOs = purchaseOrders.filter(po =>
+      ["Pending Approval", "Approved", "Ordered"].includes(po.status)
+    );
+    const pendingPOValue = pendingPOs.reduce((sum, po) => sum + po.totalAmount, 0);
+
     return {
       totalItems,
       activeOrders,
@@ -61,8 +75,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       deliveredOrders: orders.filter(o => o.status === "Delivered").length,
       pendingShipments: shipments.filter(s => s.status === "Pending").length,
       activeSuppliers: suppliers?.filter(s => s.status === "Active").length || 0,
+      pendingPOCount: pendingPOs.length,
+      pendingPOValue,
     };
-  }, [inventory, orders, shipments, suppliers]);
+  }, [inventory, orders, shipments, suppliers, purchaseOrders]);
 
   // Calculate category distribution
   const categoryData = useMemo(() => {
@@ -143,7 +159,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
@@ -195,6 +211,19 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </p>
           </CardContent>
         </Card>
+
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("purchase-orders")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending POs</CardTitle>
+            <ClipboardList className="h-4 w-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingPOCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              ₱{stats.pendingPOValue.toLocaleString(undefined, { minimumFractionDigits: 2 })} value
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}
@@ -204,7 +233,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           <CardDescription>Frequently used operations</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
             <Button
               variant="outline"
               className="h-20 flex-col gap-2"
@@ -220,6 +249,14 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             >
               <ShoppingCart className="h-5 w-5" />
               <span className="text-sm">New Order</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("purchase-orders", true)}
+            >
+              <ClipboardList className="h-5 w-5" />
+              <span className="text-sm">Create PO</span>
             </Button>
             <Button
               variant="outline"

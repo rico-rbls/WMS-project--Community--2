@@ -8,6 +8,11 @@ import type {
   UpdateSupplierInput,
   Order,
   Shipment,
+  PurchaseOrder,
+  CreatePurchaseOrderInput,
+  UpdatePurchaseOrderInput,
+  POStatus,
+  POLineItem,
 } from "../types";
 
 // ============================================================================
@@ -19,6 +24,7 @@ const STORAGE_KEYS = {
   SUPPLIERS: 'wms_suppliers',
   ORDERS: 'wms_orders',
   SHIPMENTS: 'wms_shipments',
+  PURCHASE_ORDERS: 'wms_purchase_orders',
 } as const;
 
 /**
@@ -108,6 +114,80 @@ const DEFAULT_SHIPMENTS: Shipment[] = [
   { id: "SHIP-5683", orderId: "ORD-1239", destination: "Philadelphia, PA", carrier: "UPS", status: "In Transit", eta: "Oct 17, 2025" },
 ];
 
+const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
+  {
+    id: "PO-001",
+    supplierId: "SUP-001",
+    supplierName: "Tech Electronics Co",
+    items: [
+      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 50, unitPrice: 899.99, totalPrice: 44999.50, quantityReceived: 50 },
+      { inventoryItemId: "INV-007", itemName: "Keyboard Mechanical", quantity: 100, unitPrice: 129.99, totalPrice: 12999.00, quantityReceived: 100 },
+    ],
+    totalAmount: 57998.50,
+    status: "Received",
+    createdBy: "1",
+    createdDate: "2025-10-01",
+    approvedBy: "1",
+    approvedDate: "2025-10-02",
+    receivedDate: "2025-10-10",
+    notes: "Q4 restock order",
+    expectedDeliveryDate: "2025-10-10",
+    actualCost: 57998.50,
+  },
+  {
+    id: "PO-002",
+    supplierId: "SUP-002",
+    supplierName: "Furniture Plus",
+    items: [
+      { inventoryItemId: "INV-002", itemName: "Office Chair", quantity: 30, unitPrice: 549.00, totalPrice: 16470.00 },
+      { inventoryItemId: "INV-003", itemName: "Standing Desk", quantity: 20, unitPrice: 799.00, totalPrice: 15980.00 },
+    ],
+    totalAmount: 32450.00,
+    status: "Ordered",
+    createdBy: "1",
+    createdDate: "2025-10-15",
+    approvedBy: "1",
+    approvedDate: "2025-10-16",
+    receivedDate: null,
+    notes: "Office expansion order",
+    expectedDeliveryDate: "2025-11-01",
+  },
+  {
+    id: "PO-003",
+    supplierId: "SUP-003",
+    supplierName: "Office Supply Hub",
+    items: [
+      { inventoryItemId: "INV-004", itemName: "Wireless Mouse", quantity: 100, unitPrice: 29.99, totalPrice: 2999.00 },
+    ],
+    totalAmount: 2999.00,
+    status: "Pending Approval",
+    createdBy: "2",
+    createdDate: "2025-10-20",
+    approvedBy: null,
+    approvedDate: null,
+    receivedDate: null,
+    notes: "Urgent restock for critical stock item",
+    expectedDeliveryDate: "2025-10-30",
+  },
+  {
+    id: "PO-004",
+    supplierId: "SUP-001",
+    supplierName: "Tech Electronics Co",
+    items: [
+      { inventoryItemId: "INV-006", itemName: "Monitor 27\"", quantity: 25, unitPrice: 349.99, totalPrice: 8749.75 },
+    ],
+    totalAmount: 8749.75,
+    status: "Draft",
+    createdBy: "1",
+    createdDate: "2025-10-22",
+    approvedBy: null,
+    approvedDate: null,
+    receivedDate: null,
+    notes: "",
+    expectedDeliveryDate: "2025-11-15",
+  },
+];
+
 // ============================================================================
 // In-Memory Store (loaded from localStorage or defaults)
 // ============================================================================
@@ -152,6 +232,7 @@ let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STOR
 let suppliers: Supplier[] = loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS);
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
+let purchaseOrders: PurchaseOrder[] = loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS);
 
 // Save migrated orders back to localStorage
 saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
@@ -183,6 +264,14 @@ function generateSupplierId(): string {
     .reduce((a, b) => Math.max(a, b), 0);
   const next = maxNum + 1;
   return `SUP-${String(next).padStart(3, "0")}`;
+}
+
+function generatePurchaseOrderId(): string {
+  const maxNum = purchaseOrders
+    .map((po) => Number(po.id.replace(/[^0-9]/g, "")) || 0)
+    .reduce((a, b) => Math.max(a, b), 0);
+  const next = maxNum + 1;
+  return `PO-${String(next).padStart(3, "0")}`;
 }
 
 function delay<T>(value: T, ms = 150): Promise<T> {
@@ -616,4 +705,358 @@ export async function bulkUpdateSupplierStatus(
     failedCount: errors.length,
     errors,
   });
+}
+
+// ============================================================================
+// Purchase Orders CRUD Operations
+// ============================================================================
+
+export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
+  return delay([...purchaseOrders]);
+}
+
+export async function getPurchaseOrder(id: string): Promise<PurchaseOrder | null> {
+  const po = purchaseOrders.find((p) => p.id === id);
+  return delay(po ?? null);
+}
+
+export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Promise<PurchaseOrder> {
+  const id = input.id && input.id.trim() !== "" ? input.id : generatePurchaseOrderId();
+  if (purchaseOrders.some((po) => po.id === id)) {
+    throw new Error(`Purchase Order with id ${id} already exists`);
+  }
+
+  const totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+
+  const po: PurchaseOrder = {
+    id,
+    supplierId: input.supplierId,
+    supplierName: input.supplierName,
+    items: input.items.map(item => ({ ...item, quantityReceived: 0 })),
+    totalAmount,
+    status: "Draft",
+    createdBy: input.createdBy,
+    createdDate: new Date().toISOString().split('T')[0],
+    approvedBy: null,
+    approvedDate: null,
+    receivedDate: null,
+    notes: input.notes ?? "",
+    expectedDeliveryDate: input.expectedDeliveryDate,
+  };
+
+  purchaseOrders = [po, ...purchaseOrders];
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(po);
+}
+
+export async function updatePurchaseOrder(input: UpdatePurchaseOrderInput): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === input.id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const prev = purchaseOrders[index];
+  const next: PurchaseOrder = { ...prev, ...input } as PurchaseOrder;
+
+  // Recalculate total if items changed
+  if (input.items) {
+    next.totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  }
+
+  purchaseOrders[index] = next;
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(next);
+}
+
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  // Only allow deletion of Draft or Cancelled POs
+  if (!["Draft", "Cancelled", "Rejected"].includes(po.status)) {
+    throw new Error("Can only delete Draft, Cancelled, or Rejected purchase orders");
+  }
+
+  purchaseOrders.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  await delay(undefined);
+}
+
+// ============================================================================
+// Purchase Order Approval Workflow
+// ============================================================================
+
+export async function submitPOForApproval(id: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  if (po.status !== "Draft") {
+    throw new Error("Only Draft purchase orders can be submitted for approval");
+  }
+
+  purchaseOrders[index] = { ...po, status: "Pending Approval" };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function approvePO(id: string, approverId: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  if (po.status !== "Pending Approval") {
+    throw new Error("Only Pending Approval purchase orders can be approved");
+  }
+
+  purchaseOrders[index] = {
+    ...po,
+    status: "Approved",
+    approvedBy: approverId,
+    approvedDate: new Date().toISOString().split('T')[0],
+  };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function rejectPO(id: string, approverId: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  if (po.status !== "Pending Approval") {
+    throw new Error("Only Pending Approval purchase orders can be rejected");
+  }
+
+  purchaseOrders[index] = {
+    ...po,
+    status: "Rejected",
+    approvedBy: approverId,
+    approvedDate: new Date().toISOString().split('T')[0],
+  };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function markPOAsOrdered(id: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  if (po.status !== "Approved") {
+    throw new Error("Only Approved purchase orders can be marked as ordered");
+  }
+
+  purchaseOrders[index] = { ...po, status: "Ordered" };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function cancelPO(id: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[index];
+  if (["Received", "Cancelled"].includes(po.status)) {
+    throw new Error("Cannot cancel received or already cancelled purchase orders");
+  }
+
+  purchaseOrders[index] = { ...po, status: "Cancelled" };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+// ============================================================================
+// Receive Purchase Order & Inventory Update
+// ============================================================================
+
+export interface ReceiveItem {
+  inventoryItemId: string;
+  quantityReceived: number;
+}
+
+export interface ReceivePOResult {
+  purchaseOrder: PurchaseOrder;
+  inventoryUpdates: { itemId: string; itemName: string; previousQty: number; newQty: number }[];
+}
+
+export async function receivePurchaseOrder(
+  id: string,
+  receivedItems: ReceiveItem[],
+  actualCost?: number
+): Promise<ReceivePOResult> {
+  const poIndex = purchaseOrders.findIndex((po) => po.id === id);
+  if (poIndex === -1) throw new Error("Purchase Order not found");
+
+  const po = purchaseOrders[poIndex];
+  if (!["Ordered", "Partially Received"].includes(po.status)) {
+    throw new Error("Can only receive items for Ordered or Partially Received purchase orders");
+  }
+
+  const inventoryUpdates: { itemId: string; itemName: string; previousQty: number; newQty: number }[] = [];
+
+  // Update PO items with received quantities
+  const updatedItems = po.items.map((item) => {
+    const receivedItem = receivedItems.find((r) => r.inventoryItemId === item.inventoryItemId);
+    if (!receivedItem) return item;
+
+    const previousReceived = item.quantityReceived ?? 0;
+    const newReceived = previousReceived + receivedItem.quantityReceived;
+
+    // Validate received quantity
+    if (newReceived > item.quantity) {
+      throw new Error(`Cannot receive more than ordered quantity for ${item.itemName}`);
+    }
+
+    // Update inventory
+    const invIndex = inventory.findIndex((i) => i.id === item.inventoryItemId);
+    if (invIndex !== -1) {
+      const previousQty = inventory[invIndex].quantity;
+      const newQty = previousQty + receivedItem.quantityReceived;
+
+      inventory[invIndex] = {
+        ...inventory[invIndex],
+        quantity: newQty,
+        status: computeStatus(newQty, inventory[invIndex].reorderLevel),
+      };
+
+      inventoryUpdates.push({
+        itemId: item.inventoryItemId,
+        itemName: item.itemName,
+        previousQty,
+        newQty,
+      });
+    }
+
+    return { ...item, quantityReceived: newReceived };
+  });
+
+  // Determine if all items are fully received
+  const allReceived = updatedItems.every((item) => (item.quantityReceived ?? 0) >= item.quantity);
+  const anyReceived = updatedItems.some((item) => (item.quantityReceived ?? 0) > 0);
+
+  let newStatus: POStatus = po.status;
+  let receivedDate = po.receivedDate;
+
+  if (allReceived) {
+    newStatus = "Received";
+    receivedDate = new Date().toISOString().split('T')[0];
+  } else if (anyReceived) {
+    newStatus = "Partially Received";
+  }
+
+  purchaseOrders[poIndex] = {
+    ...po,
+    items: updatedItems,
+    status: newStatus,
+    receivedDate,
+    actualCost: actualCost ?? po.actualCost,
+  };
+
+  // Save both to localStorage
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay({
+    purchaseOrder: purchaseOrders[poIndex],
+    inventoryUpdates,
+  });
+}
+
+// ============================================================================
+// Purchase Order Bulk Operations
+// ============================================================================
+
+export async function bulkDeletePurchaseOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = purchaseOrders.findIndex((po) => po.id === id);
+    if (index === -1) {
+      errors.push(`PO ${id} not found`);
+    } else {
+      const po = purchaseOrders[index];
+      if (!["Draft", "Cancelled", "Rejected"].includes(po.status)) {
+        errors.push(`PO ${id}: Can only delete Draft, Cancelled, or Rejected orders`);
+      } else {
+        purchaseOrders.splice(index, 1);
+        successCount++;
+      }
+    }
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+// ============================================================================
+// Purchase Order Statistics
+// ============================================================================
+
+export async function getPurchaseOrderStats(): Promise<{
+  total: number;
+  draft: number;
+  pendingApproval: number;
+  approved: number;
+  ordered: number;
+  partiallyReceived: number;
+  received: number;
+  cancelled: number;
+  rejected: number;
+  totalValue: number;
+  pendingValue: number;
+}> {
+  const stats = {
+    total: purchaseOrders.length,
+    draft: 0,
+    pendingApproval: 0,
+    approved: 0,
+    ordered: 0,
+    partiallyReceived: 0,
+    received: 0,
+    cancelled: 0,
+    rejected: 0,
+    totalValue: 0,
+    pendingValue: 0,
+  };
+
+  purchaseOrders.forEach((po) => {
+    stats.totalValue += po.totalAmount;
+
+    switch (po.status) {
+      case "Draft": stats.draft++; break;
+      case "Pending Approval":
+        stats.pendingApproval++;
+        stats.pendingValue += po.totalAmount;
+        break;
+      case "Approved":
+        stats.approved++;
+        stats.pendingValue += po.totalAmount;
+        break;
+      case "Ordered":
+        stats.ordered++;
+        stats.pendingValue += po.totalAmount;
+        break;
+      case "Partially Received": stats.partiallyReceived++; break;
+      case "Received": stats.received++; break;
+      case "Cancelled": stats.cancelled++; break;
+      case "Rejected": stats.rejected++; break;
+    }
+  });
+
+  return delay(stats);
 }

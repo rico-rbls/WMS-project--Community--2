@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "./ui/sidebar";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, Star, Bookmark, AlertTriangle, Clock, FileText } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, Star, Bookmark, AlertTriangle, Clock, FileText, ClipboardList } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
@@ -39,6 +39,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "dashboard" as ViewType, label: "Dashboard", icon: LayoutDashboard },
     { id: "inventory" as ViewType, label: "Inventory", icon: Package },
     { id: "orders" as ViewType, label: "Orders", icon: ShoppingCart },
+    { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
     { id: "shipments" as ViewType, label: "Shipments", icon: Truck },
     { id: "suppliers" as ViewType, label: "Suppliers", icon: Users },
   ];
@@ -49,6 +50,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     switch (entityType) {
       case "inventory": return Package;
       case "orders": return ShoppingCart;
+      case "purchase-orders": return ClipboardList;
       case "shipments": return Truck;
       case "suppliers": return Users;
       default: return Package;

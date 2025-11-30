@@ -59,3 +59,31 @@ export const inventoryItemSchema = z.object({
 );
 
 export type InventoryItemInput = z.infer<typeof inventoryItemSchema>;
+
+// Purchase Order validation schema
+export const poLineItemSchema = z.object({
+  inventoryItemId: z.string().min(1, "Item is required"),
+  itemName: z.string().min(1, "Item name is required"),
+  quantity: z.number().int("Quantity must be a whole number").min(1, "Quantity must be at least 1"),
+  unitPrice: z.number().positive("Unit price must be positive"),
+  totalPrice: z.number().positive("Total price must be positive"),
+});
+
+export const purchaseOrderSchema = z.object({
+  supplierId: z.string()
+    .min(1, "Supplier is required")
+    .regex(/^SUP-\d+$/, "Invalid supplier ID format"),
+  supplierName: z.string().min(1, "Supplier name is required"),
+  items: z.array(poLineItemSchema).min(1, "At least one item is required"),
+  expectedDeliveryDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+    .refine((date) => {
+      const expectedDate = new Date(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return expectedDate >= today;
+    }, "Expected delivery date must be today or in the future"),
+  notes: z.string().optional(),
+});
+
+export type PurchaseOrderInput = z.infer<typeof purchaseOrderSchema>;

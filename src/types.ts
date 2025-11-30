@@ -95,7 +95,7 @@ export interface Shipment {
 }
 
 // Favorites & Bookmarks Types
-export type EntityType = "inventory" | "orders" | "shipments" | "suppliers";
+export type EntityType = "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers";
 
 export interface FavoriteItem {
   id: string;
@@ -120,4 +120,65 @@ export interface QuickLink {
   entityType: EntityType;
   filters: Record<string, string | string[]>;
   icon?: string;
+}
+
+// Purchase Order Types
+export type POStatus =
+  | "Draft"
+  | "Pending Approval"
+  | "Approved"
+  | "Rejected"
+  | "Ordered"
+  | "Partially Received"
+  | "Received"
+  | "Cancelled";
+
+export interface POLineItem {
+  inventoryItemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  quantityReceived?: number; // Track received quantities
+}
+
+export interface PurchaseOrder {
+  id: string; // Format: PO-001, PO-002, etc.
+  supplierId: string;
+  supplierName: string;
+  items: POLineItem[];
+  totalAmount: number;
+  status: POStatus;
+  createdBy: string;
+  createdDate: string; // ISO date
+  approvedBy: string | null;
+  approvedDate: string | null;
+  receivedDate: string | null;
+  notes: string;
+  expectedDeliveryDate: string; // ISO date
+  actualCost?: number; // Actual cost when received (for variance tracking)
+}
+
+export interface CreatePurchaseOrderInput {
+  id?: string;
+  supplierId: string;
+  supplierName: string;
+  items: Omit<POLineItem, 'quantityReceived'>[];
+  expectedDeliveryDate: string;
+  notes?: string;
+  createdBy: string;
+}
+
+export interface UpdatePurchaseOrderInput {
+  id: string;
+  supplierId?: string;
+  supplierName?: string;
+  items?: POLineItem[];
+  expectedDeliveryDate?: string;
+  notes?: string;
+  status?: POStatus;
+  approvedBy?: string;
+  approvedDate?: string;
+  receivedDate?: string;
+  actualCost?: number;
 }

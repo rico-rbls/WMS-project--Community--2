@@ -5,6 +5,7 @@ import React from "react";
 const Dashboard = React.lazy(() => import("./components/dashboard").then(m => ({ default: m.Dashboard })));
 const InventoryView = React.lazy(() => import("./components/inventory-view").then(m => ({ default: m.InventoryView })));
 const OrdersView = React.lazy(() => import("./components/orders-view").then(m => ({ default: m.OrdersView })));
+const PurchaseOrdersView = React.lazy(() => import("./components/purchase-orders-view").then(m => ({ default: m.PurchaseOrdersView })));
 const ShipmentsView = React.lazy(() => import("./components/shipments-view").then(m => ({ default: m.ShipmentsView })));
 const SuppliersView = React.lazy(() => import("./components/suppliers-view").then(m => ({ default: m.SuppliersView })));
 import { Toaster } from "./components/ui/sonner";
@@ -13,7 +14,7 @@ import { LoginPage } from "./components/login-page";
 import { useAuth } from "./context/auth-context";
 import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
-export type ViewType = "dashboard" | "inventory" | "orders" | "shipments" | "suppliers";
+export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers";
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -70,6 +71,13 @@ export default function App() {
         return (
           <OrdersView
             initialOpenDialog={openAddDialog === "orders"}
+            onDialogOpened={clearOpenAddDialog}
+          />
+        );
+      case "purchase-orders":
+        return (
+          <PurchaseOrdersView
+            initialOpenDialog={openAddDialog === "purchase-orders"}
             onDialogOpened={clearOpenAddDialog}
           />
         );
