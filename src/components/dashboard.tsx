@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, RefreshCw, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, RefreshCw, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAppContext } from "../context/app-context";
 import { useIsMobile } from "./ui/use-mobile";
@@ -59,6 +59,30 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     const inTransit = shipments.filter(s => s.status === "In Transit").length;
     const lowStockItems = inventory.filter(i => i.status === "Low Stock" || i.status === "Critical");
 
+    // Enhanced low stock items with additional calculations
+    const enhancedLowStockItems = lowStockItems.map(item => {
+      const supplier = suppliers?.find(s => s.id === item.supplierId);
+      const recommendedQty = Math.max(0, (item.maintainStockAt || item.reorderLevel * 2) - item.quantity);
+      const stockPercentage = item.reorderLevel > 0 ? Math.round((item.quantity / item.reorderLevel) * 100) : 0;
+      const restockCost = recommendedQty * (item.pricePerPiece || 0);
+
+      return {
+        ...item,
+        supplierName: supplier?.name || "Unknown Supplier",
+        recommendedQty,
+        stockPercentage,
+        restockCost,
+        urgencyScore: item.status === "Critical" ? 2 : 1, // For sorting
+      };
+    }).sort((a, b) => {
+      // Sort by urgency (Critical first), then by stock percentage (lowest first)
+      if (a.urgencyScore !== b.urgencyScore) return b.urgencyScore - a.urgencyScore;
+      return a.stockPercentage - b.stockPercentage;
+    });
+
+    // Calculate total restock cost
+    const totalRestockCost = enhancedLowStockItems.reduce((sum, item) => sum + item.restockCost, 0);
+
     // PO stats
     const pendingPOs = purchaseOrders.filter(po =>
       ["Pending Approval", "Approved", "Ordered"].includes(po.status)
@@ -70,7 +94,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       activeOrders,
       inTransit,
       lowStockCount: lowStockItems.length,
-      lowStockItems,
+      lowStockItems: enhancedLowStockItems,
+      totalRestockCost,
       totalOrders: orders.length,
       deliveredOrders: orders.filter(o => o.status === "Delivered").length,
       pendingShipments: shipments.filter(s => s.status === "Pending").length,
@@ -150,10 +175,23 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertTitle className="text-orange-900 dark:text-orange-100">Low Stock Alert</AlertTitle>
           <AlertDescription className="text-orange-800 dark:text-orange-200">
-            {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
-            <Button variant="link" className="h-auto p-0 ml-2 text-orange-700 dark:text-orange-300" onClick={() => window.location.hash = "#inventory"}>
-              View items →
-            </Button>
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>
+                {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
+                {stats.totalRestockCost > 0 && (
+                  <span className="ml-1 font-medium">
+                    Estimated restock: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
+              </span>
+              <Button
+                variant="link"
+                className="h-auto p-0 text-orange-700 dark:text-orange-300 underline-offset-4 hover:underline"
+                onClick={() => navigateToView?.("inventory")}
+              >
+                View in Inventory →
+              </Button>
+            </span>
           </AlertDescription>
         </Alert>
       )}
@@ -339,41 +377,143 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </Card>
         </div>
 
-      {/* Low Stock Items List */}
+      {/* Low Stock Items List - Enhanced */}
       {stats.lowStockItems.length > 0 && (
         <Card className="border-orange-200 dark:border-orange-900">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              Low Stock Items
-            </CardTitle>
-            <CardDescription>Items that need reordering</CardDescription>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  Low Stock Items
+                  <Badge variant="outline" className="ml-2 text-orange-600 border-orange-300">
+                    {stats.lowStockCount} items
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Items below reorder level requiring attention
+                  {stats.totalRestockCost > 0 && (
+                    <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
+                      • Est. restock cost: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigateToView?.("purchase-orders", true)}
+                className="hidden sm:flex"
+              >
+                <ShoppingBag className="h-4 w-4 mr-2" />
+                Create PO
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {stats.lowStockItems.slice(0, 5).map((item) => (
-                <div key={item.id} className="flex items-center justify-between pb-3 border-b last:border-0">
-                  <div className="flex-1">
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.location} • {item.category}
-                    </p>
+            <div className="space-y-4">
+              {stats.lowStockItems.slice(0, 5).map((item) => {
+                const progressColor = item.status === "Critical"
+                  ? "bg-red-500"
+                  : item.stockPercentage < 50
+                    ? "bg-orange-500"
+                    : "bg-yellow-500";
+
+                return (
+                  <div key={item.id} className="space-y-2 pb-4 border-b last:border-0 last:pb-0">
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{item.name}</p>
+                          <Badge variant={item.status === "Critical" ? "destructive" : "secondary"} className="shrink-0">
+                            {item.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {item.supplierName} • {item.location} • {item.category}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
+                        onClick={() => navigateToView?.("purchase-orders", true)}
+                        title={`Create PO for ${item.name}`}
+                      >
+                        <ShoppingBag className="h-4 w-4 mr-1" />
+                        <span className="hidden sm:inline">Reorder</span>
+                      </Button>
+                    </div>
+
+                    {/* Stock Progress Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Stock: <span className="font-medium text-foreground">{item.quantity}</span> / {item.reorderLevel} (reorder level)
+                        </span>
+                        <span className={`font-medium ${item.status === "Critical" ? "text-red-600" : "text-orange-600"}`}>
+                          {item.stockPercentage}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${progressColor}`}
+                          style={{ width: `${Math.min(100, item.stockPercentage)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Reorder Info Row */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>
+                        Recommended order: <span className="font-medium text-foreground">{item.recommendedQty} units</span>
+                      </span>
+                      {item.restockCost > 0 && (
+                        <span>
+                          Est. cost: <span className="font-medium text-foreground">₱{item.restockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </span>
+                      )}
+                      {item.pricePerPiece > 0 && (
+                        <span>
+                          Unit price: ₱{item.pricePerPiece.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant={item.status === "Critical" ? "destructive" : "secondary"}>
-                      {item.quantity} left
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Reorder at {item.reorderLevel}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {stats.lowStockItems.length > 5 && (
-                <Button variant="link" className="w-full" onClick={() => window.location.hash = "#inventory"}>
-                  View all {stats.lowStockItems.length} items →
+                );
+              })}
+
+              {/* Footer with View All link */}
+              <div className="flex items-center justify-between pt-2">
+                {stats.lowStockItems.length > 5 ? (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-orange-600 hover:text-orange-700"
+                    onClick={() => navigateToView?.("inventory")}
+                  >
+                    View all {stats.lowStockItems.length} low stock items →
+                  </Button>
+                ) : (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-muted-foreground hover:text-foreground"
+                    onClick={() => navigateToView?.("inventory")}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    View in Inventory
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateToView?.("purchase-orders", true)}
+                  className="sm:hidden"
+                >
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Create PO
                 </Button>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>
