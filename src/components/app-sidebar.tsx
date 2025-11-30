@@ -52,13 +52,13 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2">
+      <SidebarHeader className="border-b border-sidebar-border p-2">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={handleLogoClick}
-                className="flex items-center gap-2 justify-center group-data-[collapsible=icon]:justify-center w-full cursor-pointer"
+                className="flex items-center gap-2 justify-start group-data-[collapsible=icon]:justify-center w-full cursor-pointer px-1 group-data-[collapsible=icon]:px-0"
                 aria-label="Refresh application"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary hover:bg-primary/90 transition-colors">
