@@ -136,10 +136,13 @@ export function UserManagementView() {
   // Check if current user is admin
   if (!currentUser || currentUser.role !== "Admin") {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="text-red-600">Access Denied</CardTitle>
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Card className="max-w-md w-full mx-4">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Shield className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle className="text-destructive">Access Denied</CardTitle>
             <CardDescription>You do not have permission to access user management.</CardDescription>
           </CardHeader>
         </Card>
@@ -148,15 +151,16 @@ export function UserManagementView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">Manage user accounts, roles, and permissions</p>
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">User Management</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage user accounts, roles, and permissions</p>
         </div>
         {pendingCount > 0 && (
-          <Badge variant="destructive" className="text-sm px-3 py-1">
+          <Badge variant="destructive" className="text-sm px-3 py-1.5 gap-1.5 self-start md:self-auto animate-pulse">
+            <Clock className="h-3.5 w-3.5" />
             {pendingCount} pending approval{pendingCount !== 1 ? "s" : ""}
           </Badge>
         )}
