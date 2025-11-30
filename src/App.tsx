@@ -1,5 +1,5 @@
 import { useState, Suspense, useCallback } from "react";
-import { SidebarProvider } from "./components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "./components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
 import React from "react";
 const Dashboard = React.lazy(() => import("./components/dashboard").then(m => ({ default: m.Dashboard })));
@@ -118,35 +118,33 @@ export default function App() {
   return (
     <ErrorBoundary onError={reportError}>
       <SidebarProvider>
-        <div className="flex h-screen w-full">
-          <AppSidebar currentView={currentView} setCurrentView={setCurrentView} />
-          <main className="flex-1 overflow-auto bg-muted/30">
-            <div className="p-6">
-              {/* Header with Search */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <div>
-                  <h1>Integrated Warehouse Management System</h1>
-                  <p className="text-muted-foreground">for Inventory and Supply Chain Coordination</p>
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto justify-start text-muted-foreground gap-2"
-                  onClick={() => setCommandPaletteOpen(true)}
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="hidden sm:inline">Search everything...</span>
-                  <span className="sm:hidden">Search...</span>
-                  <kbd className="hidden sm:inline-flex ml-auto pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
-                    <Command className="h-3 w-3" />K
-                  </kbd>
-                </Button>
+        <AppSidebar currentView={currentView} setCurrentView={setCurrentView} />
+        <SidebarInset className="overflow-auto bg-muted/30">
+          <div className="p-6">
+            {/* Header with Search */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h1>Integrated Warehouse Management System</h1>
+                <p className="text-muted-foreground">for Inventory and Supply Chain Coordination</p>
               </div>
-              <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
-                {renderView()}
-              </Suspense>
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto justify-start text-muted-foreground gap-2"
+                onClick={() => setCommandPaletteOpen(true)}
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden sm:inline">Search everything...</span>
+                <span className="sm:hidden">Search...</span>
+                <kbd className="hidden sm:inline-flex ml-auto pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
+                  <Command className="h-3 w-3" />K
+                </kbd>
+              </Button>
             </div>
-          </main>
-        </div>
+            <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
+              {renderView()}
+            </Suspense>
+          </div>
+        </SidebarInset>
 
         {/* Command Palette / Global Search */}
         <CommandPalette
