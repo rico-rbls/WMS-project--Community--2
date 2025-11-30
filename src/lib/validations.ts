@@ -41,13 +41,13 @@ export const inventoryItemSchema = z.object({
   category: z.enum(["Electronics", "Furniture", "Clothing", "Food"], {
     errorMap: () => ({ message: "Please select a valid category" }),
   }),
-  quantity: z.number()
+  quantity: z.coerce.number()
     .int("Quantity must be a whole number")
     .min(0, "Quantity cannot be negative"),
   location: z.string()
     .min(1, "Location is required")
     .regex(/^[A-Z]-\d+$/, "Location must be in format A-12 (Letter-Number)"),
-  reorderLevel: z.number()
+  reorderLevel: z.coerce.number()
     .int("Reorder level must be a whole number")
     .min(0, "Reorder level cannot be negative")
     .max(10000, "Reorder level seems too high"),
@@ -56,17 +56,17 @@ export const inventoryItemSchema = z.object({
     .min(1, "Brand is required")
     .min(2, "Brand must be at least 2 characters")
     .max(100, "Brand must be less than 100 characters"),
-  pricePerPiece: z.number()
+  pricePerPiece: z.coerce.number()
     .positive("Price per piece must be a positive number")
     .max(1000000, "Price per piece seems too high"),
   supplierId: z.string()
     .min(1, "Supplier is required")
     .regex(/^SUP-\d+$/, "Supplier ID must be in format SUP-001"),
-  maintainStockAt: z.number()
+  maintainStockAt: z.coerce.number()
     .int("Maintain stock at must be a whole number")
     .min(0, "Maintain stock at cannot be negative")
     .max(100000, "Maintain stock at seems too high"),
-  minimumStock: z.number()
+  minimumStock: z.coerce.number()
     .int("Minimum stock must be a whole number")
     .min(0, "Minimum stock cannot be negative")
     .max(100000, "Minimum stock seems too high"),
