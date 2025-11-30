@@ -38,6 +38,10 @@ import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
 import { SaveSearchDialog } from "./ui/save-search-dialog";
 import { useFavorites } from "../context/favorites-context";
+import { useTableSort } from "../hooks/useTableSort";
+import { SortableTableHead } from "./ui/sortable-table-head";
+import { useAuth } from "../context/auth-context";
+import { canWrite } from "../lib/permissions";
 
 interface SuppliersViewProps {
   initialOpenDialog?: boolean;
@@ -46,6 +50,8 @@ interface SuppliersViewProps {
 
 export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersViewProps) {
   const { isFavorite, getFavoritesByType } = useFavorites();
+  const { user } = useAuth();
+  const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
@@ -128,6 +134,14 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
     return filters;
   }, [showFavoritesOnly]);
 
+  // Sorting - applied before pagination
+  const {
+    sortedData,
+    sortConfig,
+    requestSort,
+    getSortDirection,
+  } = useTableSort<Supplier>(filteredSuppliers);
+
   // Pagination with 25 items per page
   const {
     currentPage,
@@ -136,7 +150,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
     goToPage,
     totalItems,
     itemsPerPage,
-  } = usePagination(filteredSuppliers, 25);
+  } = usePagination(sortedData, 25);
 
   // Batch selection
   const {
@@ -280,7 +294,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
 
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" }); }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" })}>
+                  <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" })} disabled={!canModify} title={!canModify ? "You don't have permission to add suppliers" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Supplier
                   </Button>
@@ -380,7 +394,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
           </div>
 
           {/* Bulk Actions Toolbar */}
-          {hasSelection && (
+          {hasSelection && canModify && (
             <BulkActionsToolbar
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
@@ -450,11 +464,46 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                         aria-label="Select all suppliers"
                       />
                     </TableHead>
-                    <TableHead>Supplier ID</TableHead>
-                    <TableHead>Company Name</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHead
+                      sortKey="id"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("id")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Supplier ID
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="name"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("name")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Company Name
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="contact"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("contact")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Contact
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="category"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("category")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Category
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="status"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("status")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Status
+                    </SortableTableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -499,7 +548,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                             />
                           <Dialog open={isEditOpen === supplier.id} onOpenChange={(o) => { setIsEditOpen(o ? supplier.id : null); if (o) setForm({ ...supplier }); }}>
                             <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm">Edit</Button>
+                              <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit suppliers" : undefined}>Edit</Button>
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>

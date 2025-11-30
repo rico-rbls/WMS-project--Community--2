@@ -4,36 +4,56 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Checkbox } from "./ui/checkbox";
-import { Eye, EyeOff, Lock, Mail, Package, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, Package, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/auth-context";
-import { loginSchema } from "../lib/validations";
+import { loginSchema, registerSchema } from "../lib/validations";
+
+type AuthMode = "login" | "register";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
+  const [mode, setMode] = useState<AuthMode>("login");
   const [form, setForm] = useState({
+    name: "",
     email: "",
     password: "",
+    confirmPassword: "",
     rememberMe: false,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  function validateField(field: "email" | "password", value: string) {
-    // Validate the entire form but only show error for the specific field
-    const result = loginSchema.safeParse({
-      email: field === "email" ? value : form.email,
-      password: field === "password" ? value : form.password,
+  const resetForm = () => {
+    setForm({
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      rememberMe: false,
     });
+    setFieldErrors({});
+  };
+
+  const switchMode = (newMode: AuthMode) => {
+    setMode(newMode);
+    resetForm();
+  };
+
+  function validateField(field: "name" | "email" | "password" | "confirmPassword", value: string) {
+    const schema = mode === "login" ? loginSchema : registerSchema;
+    const formData = mode === "login"
+      ? { email: field === "email" ? value : form.email, password: field === "password" ? value : form.password }
+      : { name: field === "name" ? value : form.name, email: field === "email" ? value : form.email, password: field === "password" ? value : form.password, confirmPassword: field === "confirmPassword" ? value : form.confirmPassword };
+
+    const result = schema.safeParse(formData);
 
     if (!result.success) {
-      // Find error for this specific field
       const fieldError = result.error.errors.find(err => err.path[0] === field);
       if (fieldError) {
         setFieldErrors(prev => ({ ...prev, [field]: fieldError.message }));
       } else {
-        // No error for this field, clear it
         setFieldErrors(prev => {
           const newErrors = { ...prev };
           delete newErrors[field];
@@ -41,7 +61,6 @@ export function LoginPage() {
         });
       }
     } else {
-      // No errors, clear this field's error
       setFieldErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[field];
@@ -51,10 +70,12 @@ export function LoginPage() {
   }
 
   function validateForm() {
-    const result = loginSchema.safeParse({
-      email: form.email,
-      password: form.password,
-    });
+    const schema = mode === "login" ? loginSchema : registerSchema;
+    const formData = mode === "login"
+      ? { email: form.email, password: form.password }
+      : { name: form.name, email: form.email, password: form.password, confirmPassword: form.confirmPassword };
+
+    const result = schema.safeParse(formData);
 
     if (!result.success) {
       const errors: Record<string, string> = {};
@@ -63,16 +84,16 @@ export function LoginPage() {
         errors[path] = err.message;
       });
       setFieldErrors(errors);
-      return Object.values(errors)[0]; // Return first error message
+      return Object.values(errors)[0];
     }
-    
+
     setFieldErrors({});
     return null;
   }
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
+
     const err = validateForm();
     if (err) {
       toast.error(err);
@@ -81,10 +102,17 @@ export function LoginPage() {
 
     setIsLoading(true);
     try {
-      await login(form.email, form.password, form.rememberMe);
-      toast.success("Welcome back!");
-    } catch (error: any) {
-      toast.error(error.message || "Login failed. Please try again.");
+      if (mode === "login") {
+        await login(form.email, form.password, form.rememberMe);
+        toast.success("Welcome back!");
+      } else {
+        await register(form.email, form.password, form.name);
+        toast.success("Registration successful! Your account is pending approval by an administrator.");
+        switchMode("login");
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An error occurred. Please try again.";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -100,14 +128,44 @@ export function LoginPage() {
             </div>
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {mode === "login" ? "Welcome Back" : "Create Account"}
+            </CardTitle>
             <CardDescription className="mt-2">
-              Sign in to your Warehouse Management System
+              {mode === "login"
+                ? "Sign in to your Warehouse Management System"
+                : "Register for a new account (requires admin approval)"}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Name Field (Register only) */}
+            {mode === "register" && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={form.name}
+                    onChange={(e) => {
+                      setForm({ ...form, name: e.target.value });
+                      validateField("name", e.target.value);
+                    }}
+                    className={`pl-9 ${fieldErrors.name ? "border-red-500" : ""}`}
+                    disabled={isLoading}
+                    autoComplete="name"
+                  />
+                </div>
+                {fieldErrors.name && (
+                  <p className="text-sm text-red-500">{fieldErrors.name}</p>
+                )}
+              </div>
+            )}
+
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -148,7 +206,7 @@ export function LoginPage() {
                   }}
                   className={`pl-9 pr-9 ${fieldErrors.password ? "border-red-500" : ""}`}
                   disabled={isLoading}
-                  autoComplete="current-password"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
                 />
                 <button
                   type="button"
@@ -169,35 +227,63 @@ export function LoginPage() {
               )}
             </div>
 
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="remember"
-                  checked={form.rememberMe}
-                  onCheckedChange={(checked) =>
-                    setForm({ ...form, rememberMe: checked as boolean })
-                  }
-                  disabled={isLoading}
-                />
-                <Label
-                  htmlFor="remember"
-                  className="text-sm font-normal cursor-pointer"
-                >
-                  Remember me
-                </Label>
+            {/* Confirm Password Field (Register only) */}
+            {mode === "register" && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirm your password"
+                    value={form.confirmPassword}
+                    onChange={(e) => {
+                      setForm({ ...form, confirmPassword: e.target.value });
+                      validateField("confirmPassword", e.target.value);
+                    }}
+                    className={`pl-9 ${fieldErrors.confirmPassword ? "border-red-500" : ""}`}
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                </div>
+                {fieldErrors.confirmPassword && (
+                  <p className="text-sm text-red-500">{fieldErrors.confirmPassword}</p>
+                )}
               </div>
-              <button
-                type="button"
-                className="text-sm text-primary hover:underline"
-                disabled={isLoading}
-                onClick={() => toast.info("Password reset feature coming soon!")}
-              >
-                Forgot password?
-              </button>
-            </div>
+            )}
 
-            {/* Login Button */}
+            {/* Remember Me & Forgot Password (Login only) */}
+            {mode === "login" && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="remember"
+                    checked={form.rememberMe}
+                    onCheckedChange={(checked) =>
+                      setForm({ ...form, rememberMe: checked as boolean })
+                    }
+                    disabled={isLoading}
+                  />
+                  <Label
+                    htmlFor="remember"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Remember me
+                  </Label>
+                </div>
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  disabled={isLoading}
+                  onClick={() => toast.info("Password reset feature coming soon!")}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {/* Submit Button */}
             <Button
               type="submit"
               className="w-full"
@@ -206,27 +292,67 @@ export function LoginPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {mode === "login" ? "Signing in..." : "Creating account..."}
                 </>
               ) : (
-                "Sign In"
+                mode === "login" ? "Sign In" : "Create Account"
               )}
             </Button>
 
-            {/* Demo Credentials Info */}
-            <div className="mt-6 p-4 bg-muted rounded-lg">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">
-                Demo Credentials:
-              </p>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>
-                  <span className="font-medium">Admin:</span> admin@wms.com / admin123
+            {/* Switch Mode Link */}
+            <div className="text-center text-sm">
+              {mode === "login" ? (
+                <p className="text-muted-foreground">
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline font-medium"
+                    onClick={() => switchMode("register")}
+                    disabled={isLoading}
+                  >
+                    Sign up
+                  </button>
                 </p>
-                <p>
-                  <span className="font-medium">User:</span> user@wms.com / user123
+              ) : (
+                <p className="text-muted-foreground">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline font-medium"
+                    onClick={() => switchMode("login")}
+                    disabled={isLoading}
+                  >
+                    Sign in
+                  </button>
+                </p>
+              )}
+            </div>
+
+            {/* Demo Credentials Info (Login only) */}
+            {mode === "login" && (
+              <div className="mt-6 p-4 bg-muted rounded-lg">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                  Demo Credentials:
+                </p>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    <span className="font-medium">Admin:</span> admin@wms.com / admin123
+                  </p>
+                  <p>
+                    <span className="font-medium">Operator:</span> operator@wms.com / operator123
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Registration Info (Register only) */}
+            {mode === "register" && (
+              <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <strong>Note:</strong> New accounts require administrator approval before you can access the system. You will be notified once your account is approved.
                 </p>
               </div>
-            </div>
+            )}
           </form>
         </CardContent>
       </Card>

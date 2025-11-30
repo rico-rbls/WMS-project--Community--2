@@ -20,7 +20,7 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, Filter, ShoppingBag, Trash2, Check, X, Package, Send, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, Filter, ShoppingBag, Trash2, Check, X, Package, Send, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   getPurchaseOrders,
@@ -48,6 +48,8 @@ import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { useAuth } from "../context/auth-context";
 import { getUserRole, hasPermission } from "../lib/permissions";
+import { SortableTableHead } from "./ui/sortable-table-head";
+import type { SortDirection } from "../hooks/useTableSort";
 
 const PO_STATUSES: POStatus[] = [
   "Draft",
@@ -208,18 +210,27 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const { paginatedData, currentPage, totalPages, goToPage, itemsPerPage, totalItems } = usePagination<PurchaseOrder>(filteredData, 10);
 
-  const handleSort = (column: keyof PurchaseOrder) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+  const handleSort = (column: string) => {
+    const key = column as keyof PurchaseOrder;
+    if (sortColumn === key) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        // Reset on third click
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
     } else {
-      setSortColumn(column);
+      setSortColumn(key);
       setSortDirection("asc");
     }
   };
 
-  const SortIcon = ({ column }: { column: keyof PurchaseOrder }) => {
-    if (sortColumn !== column) return null;
-    return sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
+  const getSortDirection = (column: keyof PurchaseOrder): SortDirection => {
+    if (sortColumn === column) {
+      return sortDirection;
+    }
+    return null;
   };
 
   const getStatusBadge = (status: POStatus) => {
@@ -709,25 +720,56 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                       />
                     </TableHead>
                   )}
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("id")}>
-                    <div className="flex items-center gap-1">PO ID <SortIcon column="id" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("supplierName")}>
-                    <div className="flex items-center gap-1">Supplier <SortIcon column="supplierName" /></div>
-                  </TableHead>
+                  <SortableTableHead
+                    sortKey="id"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("id")}
+                    onSort={handleSort}
+                  >
+                    PO ID
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="supplierName"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("supplierName")}
+                    onSort={handleSort}
+                  >
+                    Supplier
+                  </SortableTableHead>
                   <TableHead>Items</TableHead>
-                  <TableHead className="cursor-pointer text-right" onClick={() => handleSort("totalAmount")}>
-                    <div className="flex items-center justify-end gap-1">Total <SortIcon column="totalAmount" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
-                    <div className="flex items-center gap-1">Status <SortIcon column="status" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("createdDate")}>
-                    <div className="flex items-center gap-1">Created <SortIcon column="createdDate" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("expectedDeliveryDate")}>
-                    <div className="flex items-center gap-1">Expected <SortIcon column="expectedDeliveryDate" /></div>
-                  </TableHead>
+                  <SortableTableHead
+                    sortKey="totalAmount"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("totalAmount")}
+                    onSort={handleSort}
+                    className="text-right"
+                  >
+                    Total
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="status"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("status")}
+                    onSort={handleSort}
+                  >
+                    Status
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="createdDate"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("createdDate")}
+                    onSort={handleSort}
+                  >
+                    Created
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="expectedDeliveryDate"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("expectedDeliveryDate")}
+                    onSort={handleSort}
+                  >
+                    Expected
+                  </SortableTableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>

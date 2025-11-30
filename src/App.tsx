@@ -8,13 +8,15 @@ const OrdersView = React.lazy(() => import("./components/orders-view").then(m =>
 const PurchaseOrdersView = React.lazy(() => import("./components/purchase-orders-view").then(m => ({ default: m.PurchaseOrdersView })));
 const ShipmentsView = React.lazy(() => import("./components/shipments-view").then(m => ({ default: m.ShipmentsView })));
 const SuppliersView = React.lazy(() => import("./components/suppliers-view").then(m => ({ default: m.SuppliersView })));
+const UserManagementView = React.lazy(() => import("./components/user-management-view").then(m => ({ default: m.UserManagementView })));
+const AdminProfileView = React.lazy(() => import("./components/admin-profile-view").then(m => ({ default: m.AdminProfileView })));
 import { Toaster } from "./components/ui/sonner";
 import { ErrorBoundary } from "./components/error-boundary";
 import { LoginPage } from "./components/login-page";
 import { useAuth } from "./context/auth-context";
 import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
-export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers";
+export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers" | "users" | "profile";
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -95,6 +97,10 @@ export default function App() {
             onDialogOpened={clearOpenAddDialog}
           />
         );
+      case "users":
+        return <UserManagementView />;
+      case "profile":
+        return <AdminProfileView />;
       default:
         return <Dashboard navigateToView={navigateToView} />;
     }

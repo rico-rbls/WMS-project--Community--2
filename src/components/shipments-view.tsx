@@ -25,6 +25,10 @@ import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
 import { SaveSearchDialog } from "./ui/save-search-dialog";
 import { useFavorites } from "../context/favorites-context";
+import { useTableSort } from "../hooks/useTableSort";
+import { SortableTableHead } from "./ui/sortable-table-head";
+import { useAuth } from "../context/auth-context";
+import { canWrite } from "../lib/permissions";
 
 interface ShipmentsViewProps {
   initialOpenDialog?: boolean;
@@ -33,6 +37,8 @@ interface ShipmentsViewProps {
 
 export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsViewProps) {
   const { isFavorite, getFavoritesByType } = useFavorites();
+  const { user } = useAuth();
+  const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -153,6 +159,14 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
     return filters;
   }, [fromDate, toDate, showFavoritesOnly]);
 
+  // Sorting - applied before pagination
+  const {
+    sortedData,
+    sortConfig,
+    requestSort,
+    getSortDirection,
+  } = useTableSort<Shipment>(filteredShipments);
+
   // Pagination with 25 items per page
   const {
     currentPage,
@@ -161,7 +175,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
     goToPage,
     totalItems,
     itemsPerPage,
-  } = usePagination(filteredShipments, 25);
+  } = usePagination(sortedData, 25);
 
   // Batch selection
   const {
@@ -373,7 +387,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => resetForm()}>
+                  <Button onClick={() => resetForm()} disabled={!canModify} title={!canModify ? "You don't have permission to add shipments" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Shipment
                   </Button>
@@ -471,7 +485,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
           </div>
 
           {/* Bulk Actions Toolbar */}
-          {hasSelection && (
+          {hasSelection && canModify && (
             <BulkActionsToolbar
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
@@ -543,12 +557,54 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                         aria-label="Select all shipments"
                       />
                     </TableHead>
-                    <TableHead>Shipment ID</TableHead>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Destination</TableHead>
-                    <TableHead>Carrier</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>ETA</TableHead>
+                    <SortableTableHead
+                      sortKey="id"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("id")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      Shipment ID
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="orderId"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("orderId")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      Order ID
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="destination"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("destination")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      Destination
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="carrier"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("carrier")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      Carrier
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="status"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("status")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      Status
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="eta"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("eta")}
+                      onSort={(key) => requestSort(key as keyof Shipment)}
+                    >
+                      ETA
+                    </SortableTableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -583,7 +639,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                             />
                           <Dialog open={isEditOpen === shipment.id} onOpenChange={(o) => { setIsEditOpen(o ? shipment.id : null); if (o) setForm({ ...shipment }); }}>
                             <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm">Track</Button>
+                              <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit shipments" : undefined}>Track</Button>
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>

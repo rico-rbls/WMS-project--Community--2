@@ -42,6 +42,10 @@ import { BulkUpdateDialog, type BulkUpdateField } from "./ui/bulk-update-dialog"
 import { FavoriteButton } from "./ui/favorite-button";
 import { SaveSearchDialog } from "./ui/save-search-dialog";
 import { useFavorites } from "../context/favorites-context";
+import { useTableSort } from "../hooks/useTableSort";
+import { SortableTableHead } from "./ui/sortable-table-head";
+import { useAuth } from "../context/auth-context";
+import { canWrite } from "../lib/permissions";
 
 const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
 
@@ -54,6 +58,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const { inventory, isLoading, setInventory } = useInventory();
   const { suppliers } = useSuppliers();
   const { isFavorite, getFavoritesByType } = useFavorites();
+  const { user } = useAuth();
+  const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -158,7 +164,15 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     return filters;
   }, [filterCategory, showFavoritesOnly]);
 
-  // Pagination with 25 items per page
+  // Sorting - applied before pagination
+  const {
+    sortedData,
+    sortConfig,
+    requestSort,
+    getSortDirection,
+  } = useTableSort<InventoryItem>(filteredItems);
+
+  // Pagination with 25 items per page - uses sorted data
   const {
     currentPage,
     totalPages,
@@ -166,7 +180,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     goToPage,
     totalItems,
     itemsPerPage,
-  } = usePagination<InventoryItem>(filteredItems, 25);
+  } = usePagination<InventoryItem>(sortedData, 25);
 
   const supplierById = useMemo(() => {
     const map = new Map<string, string>();
@@ -473,7 +487,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => { resetForm(); }}>
+                  <Button onClick={() => { resetForm(); }} disabled={!canModify} title={!canModify ? "You don't have permission to add items" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Item
                   </Button>
@@ -700,7 +714,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           </div>
 
           {/* Bulk Actions Toolbar */}
-          {hasSelection && (
+          {hasSelection && canModify && (
             <BulkActionsToolbar
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
@@ -787,15 +801,71 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         aria-label="Select all items"
                       />
                     </TableHead>
-                    <TableHead>Item ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Price</TableHead>
+                    <SortableTableHead
+                      sortKey="id"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("id")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Item ID
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="name"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("name")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Name
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="brand"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("brand")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Brand
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="category"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("category")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Category
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="quantity"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("quantity")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Quantity
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="pricePerPiece"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("pricePerPiece")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Price
+                    </SortableTableHead>
                     <TableHead>Supplier</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Status</TableHead>
+                    <SortableTableHead
+                      sortKey="location"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("location")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Location
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="status"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("status")}
+                      onSort={(key) => requestSort(key as keyof InventoryItem)}
+                    >
+                      Status
+                    </SortableTableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -853,7 +923,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             });
                           }}>
                             <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm">Edit</Button>
+                              <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit items" : undefined}>Edit</Button>
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>

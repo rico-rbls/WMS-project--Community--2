@@ -27,6 +27,10 @@ import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
 import { SaveSearchDialog } from "./ui/save-search-dialog";
 import { useFavorites } from "../context/favorites-context";
+import { useTableSort } from "../hooks/useTableSort";
+import { SortableTableHead } from "./ui/sortable-table-head";
+import { useAuth } from "../context/auth-context";
+import { canWrite } from "../lib/permissions";
 
 interface OrdersViewProps {
   initialOpenDialog?: boolean;
@@ -35,6 +39,8 @@ interface OrdersViewProps {
 
 export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProps) {
   const { isFavorite, getFavoritesByType } = useFavorites();
+  const { user } = useAuth();
+  const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -154,6 +160,14 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
     return filters;
   }, [fromDate, toDate, showFavoritesOnly]);
 
+  // Sorting - applied before pagination
+  const {
+    sortedData,
+    sortConfig,
+    requestSort,
+    getSortDirection,
+  } = useTableSort<Order>(filteredOrders);
+
   // Pagination with 25 items per page
   const {
     currentPage,
@@ -162,7 +176,7 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
     goToPage,
     totalItems,
     itemsPerPage,
-  } = usePagination(filteredOrders, 25);
+  } = usePagination(sortedData, 25);
 
   // Batch selection for current page items
   const {
@@ -378,7 +392,7 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
 
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => resetForm()}>
+                  <Button onClick={() => resetForm()} disabled={!canModify} title={!canModify ? "You don't have permission to add orders" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Order
                   </Button>
@@ -476,7 +490,7 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
           </div>
 
           {/* Bulk Actions Toolbar */}
-          {hasSelection && (
+          {hasSelection && canModify && (
             <BulkActionsToolbar
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
@@ -548,12 +562,54 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
                         aria-label="Select all orders"
                       />
                     </TableHead>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
+                    <SortableTableHead
+                      sortKey="id"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("id")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Order ID
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="customer"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("customer")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Customer
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="items"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("items")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Items
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="total"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("total")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Total
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="status"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("status")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Status
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="date"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("date")}
+                      onSort={(key) => requestSort(key as keyof Order)}
+                    >
+                      Date
+                    </SortableTableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -588,7 +644,7 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
                             />
                           <Dialog open={isEditOpen === order.id} onOpenChange={(o) => { setIsEditOpen(o ? order.id : null); if (o) setForm({ ...order }); }}>
                             <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit orders" : undefined}>
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </DialogTrigger>

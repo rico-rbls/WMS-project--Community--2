@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "./ui/sidebar";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, Star, Bookmark, AlertTriangle, Clock, FileText, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, Sun, Moon, LogOut, User, Star, Bookmark, AlertTriangle, Clock, FileText, ClipboardList, Shield, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
@@ -42,6 +42,11 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
     { id: "shipments" as ViewType, label: "Shipments", icon: Truck },
     { id: "suppliers" as ViewType, label: "Suppliers", icon: Users },
+  ];
+
+  // Admin-only menu items
+  const adminMenuItems = [
+    { id: "users" as ViewType, label: "User Management", icon: Shield },
   ];
 
   const recentFavorites = getRecentFavorites(5);
@@ -98,6 +103,28 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Admin Section - Only visible to admins */}
+        {user?.role === "Admin" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenuItems.map((item) => (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton
+                      onClick={() => setCurrentView(item.id)}
+                      isActive={currentView === item.id}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Quick Access Section */}
         <SidebarGroup>
@@ -206,6 +233,15 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
         )}
 
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => setCurrentView("profile")}
+              isActive={currentView === "profile"}
+            >
+              <Settings className="h-4 w-4" />
+              <span>My Profile</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={() => setTheme(theme === "dark" ? "light" : "dark") }>
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
