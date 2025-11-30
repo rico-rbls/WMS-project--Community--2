@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw } from "lucide-react";
+import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { DateRangeFilter } from "./ui/date-range-filter";
 import { createShipment, deleteShipment, getShipments, updateShipment, bulkDeleteShipments, bulkUpdateShipmentStatus } from "../services/api";
-import type { Shipment } from "../types";
+import type { Shipment, SavedSearch } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -22,11 +22,21 @@ import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { cn } from "./ui/utils";
+import { FavoriteButton } from "./ui/favorite-button";
+import { SaveSearchDialog } from "./ui/save-search-dialog";
+import { useFavorites } from "../context/favorites-context";
 
-export function ShipmentsView() {
+interface ShipmentsViewProps {
+  initialOpenDialog?: boolean;
+  onDialogOpened?: () => void;
+}
+
+export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsViewProps) {
+  const { isFavorite, getFavoritesByType } = useFavorites();
   const [searchTerm, setSearchTerm] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [shipmentsData, setShipmentsData] = useState<Shipment[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -52,11 +62,24 @@ export function ShipmentsView() {
     })();
   }, []);
 
+  // Open dialog when triggered from Dashboard Quick Actions
+  useEffect(() => {
+    if (initialOpenDialog && !isAddOpen) {
+      setIsAddOpen(true);
+      onDialogOpened?.();
+    }
+  }, [initialOpenDialog, onDialogOpened, isAddOpen]);
+
   const list = useMemo<Shipment[]>(() => shipmentsData ?? [], [shipmentsData]);
 
   // Optimized filtering with early returns and debounced search
   const filteredShipments = useMemo(() => {
     return list.filter(shipment => {
+      // Early return for favorites filter
+      if (showFavoritesOnly && !isFavorite("shipments", shipment.id)) {
+        return false;
+      }
+
       // Early return for search filter
       if (debouncedSearchTerm) {
         const searchLower = debouncedSearchTerm.toLowerCase();
@@ -97,7 +120,38 @@ export function ShipmentsView() {
 
       return true;
     });
-  }, [list, debouncedSearchTerm, fromDate, toDate]);
+  }, [list, debouncedSearchTerm, fromDate, toDate, showFavoritesOnly, isFavorite]);
+
+  // Handle applying saved searches
+  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
+    if (search.searchTerm) {
+      setSearchTerm(search.searchTerm);
+    }
+    if (search.filters.fromDate && typeof search.filters.fromDate === "string") {
+      setFromDate(search.filters.fromDate);
+    }
+    if (search.filters.toDate && typeof search.filters.toDate === "string") {
+      setToDate(search.filters.toDate);
+    }
+    if (search.filters.favoritesOnly === "true") {
+      setShowFavoritesOnly(true);
+    }
+  }, []);
+
+  // Get current filter configuration for saving
+  const getCurrentFilters = useMemo(() => {
+    const filters: Record<string, string | string[]> = {};
+    if (fromDate) {
+      filters.fromDate = fromDate;
+    }
+    if (toDate) {
+      filters.toDate = toDate;
+    }
+    if (showFavoritesOnly) {
+      filters.favoritesOnly = "true";
+    }
+    return filters;
+  }, [fromDate, toDate, showFavoritesOnly]);
 
   // Pagination with 25 items per page
   const {
@@ -369,14 +423,36 @@ export function ShipmentsView() {
               />
             </div>
 
-            <DateRangeFilter
-              fromDate={fromDate}
-              toDate={toDate}
-              onFromDateChange={setFromDate}
-              onToDateChange={setToDate}
-              onClear={clearDateFilter}
-              label="Filter by ETA Date"
-            />
+            <div className="flex flex-wrap items-center gap-4">
+              <DateRangeFilter
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onClear={clearDateFilter}
+                label="Filter by ETA Date"
+              />
+              <Button
+                variant={showFavoritesOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className="gap-1"
+              >
+                <Star className={cn("h-4 w-4", showFavoritesOnly && "fill-current")} />
+                Favorites
+                {getFavoritesByType("shipments").length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {getFavoritesByType("shipments").length}
+                  </Badge>
+                )}
+              </Button>
+              <SaveSearchDialog
+                entityType="shipments"
+                currentSearchTerm={searchTerm}
+                currentFilters={getCurrentFilters}
+                onApplySearch={handleApplySavedSearch}
+              />
+            </div>
 
             {/* Active Filters Badge */}
             {(fromDate || toDate) && (
@@ -499,6 +575,12 @@ export function ShipmentsView() {
                         </TableCell>
                         <TableCell>{shipment.eta}</TableCell>
                         <TableCell>
+                          <div className="flex items-center gap-1">
+                            <FavoriteButton
+                              entityType="shipments"
+                              entityId={shipment.id}
+                              entityName={`${shipment.id} - ${shipment.destination}`}
+                            />
                           <Dialog open={isEditOpen === shipment.id} onOpenChange={(o) => { setIsEditOpen(o ? shipment.id : null); if (o) setForm({ ...shipment }); }}>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm">Track</Button>
@@ -536,6 +618,7 @@ export function ShipmentsView() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                          </div>
                       </TableCell>
                     </TableRow>
                     );

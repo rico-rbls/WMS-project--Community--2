@@ -1,4 +1,4 @@
-import { useMemo, useState, memo, useCallback } from "react";
+import { useMemo, useState, memo, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -22,10 +22,10 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, Filter, Package, Trash2, Edit } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star } from "lucide-react";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems } from "../services/api";
-import type { InventoryCategory, InventoryItem } from "../types";
+import type { InventoryCategory, InventoryItem, SavedSearch } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { useInventory, useSuppliers } from "../context/app-context";
@@ -39,14 +39,24 @@ import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { BulkUpdateDialog, type BulkUpdateField } from "./ui/bulk-update-dialog";
+import { FavoriteButton } from "./ui/favorite-button";
+import { SaveSearchDialog } from "./ui/save-search-dialog";
+import { useFavorites } from "../context/favorites-context";
 
 const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
 
-export function InventoryView() {
+interface InventoryViewProps {
+  initialOpenDialog?: boolean;
+  onDialogOpened?: () => void;
+}
+
+export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryViewProps) {
   const { inventory, isLoading, setInventory } = useInventory();
   const { suppliers } = useSuppliers();
+  const { isFavorite, getFavoritesByType } = useFavorites();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
   const [form, setForm] = useState({
@@ -63,6 +73,14 @@ export function InventoryView() {
     minimumStock: 0,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Open dialog when triggered from Dashboard Quick Actions
+  useEffect(() => {
+    if (initialOpenDialog && !isAddOpen) {
+      setIsAddOpen(true);
+      onDialogOpened?.();
+    }
+  }, [initialOpenDialog, onDialogOpened, isAddOpen]);
 
   // Debounce search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -91,6 +109,11 @@ export function InventoryView() {
   // Optimized filtering with early returns and debounced search
   const filteredItems = useMemo(() => {
     return inventoryItems.filter(item => {
+      // Early return for favorites filter
+      if (showFavoritesOnly && !isFavorite("inventory", item.id)) {
+        return false;
+      }
+
       // Early return for category filter
       if (filterCategory !== "all" && item.category !== filterCategory) {
         return false;
@@ -108,7 +131,32 @@ export function InventoryView() {
         item.id.toLowerCase().includes(searchLower)
       );
     });
-  }, [inventoryItems, debouncedSearchTerm, filterCategory]);
+  }, [inventoryItems, debouncedSearchTerm, filterCategory, showFavoritesOnly, isFavorite]);
+
+  // Handle applying saved searches
+  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
+    if (search.searchTerm) {
+      setSearchTerm(search.searchTerm);
+    }
+    if (search.filters.category && typeof search.filters.category === "string") {
+      setFilterCategory(search.filters.category);
+    }
+    if (search.filters.favoritesOnly === "true") {
+      setShowFavoritesOnly(true);
+    }
+  }, []);
+
+  // Get current filter configuration for saving
+  const getCurrentFilters = useMemo(() => {
+    const filters: Record<string, string | string[]> = {};
+    if (filterCategory !== "all") {
+      filters.category = filterCategory;
+    }
+    if (showFavoritesOnly) {
+      filters.favoritesOnly = "true";
+    }
+    return filters;
+  }, [filterCategory, showFavoritesOnly]);
 
   // Pagination with 25 items per page
   const {
@@ -606,8 +654,8 @@ export function InventoryView() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-6">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-4 mb-6">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search items..."
@@ -629,6 +677,26 @@ export function InventoryView() {
                 <SelectItem value="Food">Food</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={showFavoritesOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              className="gap-1"
+            >
+              <Star className={cn("h-4 w-4", showFavoritesOnly && "fill-current")} />
+              Favorites
+              {getFavoritesByType("inventory").length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                  {getFavoritesByType("inventory").length}
+                </Badge>
+              )}
+            </Button>
+            <SaveSearchDialog
+              entityType="inventory"
+              currentSearchTerm={searchTerm}
+              currentFilters={getCurrentFilters}
+              onApplySearch={handleApplySavedSearch}
+            />
           </div>
 
           {/* Bulk Actions Toolbar */}
@@ -762,7 +830,13 @@ export function InventoryView() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Dialog open={isEditOpen === item.id} onOpenChange={(o) => {
+                          <div className="flex items-center gap-1">
+                            <FavoriteButton
+                              entityType="inventory"
+                              entityId={item.id}
+                              entityName={item.name}
+                            />
+                          <Dialog open={isEditOpen === item.id} onOpenChange={(o: boolean) => {
                             setIsEditOpen(o ? item.id : null);
                             if (o) setForm({
                               id: item.id,
@@ -852,6 +926,7 @@ export function InventoryView() {
                               </div>
                             </DialogContent>
                           </Dialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

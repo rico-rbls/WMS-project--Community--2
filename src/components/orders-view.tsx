@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Checkbox } from "./ui/checkbox";
-import { Search, Eye, Plus, ShoppingCart, X, Trash2, RefreshCw } from "lucide-react";
+import { Search, Eye, Plus, ShoppingCart, X, Trash2, RefreshCw, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { EmptyState } from "./ui/empty-state";
 import { DateRangeFilter } from "./ui/date-range-filter";
 
 import { createOrder, deleteOrder, getOrders, updateOrder, bulkDeleteOrders, bulkUpdateOrderStatus } from "../services/api";
-import type { Order } from "../types";
+import type { Order, SavedSearch } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -24,11 +24,21 @@ import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { BulkUpdateDialog } from "./ui/bulk-update-dialog";
 import { cn } from "./ui/utils";
+import { FavoriteButton } from "./ui/favorite-button";
+import { SaveSearchDialog } from "./ui/save-search-dialog";
+import { useFavorites } from "../context/favorites-context";
 
-export function OrdersView() {
+interface OrdersViewProps {
+  initialOpenDialog?: boolean;
+  onDialogOpened?: () => void;
+}
+
+export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProps) {
+  const { isFavorite, getFavoritesByType } = useFavorites();
   const [searchTerm, setSearchTerm] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [ordersData, setOrdersData] = useState<Order[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -54,11 +64,24 @@ export function OrdersView() {
     })();
   }, []);
 
+  // Open dialog when triggered from Dashboard Quick Actions
+  useEffect(() => {
+    if (initialOpenDialog && !isAddOpen) {
+      setIsAddOpen(true);
+      onDialogOpened?.();
+    }
+  }, [initialOpenDialog, onDialogOpened, isAddOpen]);
+
   const list = useMemo<Order[]>(() => ordersData ?? [], [ordersData]);
 
   // Optimized filtering with early returns and debounced search
   const filteredOrders = useMemo(() => {
     return list.filter(order => {
+      // Early return for favorites filter
+      if (showFavoritesOnly && !isFavorite("orders", order.id)) {
+        return false;
+      }
+
       // Early return for search filter
       if (debouncedSearchTerm) {
         const searchLower = debouncedSearchTerm.toLowerCase();
@@ -98,7 +121,38 @@ export function OrdersView() {
 
       return true;
     });
-  }, [list, debouncedSearchTerm, fromDate, toDate]);
+  }, [list, debouncedSearchTerm, fromDate, toDate, showFavoritesOnly, isFavorite]);
+
+  // Handle applying saved searches
+  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
+    if (search.searchTerm) {
+      setSearchTerm(search.searchTerm);
+    }
+    if (search.filters.fromDate && typeof search.filters.fromDate === "string") {
+      setFromDate(search.filters.fromDate);
+    }
+    if (search.filters.toDate && typeof search.filters.toDate === "string") {
+      setToDate(search.filters.toDate);
+    }
+    if (search.filters.favoritesOnly === "true") {
+      setShowFavoritesOnly(true);
+    }
+  }, []);
+
+  // Get current filter configuration for saving
+  const getCurrentFilters = useMemo(() => {
+    const filters: Record<string, string | string[]> = {};
+    if (fromDate) {
+      filters.fromDate = fromDate;
+    }
+    if (toDate) {
+      filters.toDate = toDate;
+    }
+    if (showFavoritesOnly) {
+      filters.favoritesOnly = "true";
+    }
+    return filters;
+  }, [fromDate, toDate, showFavoritesOnly]);
 
   // Pagination with 25 items per page
   const {
@@ -374,14 +428,36 @@ export function OrdersView() {
               />
             </div>
 
-            <DateRangeFilter
-              fromDate={fromDate}
-              toDate={toDate}
-              onFromDateChange={setFromDate}
-              onToDateChange={setToDate}
-              onClear={clearDateFilter}
-              label="Filter by Order Date"
-            />
+            <div className="flex flex-wrap items-center gap-4">
+              <DateRangeFilter
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onClear={clearDateFilter}
+                label="Filter by Order Date"
+              />
+              <Button
+                variant={showFavoritesOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className="gap-1"
+              >
+                <Star className={cn("h-4 w-4", showFavoritesOnly && "fill-current")} />
+                Favorites
+                {getFavoritesByType("orders").length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {getFavoritesByType("orders").length}
+                  </Badge>
+                )}
+              </Button>
+              <SaveSearchDialog
+                entityType="orders"
+                currentSearchTerm={searchTerm}
+                currentFilters={getCurrentFilters}
+                onApplySearch={handleApplySavedSearch}
+              />
+            </div>
 
             {/* Active Filters Badge */}
             {(fromDate || toDate) && (
@@ -504,6 +580,12 @@ export function OrdersView() {
                         </TableCell>
                         <TableCell>{order.date}</TableCell>
                         <TableCell>
+                          <div className="flex items-center gap-1">
+                            <FavoriteButton
+                              entityType="orders"
+                              entityId={order.id}
+                              entityName={`${order.id} - ${order.customer}`}
+                            />
                           <Dialog open={isEditOpen === order.id} onOpenChange={(o) => { setIsEditOpen(o ? order.id : null); if (o) setForm({ ...order }); }}>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm">
@@ -543,6 +625,7 @@ export function OrdersView() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                          </div>
                       </TableCell>
                     </TableRow>
                     );

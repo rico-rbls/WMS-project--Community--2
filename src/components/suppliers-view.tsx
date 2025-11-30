@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus } from "../services/api";
-import type { Supplier } from "../types";
+import type { Supplier, SavedSearch } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -35,9 +35,19 @@ import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { cn } from "./ui/utils";
+import { FavoriteButton } from "./ui/favorite-button";
+import { SaveSearchDialog } from "./ui/save-search-dialog";
+import { useFavorites } from "../context/favorites-context";
 
-export function SuppliersView() {
+interface SuppliersViewProps {
+  initialOpenDialog?: boolean;
+  onDialogOpened?: () => void;
+}
+
+export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersViewProps) {
+  const { isFavorite, getFavoritesByType } = useFavorites();
   const [searchTerm, setSearchTerm] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -64,22 +74,59 @@ export function SuppliersView() {
     })();
   }, []);
 
+  // Open dialog when triggered from Dashboard Quick Actions
+  useEffect(() => {
+    if (initialOpenDialog && !isAddOpen) {
+      setIsAddOpen(true);
+      onDialogOpened?.();
+    }
+  }, [initialOpenDialog, onDialogOpened, isAddOpen]);
+
   const list = useMemo<Supplier[]>(() => suppliersData ?? [], [suppliersData]);
 
   // Optimized filtering with early returns and debounced search
   const filteredSuppliers = useMemo(() => {
-    // Early return if no search term
-    if (!debouncedSearchTerm) {
-      return list;
-    }
+    return list.filter(supplier => {
+      // Early return for favorites filter
+      if (showFavoritesOnly && !isFavorite("suppliers", supplier.id)) {
+        return false;
+      }
 
-    const searchLower = debouncedSearchTerm.toLowerCase();
-    return list.filter(supplier =>
-      supplier.name.toLowerCase().includes(searchLower) ||
-      supplier.id.toLowerCase().includes(searchLower) ||
-      supplier.category.toLowerCase().includes(searchLower)
-    );
-  }, [list, debouncedSearchTerm]);
+      // Early return for search filter
+      if (debouncedSearchTerm) {
+        const searchLower = debouncedSearchTerm.toLowerCase();
+        const matchesSearch =
+          supplier.name.toLowerCase().includes(searchLower) ||
+          supplier.id.toLowerCase().includes(searchLower) ||
+          supplier.category.toLowerCase().includes(searchLower);
+
+        if (!matchesSearch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [list, debouncedSearchTerm, showFavoritesOnly, isFavorite]);
+
+  // Handle applying saved searches
+  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
+    if (search.searchTerm) {
+      setSearchTerm(search.searchTerm);
+    }
+    if (search.filters.favoritesOnly === "true") {
+      setShowFavoritesOnly(true);
+    }
+  }, []);
+
+  // Get current filter configuration for saving
+  const getCurrentFilters = useMemo(() => {
+    const filters: Record<string, string | string[]> = {};
+    if (showFavoritesOnly) {
+      filters.favoritesOnly = "true";
+    }
+    return filters;
+  }, [showFavoritesOnly]);
 
   // Pagination with 25 items per page
   const {
@@ -298,7 +345,7 @@ export function SuppliersView() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-6">
+          <div className="mb-6 space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -306,6 +353,28 @@ export function SuppliersView() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Button
+                variant={showFavoritesOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className="gap-1"
+              >
+                <Star className={cn("h-4 w-4", showFavoritesOnly && "fill-current")} />
+                Favorites
+                {getFavoritesByType("suppliers").length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {getFavoritesByType("suppliers").length}
+                  </Badge>
+                )}
+              </Button>
+              <SaveSearchDialog
+                entityType="suppliers"
+                currentSearchTerm={searchTerm}
+                currentFilters={getCurrentFilters}
+                onApplySearch={handleApplySavedSearch}
               />
             </div>
           </div>
@@ -422,6 +491,12 @@ export function SuppliersView() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <div className="flex items-center gap-1">
+                            <FavoriteButton
+                              entityType="suppliers"
+                              entityId={supplier.id}
+                              entityName={supplier.name}
+                            />
                           <Dialog open={isEditOpen === supplier.id} onOpenChange={(o) => { setIsEditOpen(o ? supplier.id : null); if (o) setForm({ ...supplier }); }}>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm">Edit</Button>
@@ -482,6 +557,7 @@ export function SuppliersView() {
                               </div>
                             </DialogContent>
                           </Dialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

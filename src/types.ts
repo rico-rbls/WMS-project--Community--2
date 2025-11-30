@@ -93,3 +93,31 @@ export interface Shipment {
   status: "Pending" | "Processing" | "In Transit" | "Delivered";
   eta: string;
 }
+
+// Favorites & Bookmarks Types
+export type EntityType = "inventory" | "orders" | "shipments" | "suppliers";
+
+export interface FavoriteItem {
+  id: string;
+  entityType: EntityType;
+  entityId: string;
+  entityName: string; // Display name for the item
+  favoritedAt: string; // ISO date string
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  entityType: EntityType;
+  searchTerm?: string;
+  filters: Record<string, string | string[]>; // Generic filter storage
+  createdAt: string; // ISO date string
+}
+
+export interface QuickLink {
+  id: string;
+  label: string;
+  entityType: EntityType;
+  filters: Record<string, string | string[]>;
+  icon?: string;
+}

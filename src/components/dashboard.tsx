@@ -10,10 +10,15 @@ import { Skeleton } from "./ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toast } from "sonner";
 import type { InventoryCategory } from "../types";
+import type { ViewType } from "../App";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
-export function Dashboard() {
+interface DashboardProps {
+  navigateToView?: (view: ViewType, openDialog?: boolean) => void;
+}
+
+export function Dashboard({ navigateToView }: DashboardProps) {
   const { inventory, orders, shipments, suppliers, isLoading, refreshInventory, refreshOrders, refreshShipments, refreshSuppliers } = useAppContext();
   const isMobile = useIsMobile();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -200,19 +205,35 @@ export function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => window.location.hash = "#inventory"}>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("inventory", true)}
+            >
               <Package className="h-5 w-5" />
               <span className="text-sm">Add Inventory</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => window.location.hash = "#orders"}>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("orders", true)}
+            >
               <ShoppingCart className="h-5 w-5" />
               <span className="text-sm">New Order</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => window.location.hash = "#shipments"}>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("shipments", true)}
+            >
               <Truck className="h-5 w-5" />
               <span className="text-sm">New Shipment</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => window.location.hash = "#suppliers"}>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("suppliers", true)}
+            >
               <Users className="h-5 w-5" />
               <span className="text-sm">Add Supplier</span>
             </Button>

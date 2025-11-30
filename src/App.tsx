@@ -1,4 +1,4 @@
-import { useState, Suspense } from "react";
+import { useState, Suspense, useCallback } from "react";
 import { SidebarProvider } from "./components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
 import React from "react";
@@ -18,6 +18,20 @@ export type ViewType = "dashboard" | "inventory" | "orders" | "shipments" | "sup
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState("dashboard" as ViewType);
+  const [openAddDialog, setOpenAddDialog] = useState<ViewType | null>(null);
+
+  // Navigate to a view and optionally open its Add dialog
+  const navigateToView = useCallback((view: ViewType, openDialog: boolean = false) => {
+    setCurrentView(view);
+    if (openDialog && view !== "dashboard") {
+      setOpenAddDialog(view);
+    }
+  }, []);
+
+  // Clear the pending dialog state after it's been consumed
+  const clearOpenAddDialog = useCallback(() => {
+    setOpenAddDialog(null);
+  }, []);
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -44,17 +58,37 @@ export default function App() {
   const renderView = () => {
     switch (currentView) {
       case "dashboard":
-        return <Dashboard />;
+        return <Dashboard navigateToView={navigateToView} />;
       case "inventory":
-        return <InventoryView />;
+        return (
+          <InventoryView
+            initialOpenDialog={openAddDialog === "inventory"}
+            onDialogOpened={clearOpenAddDialog}
+          />
+        );
       case "orders":
-        return <OrdersView />;
+        return (
+          <OrdersView
+            initialOpenDialog={openAddDialog === "orders"}
+            onDialogOpened={clearOpenAddDialog}
+          />
+        );
       case "shipments":
-        return <ShipmentsView />;
+        return (
+          <ShipmentsView
+            initialOpenDialog={openAddDialog === "shipments"}
+            onDialogOpened={clearOpenAddDialog}
+          />
+        );
       case "suppliers":
-        return <SuppliersView />;
+        return (
+          <SuppliersView
+            initialOpenDialog={openAddDialog === "suppliers"}
+            onDialogOpened={clearOpenAddDialog}
+          />
+        );
       default:
-        return <Dashboard />;
+        return <Dashboard navigateToView={navigateToView} />;
     }
   };
 
