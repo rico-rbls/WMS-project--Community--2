@@ -1,0 +1,562 @@
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
+import { Checkbox } from "./ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Label } from "./ui/label";
+import { toast } from "sonner";
+import { TableLoadingSkeleton } from "./ui/loading-skeleton";
+import { EmptyState } from "./ui/empty-state";
+import { DateRangeFilter } from "./ui/date-range-filter";
+import { createShipment, deleteShipment, getShipments, updateShipment, bulkDeleteShipments, bulkUpdateShipmentStatus } from "../services/api";
+import type { Shipment } from "../types";
+
+import { usePagination } from "../hooks/usePagination";
+import { useDebounce } from "../hooks/useDebounce";
+import { useBatchSelection } from "../hooks/useBatchSelection";
+import { PaginationControls } from "./ui/pagination-controls";
+import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
+import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
+import { cn } from "./ui/utils";
+
+export function ShipmentsView() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [shipmentsData, setShipmentsData] = useState<Shipment[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    id: "",
+    orderId: "",
+    destination: "",
+    carrier: "",
+    status: "Pending" as Shipment["status"],
+    eta: "",
+  });
+
+  // Debounce search term for better performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      const data = await getShipments();
+      setShipmentsData(data);
+      setIsLoading(false);
+    })();
+  }, []);
+
+  const list = useMemo<Shipment[]>(() => shipmentsData ?? [], [shipmentsData]);
+
+  // Optimized filtering with early returns and debounced search
+  const filteredShipments = useMemo(() => {
+    return list.filter(shipment => {
+      // Early return for search filter
+      if (debouncedSearchTerm) {
+        const searchLower = debouncedSearchTerm.toLowerCase();
+        const matchesSearch =
+          shipment.id.toLowerCase().includes(searchLower) ||
+          shipment.orderId.toLowerCase().includes(searchLower) ||
+          shipment.destination.toLowerCase().includes(searchLower);
+
+        if (!matchesSearch) {
+          return false;
+        }
+      }
+
+      // Date range filter (by ETA)
+      if (fromDate || toDate) {
+        try {
+          const etaDate = new Date(shipment.eta);
+
+          if (fromDate) {
+            const from = new Date(fromDate);
+            if (etaDate < from) {
+              return false;
+            }
+          }
+
+          if (toDate) {
+            const to = new Date(toDate);
+            to.setHours(23, 59, 59, 999); // Include the entire end date
+            if (etaDate > to) {
+              return false;
+            }
+          }
+        } catch (e) {
+          // If date parsing fails, exclude the item
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [list, debouncedSearchTerm, fromDate, toDate]);
+
+  // Pagination with 25 items per page
+  const {
+    currentPage,
+    totalPages,
+    paginatedData,
+    goToPage,
+    totalItems,
+    itemsPerPage,
+  } = usePagination(filteredShipments, 25);
+
+  // Batch selection
+  const {
+    selectedIds,
+    selectedItems,
+    selectionCount,
+    isAllSelected,
+    isPartiallySelected,
+    hasSelection,
+    toggleItem,
+    toggleAll,
+    deselectAll,
+    isSelected,
+  } = useBatchSelection(paginatedData);
+
+  // Bulk operation states
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
+  // Clear selection when page changes
+  useEffect(() => {
+    deselectAll();
+  }, [currentPage, deselectAll]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "a" && !isAddOpen && !isEditOpen) {
+        e.preventDefault();
+        toggleAll();
+      }
+      if (e.key === "Escape" && hasSelection) {
+        deselectAll();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleAll, deselectAll, hasSelection, isAddOpen, isEditOpen]);
+
+  function resetForm() {
+    setForm({ id: "", orderId: "", destination: "", carrier: "", status: "Pending", eta: "" });
+  }
+
+  function clearDateFilter() {
+    setFromDate("");
+    setToDate("");
+  }
+
+  function validateForm() {
+    if (!form.orderId.trim()) return "Order ID is required";
+    if (!form.destination.trim()) return "Destination is required";
+    if (!form.carrier.trim()) return "Carrier is required";
+    if (!form.eta.trim()) return "ETA is required";
+    return null;
+  }
+
+  async function handleAdd() {
+    const err = validateForm();
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    const created = await createShipment({ orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+    setShipmentsData((prev) => [created, ...(prev ?? [])]);
+    setIsAddOpen(false);
+    resetForm();
+    toast.success("Shipment created successfully");
+  }
+
+  async function handleEditSave() {
+    const err = validateForm();
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    if (!form.id) {
+      toast.error("Missing shipment id");
+      return;
+    }
+    const updated = await updateShipment({ id: form.id, orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+    setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
+    setIsEditOpen(null);
+    toast.success("Shipment updated successfully");
+  }
+
+  async function handleDelete(id: string) {
+    await deleteShipment(id);
+    setShipmentsData((prev) => (prev ?? []).filter((s) => s.id !== id));
+    setIsEditOpen(null);
+    toast.success("Shipment deleted successfully");
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Delivered":
+        return "bg-green-500/10 text-green-700";
+      case "In Transit":
+        return "bg-blue-500/10 text-blue-700";
+      case "Processing":
+        return "bg-orange-500/10 text-orange-700";
+      case "Pending":
+        return "bg-gray-500/10 text-gray-700";
+      default:
+        return "bg-gray-500/10 text-gray-700";
+    }
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkDeleteShipments(ids);
+
+      setShipmentsData((prev) => prev?.filter((shipment) => !ids.includes(shipment.id)) ?? []);
+
+      if (result.failedCount > 0) {
+        toast.warning(`Deleted ${result.successCount} shipments. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully deleted ${result.successCount} shipment${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete shipments");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Bulk status update handler
+  const handleBulkStatusUpdate = useCallback(async (status: string) => {
+    setIsBulkUpdating(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkUpdateShipmentStatus(ids, status as Shipment["status"]);
+
+      setShipmentsData((prev) => {
+        if (!prev) return prev;
+        return prev.map((shipment) => {
+          if (ids.includes(shipment.id)) {
+            return { ...shipment, status: status as Shipment["status"] };
+          }
+          return shipment;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Updated ${result.successCount} shipments. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully updated ${result.successCount} shipment${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update shipments");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Get names of selected shipments for dialogs
+  const selectedShipmentNames = useMemo(() => {
+    return selectedItems.map(shipment => `${shipment.id} → ${shipment.destination}`);
+  }, [selectedItems]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Active Shipments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              <div className="text-2xl">89</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">In Transit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-orange-600" />
+              <div className="text-2xl">67</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">On-Time Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">94%</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Shipment Tracking</CardTitle>
+            <div className="flex gap-2">
+
+              <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => resetForm()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Shipment
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Shipment</DialogTitle>
+                    <DialogDescription>Enter the details for the new shipment.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="orderId">Order ID</Label>
+                      <Input id="orderId" placeholder="ORD-0001" value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="destination">Destination</Label>
+                      <Input id="destination" placeholder="City, ST" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="carrier">Carrier</Label>
+                      <Input id="carrier" placeholder="FedEx/UPS/DHL" value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="status">Status</Label>
+                      <Input id="status" placeholder="Pending" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Shipment["status"] })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="eta">ETA</Label>
+                      <Input id="eta" placeholder="Oct 20, 2025" value={form.eta} onChange={(e) => setForm({ ...form, eta: e.target.value })} />
+                    </div>
+                    <Button className="w-full" onClick={handleAdd}>Add Shipment</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-6 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search shipments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            <DateRangeFilter
+              fromDate={fromDate}
+              toDate={toDate}
+              onFromDateChange={setFromDate}
+              onToDateChange={setToDate}
+              onClear={clearDateFilter}
+              label="Filter by ETA Date"
+            />
+
+            {/* Active Filters Badge */}
+            {(fromDate || toDate) && (
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  ETA: {fromDate || '...'} to {toDate || '...'}
+                  <button
+                    onClick={clearDateFilter}
+                    className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              </div>
+            )}
+          </div>
+
+          {/* Bulk Actions Toolbar */}
+          {hasSelection && (
+            <BulkActionsToolbar
+              selectionCount={selectionCount}
+              onClearSelection={deselectAll}
+              isLoading={isBulkDeleting || isBulkUpdating}
+              actions={[
+                {
+                  id: "delete",
+                  label: "Delete",
+                  icon: <Trash2 className="h-4 w-4 mr-1" />,
+                  variant: "destructive",
+                  onClick: () => setShowBulkDeleteDialog(true),
+                },
+              ]}
+              actionGroups={[
+                {
+                  id: "status-update",
+                  label: "Update Status",
+                  icon: <RefreshCw className="h-4 w-4 mr-1" />,
+                  options: [
+                    { value: "Pending", label: "Pending" },
+                    { value: "Processing", label: "Processing" },
+                    { value: "In Transit", label: "In Transit" },
+                    { value: "Delivered", label: "Delivered" },
+                  ],
+                  onSelect: (value) => handleBulkStatusUpdate(value),
+                },
+              ]}
+              className="mb-4"
+            />
+          )}
+
+          {/* Bulk Delete Dialog */}
+          <BulkDeleteDialog
+            open={showBulkDeleteDialog}
+            onOpenChange={setShowBulkDeleteDialog}
+            itemCount={selectionCount}
+            itemType="shipment"
+            itemNames={selectedShipmentNames}
+            onConfirm={handleBulkDelete}
+            isLoading={isBulkDeleting}
+          />
+
+          {isLoading ? (
+            <TableLoadingSkeleton rows={8} />
+          ) : filteredShipments.length === 0 ? (
+            <EmptyState
+              icon={Truck}
+              title="No shipments found"
+              description={(searchTerm || fromDate || toDate)
+                ? "Try adjusting your search or date filters"
+                : "Get started by creating your first shipment"}
+              actionLabel={!(searchTerm || fromDate || toDate) ? "Create Shipment" : undefined}
+              onAction={!(searchTerm || fromDate || toDate) ? () => setIsAddOpen(true) : undefined}
+            />
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        ref={(el) => {
+                          if (el) {
+                            (el as any).indeterminate = isPartiallySelected;
+                          }
+                        }}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all shipments"
+                      />
+                    </TableHead>
+                    <TableHead>Shipment ID</TableHead>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Carrier</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>ETA</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedData.map((shipment) => {
+                    const shipmentIsSelected = isSelected(shipment.id);
+                    return (
+                      <TableRow key={shipment.id} className={cn(shipmentIsSelected && "bg-muted/50")}>
+                        <TableCell>
+                          <Checkbox
+                            checked={shipmentIsSelected}
+                            onCheckedChange={() => toggleItem(shipment.id)}
+                            aria-label={`Select shipment ${shipment.id}`}
+                          />
+                        </TableCell>
+                        <TableCell>{shipment.id}</TableCell>
+                        <TableCell>{shipment.orderId}</TableCell>
+                        <TableCell>{shipment.destination}</TableCell>
+                        <TableCell>{shipment.carrier}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={getStatusColor(shipment.status)}>
+                            {shipment.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{shipment.eta}</TableCell>
+                        <TableCell>
+                          <Dialog open={isEditOpen === shipment.id} onOpenChange={(o) => { setIsEditOpen(o ? shipment.id : null); if (o) setForm({ ...shipment }); }}>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm">Track</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Edit Shipment - {shipment.id}</DialogTitle>
+                                <DialogDescription>Update fields and save your changes.</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-orderId">Order ID</Label>
+                                  <Input id="edit-orderId" value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-destination">Destination</Label>
+                                <Input id="edit-destination" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-carrier">Carrier</Label>
+                                <Input id="edit-carrier" value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-status">Status</Label>
+                                <Input id="edit-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Shipment["status"] })} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-eta">ETA</Label>
+                                <Input id="edit-eta" value={form.eta} onChange={(e) => setForm({ ...form, eta: e.target.value })} />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button className="flex-1" onClick={handleEditSave}>Save Changes</Button>
+                                <Button variant="destructive" onClick={() => handleDelete(shipment.id)}>Delete</Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls */}
+              {filteredShipments.length > 0 && (
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={goToPage}
+                  itemsPerPage={itemsPerPage}
+                  totalItems={totalItems}
+                />
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

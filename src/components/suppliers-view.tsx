@@ -1,0 +1,508 @@
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
+import { Checkbox } from "./ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import { Label } from "./ui/label";
+import { toast } from "sonner";
+import { TableLoadingSkeleton } from "./ui/loading-skeleton";
+import { EmptyState } from "./ui/empty-state";
+import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus } from "../services/api";
+import type { Supplier } from "../types";
+
+import { usePagination } from "../hooks/usePagination";
+import { useDebounce } from "../hooks/useDebounce";
+import { useBatchSelection } from "../hooks/useBatchSelection";
+import { PaginationControls } from "./ui/pagination-controls";
+import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
+import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
+import { cn } from "./ui/utils";
+
+export function SuppliersView() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    id: "",
+    name: "",
+    contact: "",
+    email: "",
+    phone: "",
+    category: "",
+    status: "Active" as Supplier["status"],
+  });
+
+  // Debounce search term for better performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      const data = await getSuppliers();
+      setSuppliersData(data);
+      setIsLoading(false);
+    })();
+  }, []);
+
+  const list = useMemo<Supplier[]>(() => suppliersData ?? [], [suppliersData]);
+
+  // Optimized filtering with early returns and debounced search
+  const filteredSuppliers = useMemo(() => {
+    // Early return if no search term
+    if (!debouncedSearchTerm) {
+      return list;
+    }
+
+    const searchLower = debouncedSearchTerm.toLowerCase();
+    return list.filter(supplier =>
+      supplier.name.toLowerCase().includes(searchLower) ||
+      supplier.id.toLowerCase().includes(searchLower) ||
+      supplier.category.toLowerCase().includes(searchLower)
+    );
+  }, [list, debouncedSearchTerm]);
+
+  // Pagination with 25 items per page
+  const {
+    currentPage,
+    totalPages,
+    paginatedData,
+    goToPage,
+    totalItems,
+    itemsPerPage,
+  } = usePagination(filteredSuppliers, 25);
+
+  // Batch selection
+  const {
+    selectedIds,
+    selectedItems,
+    selectionCount,
+    isAllSelected,
+    isPartiallySelected,
+    hasSelection,
+    toggleItem,
+    toggleAll,
+    deselectAll,
+    isSelected,
+  } = useBatchSelection(paginatedData);
+
+  // Bulk operation states
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
+  // Clear selection when page changes
+  useEffect(() => {
+    deselectAll();
+  }, [currentPage, deselectAll]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "a" && !isAddOpen && !isEditOpen) {
+        e.preventDefault();
+        toggleAll();
+      }
+      if (e.key === "Escape" && hasSelection) {
+        deselectAll();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleAll, deselectAll, hasSelection, isAddOpen, isEditOpen]);
+
+  const getStatusColor = (status: string) => {
+    return status === "Active"
+      ? "bg-green-500/10 text-green-700"
+      : "bg-gray-500/10 text-gray-700";
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkDeleteSuppliers(ids);
+
+      setSuppliersData((prev) => prev?.filter((supplier) => !ids.includes(supplier.id)) ?? []);
+
+      if (result.failedCount > 0) {
+        toast.warning(`Deleted ${result.successCount} suppliers. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully deleted ${result.successCount} supplier${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete suppliers");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Bulk status update handler
+  const handleBulkStatusUpdate = useCallback(async (status: string) => {
+    setIsBulkUpdating(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkUpdateSupplierStatus(ids, status as Supplier["status"]);
+
+      setSuppliersData((prev) => {
+        if (!prev) return prev;
+        return prev.map((supplier) => {
+          if (ids.includes(supplier.id)) {
+            return { ...supplier, status: status as Supplier["status"] };
+          }
+          return supplier;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Updated ${result.successCount} suppliers. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully updated ${result.successCount} supplier${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update suppliers");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Get names of selected suppliers for dialogs
+  const selectedSupplierNames = useMemo(() => {
+    return selectedItems.map(supplier => supplier.name);
+  }, [selectedItems]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Total Suppliers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">48</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">42</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Categories</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">8</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Supplier Management</CardTitle>
+            <div className="flex gap-2">
+
+              <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" }); }}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" })}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Supplier
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Supplier</DialogTitle>
+                    <DialogDescription>Enter the details for the new supplier.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="supplier-name">Company Name</Label>
+                      <Input id="supplier-name" placeholder="Enter company name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact-name">Contact Person</Label>
+                      <Input id="contact-name" placeholder="Enter contact name" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" placeholder="email@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input id="phone" placeholder="+1 (555) 000-0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Input id="category" placeholder="e.g., Electronics" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={async () => {
+                        if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
+                          toast.error("Please fill all required fields");
+                          return;
+                        }
+                        try {
+                          const created = await createSupplier({
+                            name: form.name,
+                            contact: form.contact,
+                            email: form.email,
+                            phone: form.phone,
+                            category: form.category,
+                            status: form.status,
+                          });
+                          setSuppliersData((prev) => [created, ...(prev ?? [])]);
+                          setIsAddOpen(false);
+                          toast.success("Supplier added successfully");
+                          setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" });
+                        } catch (e: any) {
+                          toast.error(e?.message || "Failed to add supplier");
+                        }
+                      }}
+                    >
+                      Add Supplier
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search suppliers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {/* Bulk Actions Toolbar */}
+          {hasSelection && (
+            <BulkActionsToolbar
+              selectionCount={selectionCount}
+              onClearSelection={deselectAll}
+              isLoading={isBulkDeleting || isBulkUpdating}
+              actions={[
+                {
+                  id: "delete",
+                  label: "Delete",
+                  icon: <Trash2 className="h-4 w-4 mr-1" />,
+                  variant: "destructive",
+                  onClick: () => setShowBulkDeleteDialog(true),
+                },
+              ]}
+              actionGroups={[
+                {
+                  id: "status-update",
+                  label: "Update Status",
+                  icon: <RefreshCw className="h-4 w-4 mr-1" />,
+                  options: [
+                    { value: "Active", label: "Active" },
+                    { value: "Inactive", label: "Inactive" },
+                  ],
+                  onSelect: (value) => handleBulkStatusUpdate(value),
+                },
+              ]}
+              className="mb-4"
+            />
+          )}
+
+          {/* Bulk Delete Dialog */}
+          <BulkDeleteDialog
+            open={showBulkDeleteDialog}
+            onOpenChange={setShowBulkDeleteDialog}
+            itemCount={selectionCount}
+            itemType="supplier"
+            itemNames={selectedSupplierNames}
+            onConfirm={handleBulkDelete}
+            isLoading={isBulkDeleting}
+          />
+
+          {isLoading ? (
+            <TableLoadingSkeleton rows={8} />
+          ) : filteredSuppliers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No suppliers found"
+              description={searchTerm
+                ? "Try adjusting your search criteria"
+                : "Get started by adding your first supplier"}
+              actionLabel={!searchTerm ? "Add Supplier" : undefined}
+              onAction={!searchTerm ? () => setIsAddOpen(true) : undefined}
+            />
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        ref={(el) => {
+                          if (el) {
+                            (el as any).indeterminate = isPartiallySelected;
+                          }
+                        }}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all suppliers"
+                      />
+                    </TableHead>
+                    <TableHead>Supplier ID</TableHead>
+                    <TableHead>Company Name</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedData.map((supplier) => {
+                    const supplierIsSelected = isSelected(supplier.id);
+                    return (
+                      <TableRow key={supplier.id} className={cn(supplierIsSelected && "bg-muted/50")}>
+                        <TableCell>
+                          <Checkbox
+                            checked={supplierIsSelected}
+                            onCheckedChange={() => toggleItem(supplier.id)}
+                            aria-label={`Select supplier ${supplier.name}`}
+                          />
+                        </TableCell>
+                        <TableCell>{supplier.id}</TableCell>
+                        <TableCell>{supplier.name}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-sm">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{supplier.email}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{supplier.phone}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{supplier.category}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={getStatusColor(supplier.status)}>
+                            {supplier.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Dialog open={isEditOpen === supplier.id} onOpenChange={(o) => { setIsEditOpen(o ? supplier.id : null); if (o) setForm({ ...supplier }); }}>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm">Edit</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Edit Supplier</DialogTitle>
+                                <DialogDescription>Update fields and save your changes.</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-name">Company Name</Label>
+                                  <Input id="edit-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-contact">Contact Person</Label>
+                                  <Input id="edit-contact" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-email">Email</Label>
+                                  <Input id="edit-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-phone">Phone</Label>
+                                  <Input id="edit-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-category">Category</Label>
+                                  <Input id="edit-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button className="flex-1" onClick={async () => {
+                                    if (!form.id) { toast.error("Missing supplier id"); return; }
+                                    if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
+                                      toast.error("Please fill all required fields");
+                                      return;
+                                    }
+                                    try {
+                                      const updated = await updateSupplier({ id: form.id, name: form.name, contact: form.contact, email: form.email, phone: form.phone, category: form.category, status: form.status });
+                                      setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
+                                      setIsEditOpen(null);
+                                      toast.success("Supplier updated");
+                                    } catch (e: any) {
+                                      toast.error(e?.message || "Failed to update supplier");
+                                    }
+                                  }}>Save Changes</Button>
+                                  <Button variant="destructive" onClick={async () => {
+                                    try {
+                                      await deleteSupplier(supplier.id);
+                                      setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== supplier.id));
+                                      setIsEditOpen(null);
+                                      toast.success("Supplier deleted");
+                                    } catch (e: any) {
+                                      toast.error(e?.message || "Failed to delete supplier");
+                                    }
+                                  }}>Delete</Button>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls */}
+              {filteredSuppliers.length > 0 && (
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={goToPage}
+                  itemsPerPage={itemsPerPage}
+                  totalItems={totalItems}
+                />
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

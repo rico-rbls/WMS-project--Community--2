@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    // Improved Type Checking - Balanced approach for better code quality
+    // Enables key safety features without breaking existing code
+    "strict": false,
+    "noImplicitAny": false,  // Will enable after fixing parameter types
+    "strictNullChecks": false,  // Will enable after null checks are added
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+
+    // Additional Checks - Enabled for code quality
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+
+
