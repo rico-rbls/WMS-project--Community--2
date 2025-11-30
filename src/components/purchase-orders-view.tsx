@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import {
   Table,
   TableBody,
@@ -14,13 +15,15 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, Filter, ShoppingBag, Trash2, Check, X, Package, Send, Download } from "lucide-react";
+import { Plus, Search, ShoppingBag, Trash2, Check, X, Package, Send, Download, DollarSign, Clock, TrendingUp, CheckCircle, FileText, Filter } from "lucide-react";
+import { cn } from "./ui/utils";
 import { toast } from "sonner";
 import {
   getPurchaseOrders,
@@ -211,6 +214,106 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const { paginatedData, currentPage, totalPages, goToPage, itemsPerPage, totalItems } = usePagination<PurchaseOrder>(filteredData, 10);
 
+  // Calculate statistics
+  const poStats = useMemo(() => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const totalPOs = list.length;
+    const totalValue = list.reduce((sum, po) => sum + (po.totalAmount ?? 0), 0);
+    const avgOrderValue = totalPOs > 0 ? totalValue / totalPOs : 0;
+
+    // Status counts
+    const draftCount = list.filter(po => po.status === "Draft").length;
+    const pendingApprovalCount = list.filter(po => po.status === "Pending Approval").length;
+    const approvedCount = list.filter(po => po.status === "Approved").length;
+    const orderedCount = list.filter(po => po.status === "Ordered").length;
+    const partiallyReceivedCount = list.filter(po => po.status === "Partially Received").length;
+    const receivedCount = list.filter(po => po.status === "Received").length;
+    const rejectedCount = list.filter(po => po.status === "Rejected").length;
+    const cancelledCount = list.filter(po => po.status === "Cancelled").length;
+
+    // Active POs (not completed or cancelled)
+    const activePOs = draftCount + pendingApprovalCount + approvedCount + orderedCount + partiallyReceivedCount;
+
+    // Completion rate
+    const completedPOs = receivedCount;
+    const completionRate = totalPOs > 0 ? Math.round((completedPOs / totalPOs) * 100) : 0;
+
+    // New this week
+    const newThisWeek = list.filter(po => {
+      const createdDate = new Date(po.createdDate);
+      return createdDate >= oneWeekAgo;
+    }).length;
+
+    // Pending delivery (ordered but not received)
+    const pendingDelivery = orderedCount + partiallyReceivedCount;
+
+    return {
+      totalPOs,
+      totalValue,
+      avgOrderValue,
+      draftCount,
+      pendingApprovalCount,
+      approvedCount,
+      orderedCount,
+      partiallyReceivedCount,
+      receivedCount,
+      rejectedCount,
+      cancelledCount,
+      activePOs,
+      completionRate,
+      newThisWeek,
+      pendingDelivery,
+    };
+  }, [list]);
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("all");
+  };
+
+  // Get status icon
+  const getStatusIcon = (status: POStatus) => {
+    switch (status) {
+      case "Draft": return "📝";
+      case "Pending Approval": return "⏳";
+      case "Approved": return "✓";
+      case "Rejected": return "✗";
+      case "Ordered": return "📦";
+      case "Partially Received": return "📥";
+      case "Received": return "✓";
+      case "Cancelled": return "○";
+      default: return "○";
+    }
+  };
+
+  // Get status badge color for status breakdown cards
+  const getStatusBadgeColor = (status: POStatus) => {
+    switch (status) {
+      case "Draft": return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
+      case "Pending Approval": return "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200";
+      case "Approved": return "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200";
+      case "Rejected": return "bg-red-500/15 text-red-700 dark:text-red-400 border-red-200";
+      case "Ordered": return "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200";
+      case "Partially Received": return "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-200";
+      case "Received": return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200";
+      case "Cancelled": return "bg-gray-500/15 text-gray-700 dark:text-gray-400 border-gray-200";
+      default: return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
+    }
+  };
+
   const handleSort = (column: string) => {
     const key = column as keyof PurchaseOrder;
     if (sortColumn === key) {
@@ -246,7 +349,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       "Cancelled": { variant: "secondary", className: "text-gray-500" },
     };
     const { variant, className } = variants[status];
-    return <Badge variant={variant} className={className}>{status}</Badge>;
+    return <Badge variant={variant} className={cn("gap-1", className)}><span>{getStatusIcon(status)}</span>{status}</Badge>;
   };
 
   const resetForm = () => {
@@ -541,183 +644,336 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Purchase Orders</h1>
-          <p className="text-muted-foreground">Manage purchase orders and supplier orders</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          {canCreate && (
-            <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create PO
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create Purchase Order</DialogTitle>
-                  <DialogDescription>Create a new purchase order for supplier items</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Supplier *</Label>
-                      <Select value={form.supplierId} onValueChange={handleSupplierChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select supplier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliersData.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+    <div className="space-y-6">
+      {/* Statistics Dashboard */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total POs */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total POs</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{poStats.totalPOs}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {poStats.newThisWeek} new this week
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Total Value */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{formatCurrency(poStats.totalValue)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Avg: {formatCurrency(poStats.avgOrderValue)} per PO
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Active POs */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active POs</CardTitle>
+            <Clock className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{poStats.activePOs}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {poStats.orderedCount} ordered, {poStats.pendingApprovalCount} pending approval
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Completion Rate */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completion Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{poStats.completionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {poStats.completedPOs} received of {poStats.totalPOs} total
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Status Breakdown Cards */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Draft" ? "ring-2 ring-primary" : "",
+            "border-l-slate-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Draft" ? "all" : "Draft")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Draft</p>
+                <p className="text-xl font-bold mt-1">{poStats.draftCount}</p>
+              </div>
+              <Badge variant="outline" className={getStatusBadgeColor("Draft")}>
+                {getStatusIcon("Draft")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Pending Approval" ? "ring-2 ring-primary" : "",
+            "border-l-amber-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Pending Approval" ? "all" : "Pending Approval")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pending Approval</p>
+                <p className="text-xl font-bold mt-1">{poStats.pendingApprovalCount}</p>
+              </div>
+              <Badge variant="outline" className={getStatusBadgeColor("Pending Approval")}>
+                {getStatusIcon("Pending Approval")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Ordered" ? "ring-2 ring-primary" : "",
+            "border-l-blue-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Ordered" ? "all" : "Ordered")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ordered</p>
+                <p className="text-xl font-bold mt-1">{poStats.orderedCount}</p>
+              </div>
+              <Badge variant="outline" className={getStatusBadgeColor("Ordered")}>
+                {getStatusIcon("Ordered")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Received" ? "ring-2 ring-primary" : "",
+            "border-l-emerald-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Received" ? "all" : "Received")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Received</p>
+                <p className="text-xl font-bold mt-1">{poStats.receivedCount}</p>
+              </div>
+              <Badge variant="outline" className={getStatusBadgeColor("Received")}>
+                {getStatusIcon("Received")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Purchase Order Management</CardTitle>
+            <CardDescription>Create and manage supplier purchase orders</CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            {canCreate && (
+              <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create PO
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create Purchase Order</DialogTitle>
+                    <DialogDescription>Create a new purchase order for supplier items</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Supplier *</Label>
+                        <Select value={form.supplierId} onValueChange={handleSupplierChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select supplier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliersData.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Expected Delivery Date *</Label>
+                        <Input
+                          type="date"
+                          value={form.expectedDeliveryDate}
+                          onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                        />
+                      </div>
                     </div>
+
                     <div className="space-y-2">
-                      <Label>Expected Delivery Date *</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>Line Items *</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                          <Plus className="h-4 w-4 mr-1" /> Add Item
+                        </Button>
+                      </div>
+                      {form.items.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No items added. Click "Add Item" to add items.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {form.items.map((item, index) => (
+                            <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-xs">Item</Label>
+                                <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select item" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {inventoryData.map((i) => (
+                                      <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="w-24 space-y-1">
+                                <Label className="text-xs">Quantity</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                />
+                              </div>
+                              <div className="w-28 space-y-1">
+                                <Label className="text-xs">Unit Price</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+                                />
+                              </div>
+                              <div className="w-28 space-y-1">
+                                <Label className="text-xs">Total</Label>
+                                <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
+                              </div>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                          <div className="text-right font-semibold">
+                            Total: ₱{totalAmount.toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
                       <Input
-                        type="date"
-                        value={form.expectedDeliveryDate}
-                        onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                        value={form.notes}
+                        onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Optional notes..."
                       />
                     </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Line Items *</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                        <Plus className="h-4 w-4 mr-1" /> Add Item
-                      </Button>
-                    </div>
-                    {form.items.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No items added. Click "Add Item" to add items.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {form.items.map((item, index) => (
-                          <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
-                            <div className="flex-1 space-y-1">
-                              <Label className="text-xs">Item</Label>
-                              <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select item" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {inventoryData.map((i) => (
-                                    <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="w-24 space-y-1">
-                              <Label className="text-xs">Quantity</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                              />
-                            </div>
-                            <div className="w-28 space-y-1">
-                              <Label className="text-xs">Unit Price</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.unitPrice}
-                                onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-                              />
-                            </div>
-                            <div className="w-28 space-y-1">
-                              <Label className="text-xs">Total</Label>
-                              <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
-                            </div>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
-                        <div className="text-right font-semibold">
-                          Total: ₱{totalAmount.toFixed(2)}
-                        </div>
-                      </div>
-                    )}
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>Cancel</Button>
+                      <Button onClick={handleCreate}>Create Purchase Order</Button>
+                    </DialogFooter>
                   </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex gap-4 items-center">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search PO ID, supplier, or items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-48">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {PO_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(searchTerm || filterStatus !== "all") && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
+                <X className="h-4 w-4 mr-1" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
 
-                  <div className="space-y-2">
-                    <Label>Notes</Label>
-                    <Input
-                      value={form.notes}
-                      onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Optional notes..."
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>Cancel</Button>
-                    <Button onClick={handleCreate}>Create Purchase Order</Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+          {/* Bulk Actions */}
+          {hasSelection && canDelete && (
+            <BulkActionsToolbar
+              selectionCount={selectionCount}
+              onClearSelection={deselectAll}
+              actions={[
+                { label: "Delete Selected", onClick: () => setBulkDeleteOpen(true), variant: "destructive" },
+              ]}
+            />
           )}
-        </div>
-      </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search PO ID, supplier, or items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-48">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {PO_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>{status}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Bulk Actions */}
-      {hasSelection && canDelete && (
-        <BulkActionsToolbar
-          selectionCount={selectionCount}
-          onClearSelection={deselectAll}
-          actions={[
-            { label: "Delete Selected", onClick: () => setBulkDeleteOpen(true), variant: "destructive" },
-          ]}
-        />
-      )}
-
-      {/* Table */}
-      {filteredData.length === 0 ? (
-        <EmptyState
-          icon={ShoppingBag}
-          title="No purchase orders found"
-          description={searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : "Create your first purchase order to get started"}
-          actionLabel={canCreate ? "Create PO" : undefined}
-          onAction={canCreate ? () => setIsAddOpen(true) : undefined}
-        />
-      ) : (
+          {/* Table */}
+          {filteredData.length === 0 ? (
+            <EmptyState
+              icon={ShoppingBag}
+              title="No purchase orders found"
+              description={searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : "Create your first purchase order to get started"}
+              actionLabel={canCreate ? "Create PO" : undefined}
+              onAction={canCreate ? () => setIsAddOpen(true) : undefined}
+            />
+          ) : (
         <>
           <div className="border rounded-lg">
             <Table>
@@ -1084,14 +1340,16 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
         </Dialog>
       )}
 
-      {/* Bulk Delete Dialog */}
-      <BulkDeleteDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        itemCount={selectionCount}
-        itemType="purchase orders"
-        onConfirm={handleBulkDelete}
-      />
+          {/* Bulk Delete Dialog */}
+          <BulkDeleteDialog
+            open={bulkDeleteOpen}
+            onOpenChange={setBulkDeleteOpen}
+            itemCount={selectionCount}
+            itemType="purchase orders"
+            onConfirm={handleBulkDelete}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier } from "../services/api";
@@ -100,6 +100,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
@@ -202,6 +203,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         return false;
       }
 
+      // Early return for status filter
+      if (filterStatus !== "all" && item.status !== filterStatus) {
+        return false;
+      }
+
       // Early return if no search term
       if (!debouncedSearchTerm) {
         return true;
@@ -214,7 +220,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         item.id.toLowerCase().includes(searchLower)
       );
     });
-  }, [inventoryItems, debouncedSearchTerm, filterCategory, showFavoritesOnly, isFavorite]);
+  }, [inventoryItems, debouncedSearchTerm, filterCategory, filterStatus, showFavoritesOnly, isFavorite]);
 
   // Handle applying saved searches
   const handleApplySavedSearch = useCallback((search: SavedSearch) => {
@@ -235,11 +241,22 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     if (filterCategory !== "all") {
       filters.category = filterCategory;
     }
+    if (filterStatus !== "all") {
+      filters.status = filterStatus;
+    }
     if (showFavoritesOnly) {
       filters.favoritesOnly = "true";
     }
     return filters;
-  }, [filterCategory, showFavoritesOnly]);
+  }, [filterCategory, filterStatus, showFavoritesOnly]);
+
+  // Clear all filters helper
+  const clearAllFilters = useCallback(() => {
+    setSearchTerm("");
+    setFilterCategory("all");
+    setFilterStatus("all");
+    setShowFavoritesOnly(false);
+  }, []);
 
   // Sorting - applied before pagination
   const {
@@ -264,6 +281,53 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     suppliers?.forEach((s) => map.set(s.id, s.name));
     return map;
   }, [suppliers]);
+
+  // Inventory statistics
+  const inventoryStats = useMemo(() => {
+    const items = inventoryItems;
+    const totalItems = items.length;
+    const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalValue = items.reduce((sum, item) => sum + (item.pricePerPiece * item.quantity), 0);
+
+    // Status counts
+    const inStockCount = items.filter(item => item.quantity > item.maintainStockAt).length;
+    const lowStockCount = items.filter(item => item.quantity <= item.maintainStockAt && item.quantity > item.minimumStock).length;
+    const criticalCount = items.filter(item => item.quantity <= item.minimumStock && item.quantity > 0).length;
+    const outOfStockCount = items.filter(item => item.quantity === 0).length;
+    const overstockCount = items.filter(item => item.quantity > item.maintainStockAt * 1.5).length;
+
+    // Category breakdown
+    const categoryBreakdown = CATEGORIES.reduce((acc, cat) => {
+      acc[cat] = items.filter(item => item.category === cat).length;
+      return acc;
+    }, {} as Record<InventoryCategory, number>);
+
+    // Health rate (items at or above maintain stock level)
+    const healthyItems = items.filter(item => item.quantity >= item.maintainStockAt).length;
+    const healthRate = totalItems > 0 ? Math.round((healthyItems / totalItems) * 100) : 0;
+
+    return {
+      totalItems,
+      totalQuantity,
+      totalValue,
+      inStockCount,
+      lowStockCount,
+      criticalCount,
+      outOfStockCount,
+      overstockCount,
+      categoryBreakdown,
+      healthRate,
+      healthyItems,
+    };
+  }, [inventoryItems]);
+
+  // Format currency helper
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+    }).format(amount);
+  };
 
   // Batch selection
   const {
@@ -801,10 +865,155 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         className="hidden"
       />
 
+      {/* Statistics Dashboard */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Items */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <Boxes className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{inventoryStats.totalItems}</div>
+            <p className="text-xs text-muted-foreground">
+              {inventoryStats.totalQuantity.toLocaleString()} units in stock
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Total Value */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(inventoryStats.totalValue)}</div>
+            <p className="text-xs text-muted-foreground">
+              Avg {formatCurrency(inventoryStats.totalItems > 0 ? inventoryStats.totalValue / inventoryStats.totalItems : 0)}/item
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Stock Alerts */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{inventoryStats.lowStockCount + inventoryStats.criticalCount}</div>
+            <p className="text-xs text-muted-foreground">
+              {inventoryStats.criticalCount} critical, {inventoryStats.lowStockCount} low stock
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Inventory Health */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inventory Health</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{inventoryStats.healthRate}%</div>
+            <p className="text-xs text-muted-foreground">
+              {inventoryStats.healthyItems} of {inventoryStats.totalItems} items healthy
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Status Breakdown Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-emerald-500",
+            filterStatus === "In Stock" && "ring-2 ring-emerald-500"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "In Stock" ? "all" : "In Stock")}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">In Stock</p>
+                <p className="text-xl font-bold mt-1">{inventoryStats.inStockCount}</p>
+              </div>
+              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200">
+                ✓
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-amber-500",
+            filterStatus === "Low Stock" && "ring-2 ring-amber-500"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Low Stock" ? "all" : "Low Stock")}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Low Stock</p>
+                <p className="text-xl font-bold mt-1">{inventoryStats.lowStockCount}</p>
+              </div>
+              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200">
+                ⚠
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-red-500",
+            filterStatus === "Critical" && "ring-2 ring-red-500"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Critical" ? "all" : "Critical")}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Critical</p>
+                <p className="text-xl font-bold mt-1">{inventoryStats.criticalCount}</p>
+              </div>
+              <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-400 border-red-200">
+                ⚠
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-purple-500",
+            filterStatus === "Overstock" && "ring-2 ring-purple-500"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Overstock" ? "all" : "Overstock")}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Overstock</p>
+                <p className="text-xl font-bold mt-1">{inventoryStats.overstockCount}</p>
+              </div>
+              <Badge variant="outline" className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200">
+                📦
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Inventory Management</CardTitle>
+            <div>
+              <CardTitle>Inventory Management</CardTitle>
+              <CardDescription>Manage your warehouse inventory items and stock levels</CardDescription>
+            </div>
             <div className="flex gap-2">
               {/* Import from Excel Button */}
               <Button
@@ -1155,6 +1364,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 <SelectItem value="Food">Food</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[160px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant={showFavoritesOnly ? "default" : "outline"}
               size="sm"
@@ -1169,6 +1390,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 </Badge>
               )}
             </Button>
+            {(searchTerm || filterCategory !== "all" || filterStatus !== "all" || showFavoritesOnly) && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
+                <X className="h-4 w-4 mr-1" />
+                Clear Filters
+              </Button>
+            )}
             <SaveSearchDialog
               entityType="inventory"
               currentSearchTerm={searchTerm}
@@ -1265,11 +1492,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             <EmptyState
               icon={Package}
               title="No inventory items found"
-              description={searchTerm || filterCategory !== "all"
+              description={searchTerm || filterCategory !== "all" || filterStatus !== "all"
                 ? "Try adjusting your search or filter criteria"
                 : "Get started by adding your first inventory item"}
-              actionLabel={!searchTerm && filterCategory === "all" ? "Add Item" : undefined}
-              onAction={!searchTerm && filterCategory === "all" ? () => setIsAddOpen(true) : undefined}
+              actionLabel={!searchTerm && filterCategory === "all" && filterStatus === "all" ? "Add Item" : undefined}
+              onAction={!searchTerm && filterCategory === "all" && filterStatus === "all" ? () => setIsAddOpen(true) : undefined}
             />
           ) : viewMode === "catalog" ? (
             /* ============ CATALOG VIEW ============ */

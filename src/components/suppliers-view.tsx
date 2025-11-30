@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -12,16 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
@@ -52,11 +54,14 @@ interface SuppliersViewProps {
   onDialogOpened?: () => void;
 }
 
+type SupplierStatus = (typeof SUPPLIER_STATUSES)[number];
+
 export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersViewProps) {
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[]>([]);
@@ -172,13 +177,20 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
         return false;
       }
 
+      // Status filter
+      if (filterStatus !== "all" && supplier.status !== filterStatus) {
+        return false;
+      }
+
       // Early return for search filter
       if (debouncedSearchTerm) {
         const searchLower = debouncedSearchTerm.toLowerCase();
         const matchesSearch =
           supplier.name.toLowerCase().includes(searchLower) ||
           supplier.id.toLowerCase().includes(searchLower) ||
-          supplier.category.toLowerCase().includes(searchLower);
+          supplier.category.toLowerCase().includes(searchLower) ||
+          supplier.contact.toLowerCase().includes(searchLower) ||
+          supplier.email.toLowerCase().includes(searchLower);
 
         if (!matchesSearch) {
           return false;
@@ -187,12 +199,15 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
 
       return true;
     });
-  }, [list, debouncedSearchTerm, showFavoritesOnly, isFavorite]);
+  }, [list, debouncedSearchTerm, filterStatus, showFavoritesOnly, isFavorite]);
 
   // Handle applying saved searches
   const handleApplySavedSearch = useCallback((search: SavedSearch) => {
     if (search.searchTerm) {
       setSearchTerm(search.searchTerm);
+    }
+    if (search.filters.status) {
+      setFilterStatus(search.filters.status as string);
     }
     if (search.filters.favoritesOnly === "true") {
       setShowFavoritesOnly(true);
@@ -202,11 +217,44 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
   // Get current filter configuration for saving
   const getCurrentFilters = useMemo(() => {
     const filters: Record<string, string | string[]> = {};
+    if (filterStatus !== "all") {
+      filters.status = filterStatus;
+    }
     if (showFavoritesOnly) {
       filters.favoritesOnly = "true";
     }
     return filters;
-  }, [showFavoritesOnly]);
+  }, [filterStatus, showFavoritesOnly]);
+
+  // Clear all filters
+  function clearAllFilters() {
+    setSearchTerm("");
+    setFilterStatus("all");
+    setShowFavoritesOnly(false);
+  }
+
+  // Status helper functions
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "Active":
+        return "✓";
+      case "Inactive":
+        return "○";
+      default:
+        return "○";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Active":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200";
+      case "Inactive":
+        return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
+      default:
+        return "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-200";
+    }
+  };
 
   // Sorting - applied before pagination
   const {
@@ -264,12 +312,6 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleAll, deselectAll, hasSelection, isAddOpen, isEditOpen]);
-
-  const getStatusColor = (status: string) => {
-    return status === "Active"
-      ? "bg-green-500/10 text-green-700"
-      : "bg-gray-500/10 text-gray-700";
-  };
 
   // Inline edit handler for quick cell updates
   const handleInlineUpdate = useCallback(async (supplierId: string, field: keyof Supplier, value: string | number) => {
@@ -346,10 +388,13 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
 
   return (
     <div className="space-y-6">
+      {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total Suppliers</CardTitle>
+        {/* Total Suppliers */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Suppliers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{supplierStats.totalSuppliers}</div>
@@ -358,12 +403,15 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active Suppliers</CardTitle>
+
+        {/* Active Suppliers */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active Suppliers</CardTitle>
+            <CheckCircle className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{supplierStats.activeSuppliers}</div>
+            <div className="text-2xl font-bold text-emerald-600">{supplierStats.activeSuppliers}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {supplierStats.totalSuppliers > 0
                 ? `${Math.round((supplierStats.activeSuppliers / supplierStats.totalSuppliers) * 100)}% of total`
@@ -371,12 +419,15 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total Purchase Orders</CardTitle>
+
+        {/* Total Purchase Orders */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Purchase Orders</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{supplierStats.totalPurchaseOrders}</div>
+            <div className="text-2xl font-bold text-blue-600">{supplierStats.totalPurchaseOrders}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {supplierStats.topSupplierByPO
                 ? `Top: ${supplierStats.topSupplierByPO.name} (${supplierStats.topSupplierByPO.count})`
@@ -384,12 +435,15 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Categories</CardTitle>
+
+        {/* Categories */}
+        <Card className="relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Categories</CardTitle>
+            <Package className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{supplierStats.uniqueCategories}</div>
+            <div className="text-2xl font-bold text-purple-600">{supplierStats.uniqueCategories}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {supplierStats.suppliersWithProducts} suppliers with products
             </p>
@@ -397,12 +451,61 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Supplier Management</CardTitle>
-            <div className="flex gap-2">
+      {/* Status Breakdown Cards */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Active" ? "ring-2 ring-primary" : "",
+            "border-l-emerald-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Active" ? "all" : "Active")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</p>
+                <p className="text-xl font-bold mt-1">{supplierStats.activeSuppliers}</p>
+              </div>
+              <Badge variant="outline" className={getStatusColor("Active")}>
+                {getStatusIcon("Active")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md border-l-4",
+            filterStatus === "Inactive" ? "ring-2 ring-primary" : "",
+            "border-l-slate-400"
+          )}
+          onClick={() => setFilterStatus(filterStatus === "Inactive" ? "all" : "Inactive")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Inactive</p>
+                <p className="text-xl font-bold mt-1">{supplierStats.inactiveSuppliers}</p>
+              </div>
+              <Badge variant="outline" className={getStatusColor("Inactive")}>
+                {getStatusIcon("Inactive")}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl">Supplier Management</CardTitle>
+              <CardDescription className="mt-1">
+                Manage your supplier relationships and contacts
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" }); }}>
                 <DialogTrigger asChild>
                   <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" })} disabled={!canModify} title={!canModify ? "You don't have permission to add suppliers" : undefined}>
@@ -410,34 +513,75 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                     Add Supplier
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
-                    <DialogTitle>Add New Supplier</DialogTitle>
+                    <DialogTitle>Create New Supplier</DialogTitle>
                     <DialogDescription>Enter the details for the new supplier.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="supplier-name">Company Name</Label>
-                      <Input id="supplier-name" placeholder="Enter company name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="supplier-name">Company Name *</Label>
+                        <Input id="supplier-name" placeholder="Enter company name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="supplier-status">Status</Label>
+                        <Select
+                          value={form.status}
+                          onValueChange={(value: SupplierStatus) => setForm({ ...form, status: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SUPPLIER_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                <span className="flex items-center gap-2">
+                                  <span>{getStatusIcon(status)}</span>
+                                  {status}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contact-name">Contact Person</Label>
+                    <div className="grid gap-2">
+                      <Label htmlFor="contact-name">Contact Person *</Label>
                       <Input id="contact-name" placeholder="Enter contact name" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="email@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="email">Email *</Label>
+                        <Input id="email" type="email" placeholder="email@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="phone">Phone *</Label>
+                        <Input id="phone" placeholder="+1 (555) 000-0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" placeholder="+1 (555) 000-0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    <div className="grid gap-2">
+                      <Label htmlFor="category">Category *</Label>
+                      <Select
+                        value={form.category}
+                        onValueChange={(value) => setForm({ ...form, category: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SUPPLIER_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <Input id="category" placeholder="e.g., Electronics" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+                      Cancel
+                    </Button>
                     <Button
-                      className="w-full"
                       onClick={async () => {
                         if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
                           toast.error("Please fill all required fields");
@@ -461,9 +605,9 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                         }
                       }}
                     >
-                      Add Supplier
+                      Create Supplier
                     </Button>
-                  </div>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
@@ -471,14 +615,33 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
         </CardHeader>
         <CardContent>
           <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search suppliers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search suppliers by name, contact, email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {SUPPLIER_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      <span className="flex items-center gap-2">
+                        <span>{getStatusIcon(status)}</span>
+                        {status}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <Button
@@ -501,6 +664,17 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                 currentFilters={getCurrentFilters}
                 onApplySearch={handleApplySavedSearch}
               />
+              {(searchTerm || filterStatus !== "all" || showFavoritesOnly) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                  Clear All Filters
+                </Button>
+              )}
             </div>
           </div>
 
@@ -622,7 +796,13 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                   {paginatedData.map((supplier) => {
                     const supplierIsSelected = isSelected(supplier.id);
                     return (
-                      <TableRow key={supplier.id} className={cn(supplierIsSelected && "bg-muted/50")}>
+                      <TableRow
+                        key={supplier.id}
+                        className={cn(
+                          "hover:bg-muted/50 transition-colors",
+                          supplierIsSelected && "bg-muted/50"
+                        )}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={supplierIsSelected}
@@ -630,7 +810,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                             aria-label={`Select supplier ${supplier.name}`}
                           />
                         </TableCell>
-                        <TableCell>{supplier.id}</TableCell>
+                        <TableCell className="font-mono text-sm">{supplier.id}</TableCell>
                         <TableCell>
                           <EditableCell
                             value={supplier.name}
@@ -673,14 +853,10 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                           />
                         </TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={supplier.status}
-                            type="badge"
-                            options={SUPPLIER_STATUSES.map(s => ({ value: s, label: s }))}
-                            badgeClassName={getStatusColor(supplier.status)}
-                            onSave={(v) => handleInlineUpdate(supplier.id, "status", v)}
-                            disabled={!canModify}
-                          />
+                          <Badge variant="outline" className={cn("gap-1", getStatusColor(supplier.status))}>
+                            <span>{getStatusIcon(supplier.status)}</span>
+                            {supplier.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -693,34 +869,89 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit suppliers" : undefined}>Edit</Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="sm:max-w-[500px]">
                               <DialogHeader>
                                 <DialogTitle>Edit Supplier</DialogTitle>
-                                <DialogDescription>Update fields and save your changes.</DialogDescription>
+                                <DialogDescription>Supplier ID: {supplier.id}</DialogDescription>
                               </DialogHeader>
-                              <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-name">Company Name</Label>
-                                  <Input id="edit-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                              <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="edit-name">Company Name *</Label>
+                                    <Input id="edit-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="edit-status">Status</Label>
+                                    <Select
+                                      value={form.status}
+                                      onValueChange={(value: SupplierStatus) => setForm({ ...form, status: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {SUPPLIER_STATUSES.map((status) => (
+                                          <SelectItem key={status} value={status}>
+                                            <span className="flex items-center gap-2">
+                                              <span>{getStatusIcon(status)}</span>
+                                              {status}
+                                            </span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-contact">Contact Person</Label>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="edit-contact">Contact Person *</Label>
                                   <Input id="edit-contact" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-email">Email</Label>
-                                  <Input id="edit-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="edit-email">Email *</Label>
+                                    <Input id="edit-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                                  </div>
+                                  <div className="grid gap-2">
+                                    <Label htmlFor="edit-phone">Phone *</Label>
+                                    <Input id="edit-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-phone">Phone</Label>
-                                  <Input id="edit-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                                <div className="grid gap-2">
+                                  <Label htmlFor="edit-category">Category *</Label>
+                                  <Select
+                                    value={form.category}
+                                    onValueChange={(value) => setForm({ ...form, category: value })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {SUPPLIER_CATEGORIES.map((cat) => (
+                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-category">Category</Label>
-                                  <Input id="edit-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-                                </div>
+                              </div>
+                              <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
+                                <Button variant="destructive" onClick={async () => {
+                                  try {
+                                    await deleteSupplier(supplier.id);
+                                    setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== supplier.id));
+                                    setIsEditOpen(null);
+                                    toast.success("Supplier deleted");
+                                  } catch (e: any) {
+                                    toast.error(e?.message || "Failed to delete supplier");
+                                  }
+                                }}>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </Button>
                                 <div className="flex gap-2">
-                                  <Button className="flex-1" onClick={async () => {
+                                  <Button variant="outline" onClick={() => setIsEditOpen(null)}>
+                                    Cancel
+                                  </Button>
+                                  <Button onClick={async () => {
                                     if (!form.id) { toast.error("Missing supplier id"); return; }
                                     if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
                                       toast.error("Please fill all required fields");
@@ -735,18 +966,8 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                                       toast.error(e?.message || "Failed to update supplier");
                                     }
                                   }}>Save Changes</Button>
-                                  <Button variant="destructive" onClick={async () => {
-                                    try {
-                                      await deleteSupplier(supplier.id);
-                                      setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== supplier.id));
-                                      setIsEditOpen(null);
-                                      toast.success("Supplier deleted");
-                                    } catch (e: any) {
-                                      toast.error(e?.message || "Failed to delete supplier");
-                                    }
-                                  }}>Delete</Button>
                                 </div>
-                              </div>
+                              </DialogFooter>
                             </DialogContent>
                           </Dialog>
                           </div>
