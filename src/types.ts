@@ -7,7 +7,7 @@ export interface InventoryItem {
   quantity: number;
   location: string;
   reorderLevel: number; // Kept for backward compatibility, same as minimumStock
-  status: "In Stock" | "Low Stock" | "Critical" | "Unknown";
+  status: "In Stock" | "Low Stock" | "Critical" | "Overstock" | "Unknown";
   // New fields
   brand: string; // Manufacturer or brand name
   pricePerPiece: number; // Unit price for each item

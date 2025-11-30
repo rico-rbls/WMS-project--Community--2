@@ -123,7 +123,27 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     // Inventory health metrics
     const inStockItems = inventory.filter(i => i.status === "In Stock").length;
     const criticalItems = inventory.filter(i => i.status === "Critical").length;
+    const overstockItems = inventory.filter(i => i.status === "Overstock");
     const healthScore = inventory.length > 0 ? Math.round((inStockItems / inventory.length) * 100) : 0;
+
+    // Enhanced overstock items with additional calculations
+    const enhancedOverstockItems = overstockItems.map(item => {
+      const supplier = suppliers?.find(s => s.id === item.supplierId);
+      const excessQty = Math.max(0, item.quantity - (item.maintainStockAt || item.reorderLevel * 2));
+      const overstockPercentage = item.maintainStockAt > 0 ? Math.round((item.quantity / item.maintainStockAt) * 100) : 0;
+      const excessValue = excessQty * (item.pricePerPiece || 0);
+
+      return {
+        ...item,
+        supplierName: supplier?.name || "Unknown Supplier",
+        excessQty,
+        overstockPercentage,
+        excessValue,
+      };
+    }).sort((a, b) => b.overstockPercentage - a.overstockPercentage);
+
+    // Calculate total excess value
+    const totalExcessValue = enhancedOverstockItems.reduce((sum, item) => sum + item.excessValue, 0);
 
     // Top products by quantity
     const topProducts = [...inventory]
@@ -164,6 +184,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       topProducts,
       supplierPerformance,
       totalOrderValue,
+      // Overstock KPIs
+      overstockCount: overstockItems.length,
+      overstockItems: enhancedOverstockItems,
+      totalExcessValue,
     };
   }, [inventory, orders, shipments, suppliers, purchaseOrders]);
 
@@ -287,6 +311,33 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               <Button
                 variant="link"
                 className="h-auto p-0 text-orange-700 dark:text-orange-300 underline-offset-4 hover:underline"
+                onClick={() => navigateToView?.("inventory")}
+              >
+                View in Inventory →
+              </Button>
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Overstock Alert */}
+      {stats.overstockCount > 0 && (
+        <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+          <Package className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-900 dark:text-blue-100">Overstock Alert</AlertTitle>
+          <AlertDescription className="text-blue-800 dark:text-blue-200">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>
+                {stats.overstockCount} item{stats.overstockCount > 1 ? 's exceed' : ' exceeds'} target stock level.
+                {stats.totalExcessValue > 0 && (
+                  <span className="ml-1 font-medium">
+                    Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
+              </span>
+              <Button
+                variant="link"
+                className="h-auto p-0 text-blue-700 dark:text-blue-300 underline-offset-4 hover:underline"
                 onClick={() => navigateToView?.("inventory")}
               >
                 View in Inventory →
@@ -697,6 +748,18 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-blue-500" />
+                    <span className="text-sm">Overstock</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-blue-600">{stats.overstockCount}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({inventory.length > 0 ? Math.round((stats.overstockCount / inventory.length) * 100) : 0}%)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded-full bg-yellow-500" />
                     <span className="text-sm">Low Stock</span>
                   </div>
@@ -884,6 +947,111 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   <ShoppingBag className="h-4 w-4 mr-2" />
                   Create PO
                 </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Overstock Items List */}
+      {stats.overstockItems.length > 0 && (
+        <Card className="border-blue-200 dark:border-blue-900">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-blue-600" />
+                  Overstock Items
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
+                    {stats.overstockCount} items
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Items exceeding target stock level
+                  {stats.totalExcessValue > 0 && (
+                    <span className="ml-2 font-medium text-blue-700 dark:text-blue-400">
+                      • Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats.overstockItems.slice(0, 5).map((item) => {
+                return (
+                  <div key={item.id} className="space-y-2 pb-4 border-b last:border-0 last:pb-0">
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{item.name}</p>
+                          <Badge variant="secondary" className="shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                            Overstock
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {item.supplierName} • {item.location} • {item.category}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => navigateToView?.("inventory")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Stock Info */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Stock: <span className="font-medium text-foreground">{item.quantity}</span> / {item.maintainStockAt} (target)
+                        </span>
+                        <span className="font-medium text-blue-600">
+                          {item.overstockPercentage}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all bg-blue-500"
+                          style={{ width: `${Math.min(100, (item.maintainStockAt / item.quantity) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Excess Info */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Excess: <span className="font-medium text-blue-600">{item.excessQty} units</span></span>
+                      <span>Excess value: <span className="font-medium">₱{item.excessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Footer with View All link */}
+              <div className="flex items-center justify-between pt-2">
+                {stats.overstockItems.length > 5 ? (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-blue-600 hover:text-blue-700"
+                    onClick={() => navigateToView?.("inventory")}
+                  >
+                    View all {stats.overstockItems.length} overstock items →
+                  </Button>
+                ) : (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-muted-foreground hover:text-foreground"
+                    onClick={() => navigateToView?.("inventory")}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    View in Inventory
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>

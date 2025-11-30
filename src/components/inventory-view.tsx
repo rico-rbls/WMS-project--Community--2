@@ -52,7 +52,7 @@ import { canWrite } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
 
 const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
-const STATUSES = ["In Stock", "Low Stock", "Critical"] as const;
+const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
 
 // Category prefixes for auto-generating location codes
 const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
@@ -574,6 +574,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         return "bg-orange-500/10 text-orange-700";
       case "Critical":
         return "bg-red-500/10 text-red-700";
+      case "Overstock":
+        return "bg-blue-500/10 text-blue-700";
       default:
         return "bg-gray-500/10 text-gray-700";
     }

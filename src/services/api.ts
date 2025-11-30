@@ -254,9 +254,11 @@ saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
 // Helper Functions
 // ============================================================================
 
-function computeStatus(quantity: number, reorderLevel: number): InventoryItem["status"] {
+function computeStatus(quantity: number, reorderLevel: number, maintainStockAt?: number): InventoryItem["status"] {
   if (quantity <= 0) return "Critical";
   if (quantity <= Math.max(1, reorderLevel)) return "Low Stock";
+  // Check for overstock: quantity exceeds the target/optimal stock level
+  if (maintainStockAt && maintainStockAt > 0 && quantity > maintainStockAt) return "Overstock";
   return "In Stock";
 }
 
@@ -298,7 +300,7 @@ export async function createInventoryItem(input: CreateInventoryItemInput): Prom
   const reorderLevel = Math.max(0, Math.floor(input.reorderLevel));
   const minimumStock = Math.max(0, Math.floor(input.minimumStock));
   const maintainStockAt = Math.max(0, Math.floor(input.maintainStockAt));
-  const status = computeStatus(quantity, reorderLevel);
+  const status = computeStatus(quantity, reorderLevel, maintainStockAt);
   const item: InventoryItem = {
     id,
     name: input.name.trim(),
@@ -337,7 +339,7 @@ export async function updateInventoryItem(input: UpdateInventoryItemInput): Prom
     reorderLevel,
     minimumStock,
     maintainStockAt,
-    status: computeStatus(quantity, reorderLevel),
+    status: computeStatus(quantity, reorderLevel, maintainStockAt),
   };
 
   inventory[index] = next;
@@ -540,12 +542,13 @@ export async function bulkUpdateInventoryItems(
       const prev = inventory[index];
       const quantity = updates.quantity !== undefined ? Math.max(0, Math.floor(updates.quantity)) : prev.quantity;
       const reorderLevel = updates.reorderLevel !== undefined ? Math.max(0, Math.floor(updates.reorderLevel)) : prev.reorderLevel;
+      const maintainStockAt = updates.maintainStockAt !== undefined ? Math.max(0, Math.floor(updates.maintainStockAt)) : prev.maintainStockAt;
       inventory[index] = {
         ...prev,
         ...updates,
         quantity,
         reorderLevel,
-        status: computeStatus(quantity, reorderLevel),
+        status: computeStatus(quantity, reorderLevel, maintainStockAt),
       };
       successCount++;
     }
@@ -934,7 +937,7 @@ export async function receivePurchaseOrder(
       inventory[invIndex] = {
         ...inventory[invIndex],
         quantity: newQty,
-        status: computeStatus(newQty, inventory[invIndex].reorderLevel),
+        status: computeStatus(newQty, inventory[invIndex].reorderLevel, inventory[invIndex].maintainStockAt),
       };
 
       inventoryUpdates.push({
