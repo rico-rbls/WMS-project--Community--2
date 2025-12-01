@@ -1,6 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import type { Role, UserStatus } from "../lib/permissions";
 
+export interface UserAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -9,6 +17,8 @@ export interface User {
   status: UserStatus;
   createdAt: string;
   lastLogin?: string;
+  phone?: string;
+  address?: UserAddress;
 }
 
 // Stored user includes password (for mock auth)
@@ -32,7 +42,7 @@ interface AuthContextType {
   updateUserStatus: (userId: string, status: UserStatus) => void;
   deleteUser: (userId: string) => void;
   // Profile management
-  updateProfile: (name: string) => void;
+  updateProfile: (updates: { name?: string; phone?: string; address?: UserAddress }) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
@@ -44,6 +54,15 @@ const USERS_STORAGE_KEY = "wms_users";
 
 // Default users (seeded on first load)
 const DEFAULT_USERS: StoredUser[] = [
+  {
+    id: "0",
+    email: "owner@wms.com",
+    password: "owner123",
+    name: "System Owner",
+    role: "Owner",
+    status: "Active",
+    createdAt: "2024-01-01T00:00:00Z",
+  },
   {
     id: "1",
     email: "admin@wms.com",
@@ -158,21 +177,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Find user in stored users
     const users = getStoredUsers();
-    const foundUser = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+
+    // First check if email exists
+    const userByEmail = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
     );
 
-    if (!foundUser) {
-      throw new Error("Invalid email or password");
+    if (!userByEmail) {
+      throw new Error("NO_ACCOUNT:No account found with this email address. Would you like to create one?");
     }
+
+    // Check password
+    if (userByEmail.password !== password) {
+      throw new Error("WRONG_PASSWORD:Incorrect password. Please try again.");
+    }
+
+    const foundUser = userByEmail;
 
     // Check if user is active
     if (foundUser.status === "Pending") {
-      throw new Error("Your account is pending approval. Please wait for an administrator to approve your account.");
+      throw new Error("PENDING:Your account is pending approval. Please wait for an administrator to approve your account.");
     }
 
     if (foundUser.status === "Inactive") {
-      throw new Error("Your account has been deactivated. Please contact an administrator.");
+      throw new Error("INACTIVE:Your account has been deactivated. Please contact an administrator.");
     }
 
     // Update last login
@@ -296,14 +324,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // Profile management
-  const updateProfile = useCallback((name: string): void => {
+  const updateProfile = useCallback((updates: { name?: string; phone?: string; address?: UserAddress }): void => {
     if (!user) return;
     const users = getStoredUsers();
     const updatedUsers = users.map(u =>
-      u.id === user.id ? { ...u, name } : u
+      u.id === user.id ? { ...u, ...updates } : u
     );
     saveUsers(updatedUsers);
-    const updatedUser = { ...user, name };
+    const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
     // Update stored session
     const rememberMe = localStorage.getItem(REMEMBER_ME_KEY);

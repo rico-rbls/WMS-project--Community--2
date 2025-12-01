@@ -32,16 +32,46 @@ export type Permission =
   | "users:create"
   | "users:update"
   | "users:delete"
-  | "users:approve";
+  | "users:approve"
+  // Admin management (Owner only)
+  | "users:manage_admins"
+  // System settings (Owner only)
+  | "system:settings";
 
-// Two-tier role system: Admin (full access) and Operator (read-only)
-export type Role = "Admin" | "Operator";
+// Role hierarchy: Owner > Admin > Operator > Viewer
+// Owner: Full system access including admin management
+// Admin: Full access except admin user management
+// Operator: Read-only access to operational data
+// Viewer: Read-only access (basic view permissions)
+export type Role = "Owner" | "Admin" | "Operator" | "Viewer";
 
 // User status for approval workflow
 export type UserStatus = "Active" | "Pending" | "Inactive";
 
+// Role hierarchy for comparison (higher number = higher privilege)
+export const ROLE_HIERARCHY: Record<Role, number> = {
+  Owner: 4,
+  Admin: 3,
+  Operator: 2,
+  Viewer: 1,
+};
+
 // Role-based permission assignments
 export const rolePermissions: Record<Role, Permission[]> = {
+  Owner: [
+    // Full access to all features
+    "inventory:read", "inventory:create", "inventory:update", "inventory:delete",
+    "orders:read", "orders:create", "orders:update", "orders:delete",
+    "shipments:read", "shipments:create", "shipments:update", "shipments:delete",
+    "suppliers:read", "suppliers:create", "suppliers:update", "suppliers:delete",
+    "purchase_orders:read", "purchase_orders:create", "purchase_orders:update",
+    "purchase_orders:delete", "purchase_orders:approve", "purchase_orders:receive",
+    // User management (including admin management)
+    "users:read", "users:create", "users:update", "users:delete", "users:approve",
+    "users:manage_admins",
+    // System settings
+    "system:settings",
+  ],
   Admin: [
     // Full access to all features
     "inventory:read", "inventory:create", "inventory:update", "inventory:delete",
@@ -50,10 +80,18 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "suppliers:read", "suppliers:create", "suppliers:update", "suppliers:delete",
     "purchase_orders:read", "purchase_orders:create", "purchase_orders:update",
     "purchase_orders:delete", "purchase_orders:approve", "purchase_orders:receive",
-    // User management
+    // User management (can manage Operators and Viewers, not Admins or Owners)
     "users:read", "users:create", "users:update", "users:delete", "users:approve",
   ],
   Operator: [
+    // Read-only access to all data
+    "inventory:read",
+    "orders:read",
+    "shipments:read",
+    "suppliers:read",
+    "purchase_orders:read",
+  ],
+  Viewer: [
     // Read-only access to all data
     "inventory:read",
     "orders:read",
@@ -73,14 +111,54 @@ export function getPermissions(role: Role): Permission[] {
   return rolePermissions[role] ?? [];
 }
 
-// Check if user is admin
-export function isAdmin(role: Role): boolean {
-  return role === "Admin";
+// Check if user is owner (highest role)
+export function isOwner(role: Role): boolean {
+  return role === "Owner";
 }
 
-// Check if user can perform write operations
+// Check if user is admin or higher
+export function isAdmin(role: Role): boolean {
+  return role === "Admin" || role === "Owner";
+}
+
+// Check if user can perform write operations (Admin or Owner)
 export function canWrite(role: Role): boolean {
-  return role === "Admin";
+  return role === "Admin" || role === "Owner";
+}
+
+// Check if user can manage other admins (Owner only)
+export function canManageAdmins(role: Role): boolean {
+  return role === "Owner";
+}
+
+// Check if a user can manage another user based on role hierarchy
+// A user can only manage users with lower roles
+export function canManageUser(managerRole: Role, targetRole: Role): boolean {
+  return ROLE_HIERARCHY[managerRole] > ROLE_HIERARCHY[targetRole];
+}
+
+// Check if a user can assign a specific role
+// Owners can assign any role, Admins can only assign Operator/Viewer
+export function canAssignRole(assignerRole: Role, targetRole: Role): boolean {
+  if (assignerRole === "Owner") {
+    return true; // Owner can assign any role
+  }
+  if (assignerRole === "Admin") {
+    // Admin can only assign Operator or Viewer roles
+    return targetRole === "Operator" || targetRole === "Viewer";
+  }
+  return false;
+}
+
+// Get roles that a user can assign to others
+export function getAssignableRoles(role: Role): Role[] {
+  if (role === "Owner") {
+    return ["Owner", "Admin", "Operator", "Viewer"];
+  }
+  if (role === "Admin") {
+    return ["Operator", "Viewer"];
+  }
+  return [];
 }
 
 // Get role for a user ID (now reads from localStorage users)
@@ -98,7 +176,7 @@ export function getUserRole(userId: string): Role {
   } catch (error) {
     console.error("Error getting user role:", error);
   }
-  // Default to Operator for safety
-  return "Operator";
+  // Default to Viewer for safety
+  return "Viewer";
 }
 

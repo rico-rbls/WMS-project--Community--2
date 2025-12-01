@@ -1,13 +1,22 @@
 import { z } from "zod";
 
+// Password validation constants
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_REQUIREMENTS = `Password must be at least ${PASSWORD_MIN_LENGTH} characters`;
+
+// Password validation schema (reusable)
+export const passwordSchema = z.string()
+  .min(1, "Password is required")
+  .min(PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS);
+
 // Login validation schema
 export const loginSchema = z.object({
   email: z.string()
     .min(1, "Email is required")
     .email("Please enter a valid email address"),
   password: z.string()
-    .min(1, "Password is required")
-    .min(6, "Password must be at least 6 characters"),
+    .min(1, "Password is required"),
+    // Note: For login, we don't enforce min length since old passwords may be shorter
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -20,9 +29,7 @@ export const registerSchema = z.object({
   email: z.string()
     .min(1, "Email is required")
     .email("Please enter a valid email address"),
-  password: z.string()
-    .min(1, "Password is required")
-    .min(6, "Password must be at least 6 characters"),
+  password: passwordSchema,
   confirmPassword: z.string()
     .min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -31,6 +38,18 @@ export const registerSchema = z.object({
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+// Change password validation schema
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: passwordSchema,
+  confirmPassword: z.string().min(1, "Please confirm your new password"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 // Inventory validation schema
 export const inventoryItemSchema = z.object({

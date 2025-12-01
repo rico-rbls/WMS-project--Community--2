@@ -4,13 +4,14 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX } from "lucide-react";
+import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX, Crown, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
 import { useAuth, User } from "../context/auth-context";
 import type { Role, UserStatus } from "../lib/permissions";
+import { canManageUser, getAssignableRoles, isAdmin } from "../lib/permissions";
 import { useDebounce } from "../hooks/useDebounce";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -142,15 +143,22 @@ export function UserManagementView() {
 
   const getRoleBadge = (role: Role) => {
     switch (role) {
+      case "Owner":
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"><Crown className="h-3 w-3 mr-1" />Owner</Badge>;
       case "Admin":
         return <Badge variant="default"><Shield className="h-3 w-3 mr-1" />Admin</Badge>;
       case "Operator":
         return <Badge variant="secondary"><UserCog className="h-3 w-3 mr-1" />Operator</Badge>;
+      case "Viewer":
+        return <Badge variant="outline"><Eye className="h-3 w-3 mr-1" />Viewer</Badge>;
     }
   };
 
-  // Check if current user is admin
-  if (!currentUser || currentUser.role !== "Admin") {
+  // Get assignable roles based on current user's role
+  const assignableRoles = currentUser ? getAssignableRoles(currentUser.role) : [];
+
+  // Check if current user is admin or owner
+  if (!currentUser || !isAdmin(currentUser.role)) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <Card className="max-w-md w-full mx-4">
@@ -279,7 +287,7 @@ export function UserManagementView() {
                       <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : "Never"}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {user.status === "Pending" && (
+                          {user.status === "Pending" && canManageUser(currentUser.role, user.role) && (
                             <>
                               <Button size="sm" variant="ghost" className="text-green-600" onClick={() => handleApprove(user.id)} title="Approve">
                                 <Check className="h-4 w-4" />
@@ -289,10 +297,23 @@ export function UserManagementView() {
                               </Button>
                             </>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => openEditDialog(user)} title="Edit" disabled={user.id === currentUser?.id}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEditDialog(user)}
+                            title={!canManageUser(currentUser.role, user.role) ? "Cannot edit users with equal or higher role" : "Edit"}
+                            disabled={user.id === currentUser?.id || !canManageUser(currentUser.role, user.role)}
+                          >
                             <UserCog className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => openDeleteDialog(user)} title="Delete" disabled={user.id === currentUser?.id}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600"
+                            onClick={() => openDeleteDialog(user)}
+                            title={!canManageUser(currentUser.role, user.role) ? "Cannot delete users with equal or higher role" : "Delete"}
+                            disabled={user.id === currentUser?.id || !canManageUser(currentUser.role, user.role)}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -319,10 +340,21 @@ export function UserManagementView() {
               <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v as Role })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Admin">Admin - Full access</SelectItem>
-                  <SelectItem value="Operator">Operator - Read-only</SelectItem>
+                  {assignableRoles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role === "Owner" && "Owner - Full system access"}
+                      {role === "Admin" && "Admin - Full access (except admin management)"}
+                      {role === "Operator" && "Operator - Read-only access"}
+                      {role === "Viewer" && "Viewer - Read-only access"}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {currentUser.role === "Admin" && (
+                <p className="text-xs text-muted-foreground">
+                  Note: Only the Owner can assign Admin or Owner roles.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Status</Label>

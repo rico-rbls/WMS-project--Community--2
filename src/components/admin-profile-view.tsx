@@ -4,14 +4,26 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import { User, Mail, Shield, Calendar, Clock, Lock, Save, Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { User, Mail, Shield, Calendar, Clock, Lock, Save, Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Crown, Phone, MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "../context/auth-context";
+import { useAuth, UserAddress } from "../context/auth-context";
+import { PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS } from "../lib/validations";
 
 export function AdminProfileView() {
   const { user, updateProfile, changePassword } = useAuth();
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [newName, setNewName] = useState(user?.name || "");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || "",
+    phone: user?.phone || "",
+    address: {
+      street: user?.address?.street || "",
+      city: user?.address?.city || "",
+      state: user?.address?.state || "",
+      postalCode: user?.address?.postalCode || "",
+      country: user?.address?.country || "",
+    } as UserAddress,
+  });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -37,14 +49,41 @@ export function AdminProfileView() {
     );
   }
 
-  const handleSaveName = () => {
-    if (!newName.trim()) {
+  const handleSaveProfile = () => {
+    if (!profileForm.name.trim()) {
       toast.error("Name cannot be empty");
       return;
     }
-    updateProfile(newName.trim());
-    setIsEditingName(false);
+    updateProfile({
+      name: profileForm.name.trim(),
+      phone: profileForm.phone.trim() || undefined,
+      address: Object.values(profileForm.address).some(v => v.trim())
+        ? {
+            street: profileForm.address.street.trim() || undefined,
+            city: profileForm.address.city.trim() || undefined,
+            state: profileForm.address.state.trim() || undefined,
+            postalCode: profileForm.address.postalCode.trim() || undefined,
+            country: profileForm.address.country.trim() || undefined,
+          }
+        : undefined,
+    });
+    setIsEditingProfile(false);
     toast.success("Profile updated successfully");
+  };
+
+  const handleCancelEdit = () => {
+    setProfileForm({
+      name: user?.name || "",
+      phone: user?.phone || "",
+      address: {
+        street: user?.address?.street || "",
+        city: user?.address?.city || "",
+        state: user?.address?.state || "",
+        postalCode: user?.address?.postalCode || "",
+        country: user?.address?.country || "",
+      },
+    });
+    setIsEditingProfile(false);
   };
 
   const handleChangePassword = async () => {
@@ -56,8 +95,8 @@ export function AdminProfileView() {
       toast.error("Please enter a new password");
       return;
     }
-    if (passwordForm.newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
+    if (passwordForm.newPassword.length < PASSWORD_MIN_LENGTH) {
+      toast.error(PASSWORD_REQUIREMENTS);
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -105,35 +144,18 @@ export function AdminProfileView() {
               <User className="h-10 w-10 text-primary" />
             </div>
             <div className="flex-1 text-center sm:text-left">
-              {isEditingName ? (
-                <div className="flex flex-col sm:flex-row items-center gap-2">
-                  <Input
-                    value={newName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
-                    className="max-w-xs"
-                    placeholder="Enter your name"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveName}>
-                      <Save className="h-4 w-4 mr-1" /> Save
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => { setIsEditingName(false); setNewName(user.name); }}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-center gap-2">
-                  <h2 className="text-xl font-semibold">{user.name}</h2>
-                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setIsEditingName(true)}>
-                    Edit
-                  </Button>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <h2 className="text-xl font-semibold">{user.name}</h2>
+                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setIsEditingProfile(true)}>
+                  Edit Profile
+                </Button>
+              </div>
               <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
-                <Badge variant={user.role === "Admin" ? "default" : "secondary"} className="gap-1">
-                  <Shield className="h-3 w-3" />
+                <Badge
+                  variant={user.role === "Owner" ? "default" : user.role === "Admin" ? "default" : "secondary"}
+                  className={`gap-1 ${user.role === "Owner" ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" : ""}`}
+                >
+                  {user.role === "Owner" ? <Crown className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
                   {user.role}
                 </Badge>
                 <Badge
@@ -156,6 +178,28 @@ export function AdminProfileView() {
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p>
                 <p className="font-medium text-sm truncate">{user.email}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+              <div className="h-9 w-9 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                <Phone className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p>
+                <p className="font-medium text-sm truncate">{user.phone || "Not set"}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+              <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Address</p>
+                <p className="font-medium text-sm truncate">
+                  {user.address && Object.values(user.address).some(v => v)
+                    ? [user.address.city, user.address.state, user.address.country].filter(Boolean).join(", ") || "Partial address"
+                    : "Not set"}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
@@ -213,10 +257,11 @@ export function AdminProfileView() {
                   type={showPasswords ? "text" : "password"}
                   value={passwordForm.newPassword}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  placeholder="Enter new password (min 6 characters)"
+                  placeholder={`Min ${PASSWORD_MIN_LENGTH} characters`}
                   disabled={isLoading}
                   className="h-10"
                 />
+                <p className="text-xs text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm New Password</Label>
@@ -297,28 +342,39 @@ export function AdminProfileView() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
               <Badge
-                variant={user.role === "Admin" ? "default" : "secondary"}
-                className="text-sm px-3 py-1.5 gap-1.5"
+                variant={user.role === "Owner" || user.role === "Admin" ? "default" : "secondary"}
+                className={`text-sm px-3 py-1.5 gap-1.5 ${user.role === "Owner" ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" : ""}`}
               >
-                <Shield className="h-3.5 w-3.5" />
+                {user.role === "Owner" ? <Crown className="h-3.5 w-3.5" /> : <Shield className="h-3.5 w-3.5" />}
                 {user.role}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                {user.role === "Admin" ? "Full system access" : "Read-only access"}
+                {user.role === "Owner" ? "Full system access including admin management" :
+                 user.role === "Admin" ? "Full system access" : "Read-only access"}
               </span>
             </div>
             <div className="space-y-3">
               <p className="text-sm font-medium">
-                {user.role === "Admin" ? "You can:" : "You have access to:"}
+                {user.role === "Owner" || user.role === "Admin" ? "You can:" : "You have access to:"}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {user.role === "Admin" ? (
+                {user.role === "Owner" ? (
                   <>
                     <PermissionItem>Create, edit, and delete inventory items</PermissionItem>
                     <PermissionItem>Manage orders and shipments</PermissionItem>
                     <PermissionItem>Create and approve purchase orders</PermissionItem>
                     <PermissionItem>Manage suppliers</PermissionItem>
-                    <PermissionItem>Manage user accounts and permissions</PermissionItem>
+                    <PermissionItem>Manage all user accounts including Admins</PermissionItem>
+                    <PermissionItem>Access system-wide settings</PermissionItem>
+                    <PermissionItem>View all reports and analytics</PermissionItem>
+                  </>
+                ) : user.role === "Admin" ? (
+                  <>
+                    <PermissionItem>Create, edit, and delete inventory items</PermissionItem>
+                    <PermissionItem>Manage orders and shipments</PermissionItem>
+                    <PermissionItem>Create and approve purchase orders</PermissionItem>
+                    <PermissionItem>Manage suppliers</PermissionItem>
+                    <PermissionItem>Manage Operator and Viewer accounts</PermissionItem>
                     <PermissionItem>View all reports and analytics</PermissionItem>
                   </>
                 ) : (
@@ -331,7 +387,7 @@ export function AdminProfileView() {
                   </>
                 )}
               </div>
-              {user.role === "Operator" && (
+              {(user.role === "Operator" || user.role === "Viewer") && (
                 <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                   <p className="text-sm text-amber-700 dark:text-amber-300">
                     <AlertCircle className="h-4 w-4 inline mr-1.5 -mt-0.5" />
@@ -343,6 +399,92 @@ export function AdminProfileView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>Update your personal information</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={profileForm.name}
+                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                placeholder="Enter your name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone Number</Label>
+              <Input
+                id="edit-phone"
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                placeholder="Enter your phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Address</Label>
+              <div className="grid gap-3">
+                <Input
+                  placeholder="Street address"
+                  value={profileForm.address.street}
+                  onChange={(e) => setProfileForm({
+                    ...profileForm,
+                    address: { ...profileForm.address, street: e.target.value }
+                  })}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="City"
+                    value={profileForm.address.city}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, city: e.target.value }
+                    })}
+                  />
+                  <Input
+                    placeholder="State/Province"
+                    value={profileForm.address.state}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, state: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Postal code"
+                    value={profileForm.address.postalCode}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, postalCode: e.target.value }
+                    })}
+                  />
+                  <Input
+                    placeholder="Country"
+                    value={profileForm.address.country}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, country: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+            <Button onClick={handleSaveProfile}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Eye, EyeOff, Lock, Mail, Package, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/auth-context";
-import { loginSchema, registerSchema } from "../lib/validations";
+import { loginSchema, registerSchema, PASSWORD_REQUIREMENTS } from "../lib/validations";
 
 type AuthMode = "login" | "register";
 
@@ -111,8 +111,30 @@ export function LoginPage() {
         switchMode("login");
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "An error occurred. Please try again.";
-      toast.error(message);
+      if (error instanceof Error) {
+        const message = error.message;
+        // Parse error codes for specific handling
+        if (message.startsWith("NO_ACCOUNT:")) {
+          const displayMessage = message.replace("NO_ACCOUNT:", "");
+          toast.error(displayMessage, {
+            action: {
+              label: "Sign Up",
+              onClick: () => switchMode("register"),
+            },
+            duration: 8000,
+          });
+        } else if (message.startsWith("WRONG_PASSWORD:")) {
+          toast.error(message.replace("WRONG_PASSWORD:", ""));
+        } else if (message.startsWith("PENDING:")) {
+          toast.warning(message.replace("PENDING:", ""), { duration: 6000 });
+        } else if (message.startsWith("INACTIVE:")) {
+          toast.error(message.replace("INACTIVE:", ""), { duration: 6000 });
+        } else {
+          toast.error(message);
+        }
+      } else {
+        toast.error("An error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +220,7 @@ export function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={mode === "register" ? `Min ${PASSWORD_REQUIREMENTS.split(" ").pop()} characters` : "Enter your password"}
                   value={form.password}
                   onChange={(e) => {
                     setForm({ ...form, password: e.target.value });
@@ -222,8 +244,10 @@ export function LoginPage() {
                   )}
                 </button>
               </div>
-              {fieldErrors.password && (
+              {fieldErrors.password ? (
                 <p className="text-sm text-red-500">{fieldErrors.password}</p>
+              ) : mode === "register" && (
+                <p className="text-xs text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
               )}
             </div>
 
@@ -335,6 +359,9 @@ export function LoginPage() {
                   Demo Credentials:
                 </p>
                 <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    <span className="font-medium">Owner:</span> owner@wms.com / owner123
+                  </p>
                   <p>
                     <span className="font-medium">Admin:</span> admin@wms.com / admin123
                   </p>
