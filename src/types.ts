@@ -15,6 +15,7 @@ export interface InventoryItem {
   maintainStockAt: number; // Target/optimal stock level
   minimumStock: number; // Minimum stock level (same as reorderLevel)
   photoUrl?: string; // Optional product photo URL
+  description?: string; // Optional product description
 }
 
 export interface CreateInventoryItemInput {
@@ -31,6 +32,7 @@ export interface CreateInventoryItemInput {
   maintainStockAt: number;
   minimumStock: number;
   photoUrl?: string;
+  description?: string;
 }
 
 export interface UpdateInventoryItemInput {
@@ -47,6 +49,7 @@ export interface UpdateInventoryItemInput {
   maintainStockAt?: number;
   minimumStock?: number;
   photoUrl?: string;
+  description?: string;
 }
 
 export interface Supplier {

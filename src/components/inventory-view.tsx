@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier } from "../services/api";
@@ -104,6 +104,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
   // Use strings for numeric fields to allow empty input during typing
   const [form, setForm] = useState({
     id: "",
@@ -1537,8 +1538,9 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       {/* Product Image */}
                       <button
                         type="button"
-                        onClick={() => item.photoUrl ? openPhotoPreview(item.photoUrl) : setIsEditOpen(item.id)}
-                        className="w-full aspect-square bg-muted flex items-center justify-center overflow-hidden"
+                        onClick={() => setIsDetailOpen(item.id)}
+                        className="w-full aspect-square bg-muted flex items-center justify-center overflow-hidden cursor-pointer"
+                        title="Click to view product details"
                       >
                         {item.photoUrl ? (
                           <img
@@ -1567,9 +1569,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         </div>
 
                         {/* Item Name */}
-                        <h3 className="font-semibold text-base line-clamp-2 min-h-[2.5rem]">
-                          {item.name}
-                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => setIsDetailOpen(item.id)}
+                          className="text-left w-full"
+                          title="Click to view product details"
+                        >
+                          <h3 className="font-semibold text-base line-clamp-2 min-h-[2.5rem] hover:text-primary transition-colors">
+                            {item.name}
+                          </h3>
+                        </button>
 
                         {/* Price */}
                         <div className="text-lg font-bold text-primary">
@@ -1591,34 +1600,45 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                           <span className="truncate max-w-[50%]" title={supplierName}>{supplierName}</span>
                         </div>
 
-                        {/* Edit Button */}
-                        {canModify && (
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 mt-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full mt-2"
-                            onClick={() => {
-                              setIsEditOpen(item.id);
-                              setForm({
-                                id: item.id,
-                                name: item.name,
-                                category: item.category,
-                                quantity: item.quantity,
-                                location: item.location,
-                                reorderLevel: item.reorderLevel,
-                                brand: item.brand || "Unknown",
-                                pricePerPiece: item.pricePerPiece ?? 0,
-                                supplierId: item.supplierId || "SUP-001",
-                                maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                                minimumStock: item.minimumStock ?? item.reorderLevel,
-                                photoUrl: item.photoUrl || "",
-                              });
-                            }}
+                            className="flex-1"
+                            onClick={() => setIsDetailOpen(item.id)}
                           >
-                            <Edit className="h-4 w-4 mr-2" />
-                            View / Edit
+                            <Eye className="h-4 w-4 mr-2" />
+                            Details
                           </Button>
-                        )}
+                          {canModify && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => {
+                                setIsEditOpen(item.id);
+                                setForm({
+                                  id: item.id,
+                                  name: item.name,
+                                  category: item.category,
+                                  quantity: item.quantity,
+                                  location: item.location,
+                                  reorderLevel: item.reorderLevel,
+                                  brand: item.brand || "Unknown",
+                                  pricePerPiece: item.pricePerPiece ?? 0,
+                                  supplierId: item.supplierId || "SUP-001",
+                                  maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
+                                  minimumStock: item.minimumStock ?? item.reorderLevel,
+                                  photoUrl: item.photoUrl || "",
+                                });
+                              }}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1761,12 +1781,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         </TableCell>
                         <TableCell>{item.id}</TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={item.name}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(item.id, "name", v)}
-                            disabled={!canModify}
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsDetailOpen(item.id)}
+                            className="text-left hover:text-primary hover:underline cursor-pointer font-medium transition-colors"
+                            title="Click to view product details"
+                          >
+                            {item.name}
+                          </button>
                         </TableCell>
                         <TableCell>
                           <EditableCell
@@ -1841,6 +1863,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                               entityId={item.id}
                               entityName={item.name}
                             />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsDetailOpen(item.id)}
+                              title="View product details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           <Dialog open={isEditOpen === item.id} onOpenChange={(o: boolean) => {
                             setIsEditOpen(o ? item.id : null);
                             if (o) setForm({
@@ -2173,6 +2203,192 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Product Detail Dialog - Read-Only View */}
+      {isDetailOpen && (() => {
+        const item = inventoryItems.find((i) => i.id === isDetailOpen);
+        const supplierName = item ? (supplierById.get(item.supplierId) ?? item.supplierId ?? "N/A") : "N/A";
+
+        if (!item) return null;
+
+        return (
+          <Dialog open={!!isDetailOpen} onOpenChange={(open) => !open && setIsDetailOpen(null)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  {item.name}
+                </DialogTitle>
+                <DialogDescription>
+                  Product ID: {item.id}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-6 py-4">
+                {/* Product Image */}
+                {item.photoUrl && (
+                  <div className="flex justify-center">
+                    <div className="relative w-full max-w-md h-48 rounded-lg overflow-hidden border bg-muted">
+                      <img
+                        src={item.photoUrl}
+                        alt={item.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Description - Prominently displayed */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    Description
+                  </div>
+                  <div className="p-4 rounded-lg bg-muted/50 border">
+                    <p className="text-sm leading-relaxed">
+                      {item.description || "No description available for this product."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Product Details Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* SKU/ID */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Hash className="h-4 w-4" />
+                      SKU
+                    </div>
+                    <p className="text-sm font-mono">{item.id}</p>
+                  </div>
+
+                  {/* Brand */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Tag className="h-4 w-4" />
+                      Brand
+                    </div>
+                    <p className="text-sm">{item.brand || "Unknown"}</p>
+                  </div>
+
+                  {/* Category */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                      Category
+                    </div>
+                    <Badge variant="secondary">{item.category}</Badge>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <AlertCircle className="h-4 w-4" />
+                      Status
+                    </div>
+                    <Badge className={getStatusColor(item.status)}>{item.status}</Badge>
+                  </div>
+
+                  {/* Quantity */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Boxes className="h-4 w-4" />
+                      Quantity
+                    </div>
+                    <p className="text-sm font-semibold">{item.quantity} units</p>
+                  </div>
+
+                  {/* Price */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      Price per Piece
+                    </div>
+                    <p className="text-sm font-semibold">₱{(item.pricePerPiece ?? 0).toFixed(2)}</p>
+                  </div>
+
+                  {/* Location */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Warehouse className="h-4 w-4" />
+                      Location
+                    </div>
+                    <p className="text-sm">{item.location}</p>
+                  </div>
+
+                  {/* Supplier */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Building2 className="h-4 w-4" />
+                      Supplier
+                    </div>
+                    <p className="text-sm">{supplierName}</p>
+                  </div>
+                </div>
+
+                {/* Stock Levels */}
+                <div className="border rounded-lg p-4 space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Stock Levels
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-3 rounded-md bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Minimum Stock</p>
+                      <p className="text-lg font-semibold">{item.minimumStock ?? item.reorderLevel}</p>
+                    </div>
+                    <div className="p-3 rounded-md bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Current Stock</p>
+                      <p className="text-lg font-semibold text-primary">{item.quantity}</p>
+                    </div>
+                    <div className="p-3 rounded-md bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Target Stock</p>
+                      <p className="text-lg font-semibold">{item.maintainStockAt ?? "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Value */}
+                <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20">
+                  <span className="text-sm font-medium">Total Inventory Value</span>
+                  <span className="text-lg font-bold text-primary">
+                    ₱{((item.pricePerPiece ?? 0) * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDetailOpen(null)}>
+                  Close
+                </Button>
+                {canModify && (
+                  <Button onClick={() => {
+                    setIsDetailOpen(null);
+                    setForm({
+                      id: item.id,
+                      name: item.name,
+                      category: item.category,
+                      quantity: item.quantity,
+                      location: item.location,
+                      reorderLevel: item.reorderLevel,
+                      brand: item.brand || "Unknown",
+                      pricePerPiece: item.pricePerPiece ?? 0,
+                      supplierId: item.supplierId || "SUP-001",
+                      maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
+                      minimumStock: item.minimumStock ?? item.reorderLevel,
+                      photoUrl: item.photoUrl || "",
+                    });
+                    setIsEditOpen(item.id);
+                  }}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Product
+                  </Button>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Photo Preview Dialog */}
       <Dialog open={isPhotoPreviewOpen} onOpenChange={setIsPhotoPreviewOpen}>
