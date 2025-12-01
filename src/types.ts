@@ -16,6 +16,9 @@ export interface InventoryItem {
   minimumStock: number; // Minimum stock level (same as reorderLevel)
   photoUrl?: string; // Optional product photo URL
   description?: string; // Optional product description
+  // Archive fields
+  archived?: boolean; // Whether the item is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the item was archived
 }
 
 export interface CreateInventoryItemInput {
@@ -60,6 +63,9 @@ export interface Supplier {
   phone: string;
   category: string;
   status: "Active" | "Inactive";
+  // Archive fields
+  archived?: boolean; // Whether the supplier is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the supplier was archived
 }
 
 export interface CreateSupplierInput {
@@ -89,6 +95,9 @@ export interface Order {
   total: string; // keep formatted for now
   status: "Pending" | "Processing" | "Shipped" | "Delivered";
   date: string; // ISO or display string
+  // Archive fields
+  archived?: boolean; // Whether the order is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the order was archived
 }
 
 export interface Shipment {
@@ -98,6 +107,9 @@ export interface Shipment {
   carrier: string;
   status: "Pending" | "Processing" | "In Transit" | "Delivered";
   eta: string;
+  // Archive fields
+  archived?: boolean; // Whether the shipment is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the shipment was archived
 }
 
 // Favorites & Bookmarks Types
@@ -163,6 +175,9 @@ export interface PurchaseOrder {
   notes: string;
   expectedDeliveryDate: string; // ISO date
   actualCost?: number; // Actual cost when received (for variance tracking)
+  // Archive fields
+  archived?: boolean; // Whether the PO is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the PO was archived
 }
 
 export interface CreatePurchaseOrderInput {

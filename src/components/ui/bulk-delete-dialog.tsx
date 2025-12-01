@@ -17,6 +17,9 @@ interface BulkDeleteDialogProps {
   itemType?: string;
   onConfirm: () => void;
   isLoading?: boolean;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
 }
 
 export function BulkDeleteDialog({
@@ -27,8 +30,14 @@ export function BulkDeleteDialog({
   itemType = "item",
   onConfirm,
   isLoading = false,
+  title,
+  description,
+  confirmLabel,
 }: BulkDeleteDialogProps) {
   const pluralType = itemCount === 1 ? itemType : `${itemType}s`;
+  const defaultTitle = `Delete ${itemCount} ${pluralType}?`;
+  const defaultDescription = `This action cannot be undone. The following ${pluralType} will be permanently deleted:`;
+  const defaultConfirmLabel = `Delete ${itemCount} ${pluralType}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,11 +45,10 @@ export function BulkDeleteDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Delete {itemCount} {pluralType}?
+            {title || defaultTitle}
           </DialogTitle>
           <DialogDescription>
-            This action cannot be undone. The following {pluralType} will be
-            permanently deleted:
+            {description || defaultDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -74,7 +82,7 @@ export function BulkDeleteDialog({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? "Deleting..." : `Delete ${itemCount} ${pluralType}`}
+            {isLoading ? "Processing..." : (confirmLabel || defaultConfirmLabel)}
           </Button>
         </DialogFooter>
       </DialogContent>

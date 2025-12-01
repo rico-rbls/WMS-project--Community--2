@@ -359,6 +359,122 @@ export async function deleteInventoryItem(id: string): Promise<void> {
   await delay(undefined);
 }
 
+// Inventory Archive Functions
+export async function archiveInventoryItem(id: string): Promise<InventoryItem> {
+  const index = inventory.findIndex((i) => i.id === id);
+  if (index === -1) throw new Error("Item not found");
+
+  inventory[index] = {
+    ...inventory[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay(inventory[index]);
+}
+
+export async function restoreInventoryItem(id: string): Promise<InventoryItem> {
+  const index = inventory.findIndex((i) => i.id === id);
+  if (index === -1) throw new Error("Item not found");
+
+  inventory[index] = {
+    ...inventory[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay(inventory[index]);
+}
+
+export async function permanentlyDeleteInventoryItem(id: string): Promise<void> {
+  const index = inventory.findIndex((i) => i.id === id);
+  if (index === -1) throw new Error("Item not found");
+
+  inventory.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  await delay(undefined);
+}
+
+export async function bulkArchiveInventoryItems(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = inventory.findIndex((i) => i.id === id);
+    if (index === -1) {
+      errors.push(`Item ${id} not found`);
+      continue;
+    }
+    inventory[index] = {
+      ...inventory[index],
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkRestoreInventoryItems(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = inventory.findIndex((i) => i.id === id);
+    if (index === -1) {
+      errors.push(`Item ${id} not found`);
+      continue;
+    }
+    inventory[index] = {
+      ...inventory[index],
+      archived: false,
+      archivedAt: undefined,
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkPermanentlyDeleteInventoryItems(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = inventory.findIndex((i) => i.id === id);
+    if (index === -1) {
+      errors.push(`Item ${id} not found`);
+      continue;
+    }
+    inventory.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
 // Suppliers
 export async function getSuppliers(): Promise<Supplier[]> {
   return delay([...suppliers]);
@@ -404,6 +520,122 @@ export async function deleteSupplier(id: string): Promise<void> {
   saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
 
   await delay(undefined);
+}
+
+// Supplier Archive Functions
+export async function archiveSupplier(id: string): Promise<Supplier> {
+  const index = suppliers.findIndex((s) => s.id === id);
+  if (index === -1) throw new Error("Supplier not found");
+
+  suppliers[index] = {
+    ...suppliers[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay(suppliers[index]);
+}
+
+export async function restoreSupplier(id: string): Promise<Supplier> {
+  const index = suppliers.findIndex((s) => s.id === id);
+  if (index === -1) throw new Error("Supplier not found");
+
+  suppliers[index] = {
+    ...suppliers[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay(suppliers[index]);
+}
+
+export async function permanentlyDeleteSupplier(id: string): Promise<void> {
+  const index = suppliers.findIndex((s) => s.id === id);
+  if (index === -1) throw new Error("Supplier not found");
+
+  suppliers.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  await delay(undefined);
+}
+
+export async function bulkArchiveSuppliers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = suppliers.findIndex((s) => s.id === id);
+    if (index === -1) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+    suppliers[index] = {
+      ...suppliers[index],
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkRestoreSuppliers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = suppliers.findIndex((s) => s.id === id);
+    if (index === -1) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+    suppliers[index] = {
+      ...suppliers[index],
+      archived: false,
+      archivedAt: undefined,
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkPermanentlyDeleteSuppliers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = suppliers.findIndex((s) => s.id === id);
+    if (index === -1) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+    suppliers.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
 }
 
 // Orders and Shipments (read-only for now)

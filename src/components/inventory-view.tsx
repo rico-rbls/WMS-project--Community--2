@@ -24,10 +24,10 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier } from "../services/api";
+import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems } from "../services/api";
 import type { InventoryCategory, InventoryItem, SavedSearch, Supplier } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
@@ -98,10 +98,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
+  const canPermanentlyDelete = user?.role === "Admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
@@ -194,6 +196,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   // Optimized filtering with early returns and debounced search
   const filteredItems = useMemo(() => {
     return inventoryItems.filter(item => {
+      // Filter by archived status
+      if ((item.archived ?? false) !== showArchived) {
+        return false;
+      }
+
       // Early return for favorites filter
       if (showFavoritesOnly && !isFavorite("inventory", item.id)) {
         return false;
@@ -221,7 +228,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         item.id.toLowerCase().includes(searchLower)
       );
     });
-  }, [inventoryItems, debouncedSearchTerm, filterCategory, filterStatus, showFavoritesOnly, isFavorite]);
+  }, [inventoryItems, debouncedSearchTerm, filterCategory, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
 
   // Handle applying saved searches
   const handleApplySavedSearch = useCallback((search: SavedSearch) => {
@@ -257,6 +264,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     setFilterCategory("all");
     setFilterStatus("all");
     setShowFavoritesOnly(false);
+    setShowArchived(false);
   }, []);
 
   // Sorting - applied before pagination
@@ -537,6 +545,42 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     }
   }
 
+  // Archive handler
+  async function handleArchive(id: string) {
+    try {
+      const archived = await archiveInventoryItem(id);
+      setInventory((inventory ?? []).map((i) => (i.id === id ? archived : i)));
+      setIsEditOpen(null);
+      toast.success("Item archived successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to archive item");
+    }
+  }
+
+  // Restore handler
+  async function handleRestore(id: string) {
+    try {
+      const restored = await restoreInventoryItem(id);
+      setInventory((inventory ?? []).map((i) => (i.id === id ? restored : i)));
+      setIsEditOpen(null);
+      toast.success("Item restored successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore item");
+    }
+  }
+
+  // Permanent delete handler
+  async function handlePermanentDelete(id: string) {
+    try {
+      await permanentlyDeleteInventoryItem(id);
+      setInventory((inventory ?? []).filter((i) => i.id !== id));
+      setIsEditOpen(null);
+      toast.success("Item permanently deleted");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to permanently delete item");
+    }
+  }
+
   // Inline edit handler for quick cell updates
   const handleInlineUpdate = useCallback(async (itemId: string, field: keyof InventoryItem, value: string | number) => {
     try {
@@ -734,6 +778,96 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       deselectAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete items");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, setInventory, deselectAll]);
+
+  // Bulk archive handler
+  const handleBulkArchive = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkArchiveInventoryItems(ids);
+
+      // Update local state
+      setInventory((prev) => {
+        if (!prev) return prev;
+        return prev.map((item) => {
+          if (ids.includes(item.id)) {
+            return { ...item, archived: true, archivedAt: new Date().toISOString() };
+          }
+          return item;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Archived ${result.successCount} items. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully archived ${result.successCount} item${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to archive items");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, setInventory, deselectAll]);
+
+  // Bulk restore handler
+  const handleBulkRestore = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkRestoreInventoryItems(ids);
+
+      // Update local state
+      setInventory((prev) => {
+        if (!prev) return prev;
+        return prev.map((item) => {
+          if (ids.includes(item.id)) {
+            return { ...item, archived: false, archivedAt: undefined };
+          }
+          return item;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Restored ${result.successCount} items. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully restored ${result.successCount} item${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore items");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [selectedIds, setInventory, deselectAll]);
+
+  // Bulk permanent delete handler
+  const handleBulkPermanentDelete = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkPermanentlyDeleteInventoryItems(ids);
+
+      // Update local state - remove deleted items
+      setInventory((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? []);
+
+      if (result.failedCount > 0) {
+        toast.warning(`Permanently deleted ${result.successCount} items. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Permanently deleted ${result.successCount} item${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to permanently delete items");
     } finally {
       setIsBulkDeleting(false);
       setShowBulkDeleteDialog(false);
@@ -1391,7 +1525,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 </Badge>
               )}
             </Button>
-            {(searchTerm || filterCategory !== "all" || filterStatus !== "all" || showFavoritesOnly) && (
+            {/* Archive Toggle */}
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived(!showArchived)}
+              className={showArchived ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
+            >
+              <Archive className="h-4 w-4 mr-1" />
+              {showArchived ? "Viewing Archived" : "View Archived"}
+            </Button>
+            {(searchTerm || filterCategory !== "all" || filterStatus !== "all" || showFavoritesOnly || showArchived) && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
                 <X className="h-4 w-4 mr-1" />
                 Clear Filters
@@ -1433,16 +1577,31 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
               isLoading={isBulkDeleting || isBulkUpdating}
-              actions={[
+              actions={showArchived ? [
                 {
-                  id: "delete",
-                  label: "Delete",
+                  id: "restore",
+                  label: "Restore",
+                  icon: <ArchiveRestore className="h-4 w-4 mr-1" />,
+                  variant: "outline",
+                  onClick: handleBulkRestore,
+                },
+                ...(canPermanentlyDelete ? [{
+                  id: "permanent-delete",
+                  label: "Permanently Delete",
                   icon: <Trash2 className="h-4 w-4 mr-1" />,
-                  variant: "destructive",
+                  variant: "destructive" as const,
+                  onClick: () => setShowBulkDeleteDialog(true),
+                }] : []),
+              ] : [
+                {
+                  id: "archive",
+                  label: "Archive",
+                  icon: <Archive className="h-4 w-4 mr-1" />,
+                  variant: "outline",
                   onClick: () => setShowBulkDeleteDialog(true),
                 },
               ]}
-              actionGroups={[
+              actionGroups={showArchived ? [] : [
                 {
                   id: "bulk-update",
                   label: "Bulk Update",
@@ -1461,15 +1620,21 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             />
           )}
 
-          {/* Bulk Delete Dialog */}
+          {/* Bulk Delete/Archive Dialog */}
           <BulkDeleteDialog
             open={showBulkDeleteDialog}
             onOpenChange={setShowBulkDeleteDialog}
             itemCount={selectionCount}
             itemType="item"
             itemNames={selectedItemNames}
-            onConfirm={handleBulkDelete}
+            onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
             isLoading={isBulkDeleting}
+            title={showArchived ? "Permanently Delete Items" : "Archive Items"}
+            description={showArchived
+              ? "This action cannot be undone. These items will be permanently removed from the system."
+              : "These items will be moved to the archive. You can restore them later if needed."
+            }
+            confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
           />
 
           {/* Bulk Update Dialog */}
@@ -1491,13 +1656,15 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             <TableLoadingSkeleton rows={8} />
           ) : filteredItems.length === 0 ? (
             <EmptyState
-              icon={Package}
-              title="No inventory items found"
-              description={searchTerm || filterCategory !== "all" || filterStatus !== "all"
-                ? "Try adjusting your search or filter criteria"
-                : "Get started by adding your first inventory item"}
-              actionLabel={!searchTerm && filterCategory === "all" && filterStatus === "all" ? "Add Item" : undefined}
-              onAction={!searchTerm && filterCategory === "all" && filterStatus === "all" ? () => setIsAddOpen(true) : undefined}
+              icon={showArchived ? Archive : Package}
+              title={showArchived ? "No archived items" : "No inventory items found"}
+              description={showArchived
+                ? "There are no archived items. Items you archive will appear here."
+                : searchTerm || filterCategory !== "all" || filterStatus !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Get started by adding your first inventory item"}
+              actionLabel={!showArchived && !searchTerm && filterCategory === "all" && filterStatus === "all" ? "Add Item" : undefined}
+              onAction={!showArchived && !searchTerm && filterCategory === "all" && filterStatus === "all" ? () => setIsAddOpen(true) : undefined}
             />
           ) : viewMode === "catalog" ? (
             /* ============ CATALOG VIEW ============ */
@@ -2092,7 +2259,25 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 {/* Action Buttons */}
                                 <div className="flex gap-2 pt-2">
                                   <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                                  <Button variant="destructive" size="lg" onClick={() => handleDelete(item.id)}>Delete</Button>
+                                  {item.archived ? (
+                                    <>
+                                      <Button variant="outline" size="lg" onClick={() => handleRestore(item.id)}>
+                                        <ArchiveRestore className="h-4 w-4 mr-1" />
+                                        Restore
+                                      </Button>
+                                      {canPermanentlyDelete && (
+                                        <Button variant="destructive" size="lg" onClick={() => handlePermanentDelete(item.id)}>
+                                          <Trash2 className="h-4 w-4 mr-1" />
+                                          Permanently Delete
+                                        </Button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Button variant="outline" size="lg" onClick={() => handleArchive(item.id)}>
+                                      <Archive className="h-4 w-4 mr-1" />
+                                      Archive
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             </DialogContent>
@@ -2612,7 +2797,31 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               {/* Action Buttons */}
               <div className="flex gap-2 pt-2">
                 <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                <Button variant="destructive" size="lg" onClick={() => handleDelete(form.id)}>Delete</Button>
+                {(() => {
+                  const currentItem = inventoryItems.find((i) => i.id === form.id);
+                  if (currentItem?.archived) {
+                    return (
+                      <>
+                        <Button variant="outline" size="lg" onClick={() => handleRestore(form.id)}>
+                          <ArchiveRestore className="h-4 w-4 mr-1" />
+                          Restore
+                        </Button>
+                        {canPermanentlyDelete && (
+                          <Button variant="destructive" size="lg" onClick={() => handlePermanentDelete(form.id)}>
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Permanently Delete
+                          </Button>
+                        )}
+                      </>
+                    );
+                  }
+                  return (
+                    <Button variant="outline" size="lg" onClick={() => handleArchive(form.id)}>
+                      <Archive className="h-4 w-4 mr-1" />
+                      Archive
+                    </Button>
+                  );
+                })()}
               </div>
             </div>
           </DialogContent>
