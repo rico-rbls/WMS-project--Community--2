@@ -984,6 +984,48 @@ export async function receivePurchaseOrder(
 }
 
 // ============================================================================
+// Purchase Order Archive/Restore Operations
+// ============================================================================
+
+export async function archivePurchaseOrder(id: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  purchaseOrders[index] = {
+    ...purchaseOrders[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function restorePurchaseOrder(id: string): Promise<PurchaseOrder> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  purchaseOrders[index] = {
+    ...purchaseOrders[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay(purchaseOrders[index]);
+}
+
+export async function permanentlyDeletePurchaseOrder(id: string): Promise<void> {
+  const index = purchaseOrders.findIndex((po) => po.id === id);
+  if (index === -1) throw new Error("Purchase Order not found");
+
+  purchaseOrders.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  await delay(undefined);
+}
+
+// ============================================================================
 // Purchase Order Bulk Operations
 // ============================================================================
 
@@ -1003,6 +1045,86 @@ export async function bulkDeletePurchaseOrders(ids: string[]): Promise<BulkOpera
         purchaseOrders.splice(index, 1);
         successCount++;
       }
+    }
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkArchivePurchaseOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = purchaseOrders.findIndex((po) => po.id === id);
+    if (index === -1) {
+      errors.push(`PO ${id} not found`);
+    } else {
+      purchaseOrders[index] = {
+        ...purchaseOrders[index],
+        archived: true,
+        archivedAt: new Date().toISOString(),
+      };
+      successCount++;
+    }
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkRestorePurchaseOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = purchaseOrders.findIndex((po) => po.id === id);
+    if (index === -1) {
+      errors.push(`PO ${id} not found`);
+    } else {
+      purchaseOrders[index] = {
+        ...purchaseOrders[index],
+        archived: false,
+        archivedAt: undefined,
+      };
+      successCount++;
+    }
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkPermanentlyDeletePurchaseOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = purchaseOrders.findIndex((po) => po.id === id);
+    if (index === -1) {
+      errors.push(`PO ${id} not found`);
+    } else {
+      purchaseOrders.splice(index, 1);
+      successCount++;
     }
   }
 

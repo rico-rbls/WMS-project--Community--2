@@ -172,6 +172,11 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
   // Optimized filtering with early returns and debounced search
   const filteredSuppliers = useMemo(() => {
     return list.filter(supplier => {
+      // Filter by archived status
+      if (supplier.archived !== showArchived) {
+        return false;
+      }
+
       // Early return for favorites filter
       if (showFavoritesOnly && !isFavorite("suppliers", supplier.id)) {
         return false;
@@ -199,7 +204,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
 
       return true;
     });
-  }, [list, debouncedSearchTerm, filterStatus, showFavoritesOnly, isFavorite]);
+  }, [list, debouncedSearchTerm, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
 
   // Handle applying saved searches
   const handleApplySavedSearch = useCallback((search: SavedSearch) => {
@@ -231,6 +236,43 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
     setSearchTerm("");
     setFilterStatus("all");
     setShowFavoritesOnly(false);
+    setShowArchived(false);
+  }
+
+  // Archive handler
+  async function handleArchive(id: string) {
+    try {
+      const archived = await archiveSupplier(id);
+      setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === id ? archived : s)));
+      setIsEditOpen(null);
+      toast.success("Supplier archived successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to archive supplier");
+    }
+  }
+
+  // Restore handler
+  async function handleRestore(id: string) {
+    try {
+      const restored = await restoreSupplier(id);
+      setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === id ? restored : s)));
+      setIsEditOpen(null);
+      toast.success("Supplier restored successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore supplier");
+    }
+  }
+
+  // Permanent delete handler
+  async function handlePermanentDelete(id: string) {
+    try {
+      await permanentlyDeleteSupplier(id);
+      setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== id));
+      setIsEditOpen(null);
+      toast.success("Supplier permanently deleted");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to permanently delete supplier");
+    }
   }
 
   // Status helper functions
@@ -344,6 +386,94 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
       deselectAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete suppliers");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Bulk archive handler
+  const handleBulkArchive = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkArchiveSuppliers(ids);
+
+      setSuppliersData((prev) => {
+        if (!prev) return prev;
+        return prev.map((supplier) => {
+          if (ids.includes(supplier.id)) {
+            return { ...supplier, archived: true, archivedAt: new Date().toISOString() };
+          }
+          return supplier;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Archived ${result.successCount} suppliers. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully archived ${result.successCount} supplier${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to archive suppliers");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Bulk restore handler
+  const handleBulkRestore = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkRestoreSuppliers(ids);
+
+      setSuppliersData((prev) => {
+        if (!prev) return prev;
+        return prev.map((supplier) => {
+          if (ids.includes(supplier.id)) {
+            return { ...supplier, archived: false, archivedAt: undefined };
+          }
+          return supplier;
+        });
+      });
+
+      if (result.failedCount > 0) {
+        toast.warning(`Restored ${result.successCount} suppliers. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Successfully restored ${result.successCount} supplier${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore suppliers");
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteDialog(false);
+    }
+  }, [selectedIds, deselectAll]);
+
+  // Bulk permanent delete handler
+  const handleBulkPermanentDelete = useCallback(async () => {
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const result = await bulkPermanentlyDeleteSuppliers(ids);
+
+      setSuppliersData((prev) => prev?.filter((supplier) => !ids.includes(supplier.id)) ?? []);
+
+      if (result.failedCount > 0) {
+        toast.warning(`Permanently deleted ${result.successCount} suppliers. ${result.failedCount} failed.`);
+      } else {
+        toast.success(`Permanently deleted ${result.successCount} supplier${result.successCount !== 1 ? "s" : ""}`);
+      }
+
+      deselectAll();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to permanently delete suppliers");
     } finally {
       setIsBulkDeleting(false);
       setShowBulkDeleteDialog(false);
@@ -664,7 +794,18 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                 currentFilters={getCurrentFilters}
                 onApplySearch={handleApplySavedSearch}
               />
-              {(searchTerm || filterStatus !== "all" || showFavoritesOnly) && (
+              {/* Archive Toggle */}
+              <Button
+                variant={showArchived ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowArchived(!showArchived)}
+                className={showArchived ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
+              >
+                <Archive className="h-4 w-4 mr-1" />
+                {showArchived ? "Viewing Archived" : "View Archived"}
+              </Button>
+
+              {(searchTerm || filterStatus !== "all" || showFavoritesOnly || showArchived) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -684,16 +825,31 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
               isLoading={isBulkDeleting || isBulkUpdating}
-              actions={[
+              actions={showArchived ? [
                 {
-                  id: "delete",
-                  label: "Delete",
+                  id: "restore",
+                  label: "Restore",
+                  icon: <ArchiveRestore className="h-4 w-4 mr-1" />,
+                  variant: "outline",
+                  onClick: handleBulkRestore,
+                },
+                ...(canPermanentlyDelete ? [{
+                  id: "permanent-delete",
+                  label: "Permanently Delete",
                   icon: <Trash2 className="h-4 w-4 mr-1" />,
-                  variant: "destructive",
+                  variant: "destructive" as const,
+                  onClick: () => setShowBulkDeleteDialog(true),
+                }] : []),
+              ] : [
+                {
+                  id: "archive",
+                  label: "Archive",
+                  icon: <Archive className="h-4 w-4 mr-1" />,
+                  variant: "outline",
                   onClick: () => setShowBulkDeleteDialog(true),
                 },
               ]}
-              actionGroups={[
+              actionGroups={showArchived ? [] : [
                 {
                   id: "status-update",
                   label: "Update Status",
@@ -709,28 +865,36 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
             />
           )}
 
-          {/* Bulk Delete Dialog */}
+          {/* Bulk Delete/Archive Dialog */}
           <BulkDeleteDialog
             open={showBulkDeleteDialog}
             onOpenChange={setShowBulkDeleteDialog}
             itemCount={selectionCount}
             itemType="supplier"
             itemNames={selectedSupplierNames}
-            onConfirm={handleBulkDelete}
+            onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
             isLoading={isBulkDeleting}
+            title={showArchived ? "Permanently Delete Suppliers" : "Archive Suppliers"}
+            description={showArchived
+              ? `Are you sure you want to permanently delete ${selectionCount} supplier${selectionCount !== 1 ? "s" : ""}? This action cannot be undone.`
+              : `Are you sure you want to archive ${selectionCount} supplier${selectionCount !== 1 ? "s" : ""}? Archived suppliers can be restored later.`
+            }
+            confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
           />
 
           {isLoading ? (
             <TableLoadingSkeleton rows={8} />
           ) : filteredSuppliers.length === 0 ? (
             <EmptyState
-              icon={Users}
-              title="No suppliers found"
-              description={searchTerm
-                ? "Try adjusting your search criteria"
-                : "Get started by adding your first supplier"}
-              actionLabel={!searchTerm ? "Add Supplier" : undefined}
-              onAction={!searchTerm ? () => setIsAddOpen(true) : undefined}
+              icon={showArchived ? Archive : Users}
+              title={showArchived ? "No archived suppliers" : "No suppliers found"}
+              description={showArchived
+                ? "Archived suppliers will appear here"
+                : searchTerm
+                  ? "Try adjusting your search criteria"
+                  : "Get started by adding your first supplier"}
+              actionLabel={!showArchived && !searchTerm ? "Add Supplier" : undefined}
+              onAction={!showArchived && !searchTerm ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
             <div className="rounded-md border">
@@ -934,38 +1098,56 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                                 </div>
                               </div>
                               <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
-                                <Button variant="destructive" onClick={async () => {
-                                  try {
-                                    await deleteSupplier(supplier.id);
-                                    setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== supplier.id));
-                                    setIsEditOpen(null);
-                                    toast.success("Supplier deleted");
-                                  } catch (e: any) {
-                                    toast.error(e?.message || "Failed to delete supplier");
-                                  }
-                                }}>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </Button>
+                                {supplier.archived ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => handleRestore(supplier.id)}
+                                    >
+                                      <ArchiveRestore className="h-4 w-4 mr-2" />
+                                      Restore
+                                    </Button>
+                                    {canPermanentlyDelete && (
+                                      <Button
+                                        variant="destructive"
+                                        onClick={() => handlePermanentDelete(supplier.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Permanently Delete
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => handleArchive(supplier.id)}
+                                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                  >
+                                    <Archive className="h-4 w-4 mr-2" />
+                                    Archive
+                                  </Button>
+                                )}
                                 <div className="flex gap-2">
                                   <Button variant="outline" onClick={() => setIsEditOpen(null)}>
                                     Cancel
                                   </Button>
-                                  <Button onClick={async () => {
-                                    if (!form.id) { toast.error("Missing supplier id"); return; }
-                                    if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
-                                      toast.error("Please fill all required fields");
-                                      return;
-                                    }
-                                    try {
-                                      const updated = await updateSupplier({ id: form.id, name: form.name, contact: form.contact, email: form.email, phone: form.phone, category: form.category, status: form.status });
-                                      setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
-                                      setIsEditOpen(null);
-                                      toast.success("Supplier updated");
-                                    } catch (e: any) {
-                                      toast.error(e?.message || "Failed to update supplier");
-                                    }
-                                  }}>Save Changes</Button>
+                                  {!supplier.archived && (
+                                    <Button onClick={async () => {
+                                      if (!form.id) { toast.error("Missing supplier id"); return; }
+                                      if (!form.name.trim() || !form.contact.trim() || !form.email.trim() || !form.phone.trim() || !form.category.trim()) {
+                                        toast.error("Please fill all required fields");
+                                        return;
+                                      }
+                                      try {
+                                        const updated = await updateSupplier({ id: form.id, name: form.name, contact: form.contact, email: form.email, phone: form.phone, category: form.category, status: form.status });
+                                        setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
+                                        setIsEditOpen(null);
+                                        toast.success("Supplier updated");
+                                      } catch (e: any) {
+                                        toast.error(e?.message || "Failed to update supplier");
+                                      }
+                                    }}>Save Changes</Button>
+                                  )}
                                 </div>
                               </DialogFooter>
                             </DialogContent>

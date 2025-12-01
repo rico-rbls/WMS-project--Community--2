@@ -22,7 +22,7 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, ShoppingBag, Trash2, Check, X, Package, Send, Download, DollarSign, Clock, TrendingUp, CheckCircle, FileText, Filter } from "lucide-react";
+import { Plus, Search, ShoppingBag, Trash2, Check, X, Package, Send, Download, DollarSign, Clock, TrendingUp, CheckCircle, FileText, Filter, Archive, ArchiveRestore } from "lucide-react";
 import { cn } from "./ui/utils";
 import { toast } from "sonner";
 import {
@@ -39,6 +39,12 @@ import {
   getSuppliers,
   getInventory,
   bulkDeletePurchaseOrders,
+  archivePurchaseOrder,
+  restorePurchaseOrder,
+  permanentlyDeletePurchaseOrder,
+  bulkArchivePurchaseOrders,
+  bulkRestorePurchaseOrders,
+  bulkPermanentlyDeletePurchaseOrders,
 } from "../services/api";
 import type { PurchaseOrder, POStatus, Supplier, InventoryItem } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
@@ -79,7 +85,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const canApprove = hasPermission(userRole, "purchase_orders:approve");
   const canReceive = hasPermission(userRole, "purchase_orders:receive");
   const canDelete = hasPermission(userRole, "purchase_orders:delete");
+  const canPermanentlyDelete = hasPermission(userRole, "purchase_orders:permanent_delete");
 
+  const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[] | null>(null);
@@ -176,6 +184,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const filteredData = useMemo(() => {
     let result = list;
 
+    // Filter by archived status
+    result = result.filter((po) => po.archived === showArchived);
+
     // Search filter
     if (debouncedSearchTerm) {
       const term = debouncedSearchTerm.toLowerCase();
@@ -210,28 +221,30 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     }
 
     return result;
-  }, [list, debouncedSearchTerm, filterStatus, sortColumn, sortDirection]);
+  }, [list, debouncedSearchTerm, filterStatus, sortColumn, sortDirection, showArchived]);
 
   const { paginatedData, currentPage, totalPages, goToPage, itemsPerPage, totalItems } = usePagination<PurchaseOrder>(filteredData, 10);
 
   // Calculate statistics
+  // Calculate statistics (only non-archived POs)
   const poStats = useMemo(() => {
+    const activeList = list.filter(po => !po.archived);
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const totalPOs = list.length;
-    const totalValue = list.reduce((sum, po) => sum + (po.totalAmount ?? 0), 0);
+    const totalPOs = activeList.length;
+    const totalValue = activeList.reduce((sum, po) => sum + (po.totalAmount ?? 0), 0);
     const avgOrderValue = totalPOs > 0 ? totalValue / totalPOs : 0;
 
     // Status counts
-    const draftCount = list.filter(po => po.status === "Draft").length;
-    const pendingApprovalCount = list.filter(po => po.status === "Pending Approval").length;
-    const approvedCount = list.filter(po => po.status === "Approved").length;
-    const orderedCount = list.filter(po => po.status === "Ordered").length;
-    const partiallyReceivedCount = list.filter(po => po.status === "Partially Received").length;
-    const receivedCount = list.filter(po => po.status === "Received").length;
-    const rejectedCount = list.filter(po => po.status === "Rejected").length;
-    const cancelledCount = list.filter(po => po.status === "Cancelled").length;
+    const draftCount = activeList.filter(po => po.status === "Draft").length;
+    const pendingApprovalCount = activeList.filter(po => po.status === "Pending Approval").length;
+    const approvedCount = activeList.filter(po => po.status === "Approved").length;
+    const orderedCount = activeList.filter(po => po.status === "Ordered").length;
+    const partiallyReceivedCount = activeList.filter(po => po.status === "Partially Received").length;
+    const receivedCount = activeList.filter(po => po.status === "Received").length;
+    const rejectedCount = activeList.filter(po => po.status === "Rejected").length;
+    const cancelledCount = activeList.filter(po => po.status === "Cancelled").length;
 
     // Active POs (not completed or cancelled)
     const activePOs = draftCount + pendingApprovalCount + approvedCount + orderedCount + partiallyReceivedCount;
@@ -241,7 +254,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     const completionRate = totalPOs > 0 ? Math.round((completedPOs / totalPOs) * 100) : 0;
 
     // New this week
-    const newThisWeek = list.filter(po => {
+    const newThisWeek = activeList.filter(po => {
       const createdDate = new Date(po.createdDate);
       return createdDate >= oneWeekAgo;
     }).length;
@@ -265,6 +278,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       completionRate,
       newThisWeek,
       pendingDelivery,
+      completedPOs,
     };
   }, [list]);
 
@@ -282,6 +296,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const clearAllFilters = () => {
     setSearchTerm("");
     setFilterStatus("all");
+    setShowArchived(false);
   };
 
   // Get status icon
@@ -590,6 +605,90 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       setBulkDeleteOpen(false);
     } catch (error) {
       toast.error("Failed to delete purchase orders");
+    }
+  };
+
+  // Archive/Restore/Permanent Delete handlers
+  const handleArchive = async (id: string) => {
+    try {
+      const archived = await archivePurchaseOrder(id);
+      setPurchaseOrdersData((prev) => (prev ?? []).map((po) => (po.id === id ? archived : po)));
+      setIsEditOpen(null);
+      toast.success("Purchase order archived");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to archive purchase order");
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      const restored = await restorePurchaseOrder(id);
+      setPurchaseOrdersData((prev) => (prev ?? []).map((po) => (po.id === id ? restored : po)));
+      setIsEditOpen(null);
+      toast.success("Purchase order restored");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to restore purchase order");
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    try {
+      await permanentlyDeletePurchaseOrder(id);
+      setPurchaseOrdersData((prev) => (prev ?? []).filter((po) => po.id !== id));
+      setIsEditOpen(null);
+      toast.success("Purchase order permanently deleted");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to permanently delete purchase order");
+    }
+  };
+
+  // Bulk archive/restore/permanent delete handlers
+  const handleBulkArchive = async () => {
+    try {
+      const result = await bulkArchivePurchaseOrders(Array.from(selectedIds));
+      if (result.success) {
+        toast.success(`${result.successCount} purchase orders archived`);
+      } else {
+        toast.warning(`${result.successCount} archived, ${result.failedCount} failed`);
+      }
+      const updatedPOs = await getPurchaseOrders();
+      setPurchaseOrdersData(updatedPOs);
+      deselectAll();
+      setBulkDeleteOpen(false);
+    } catch (error) {
+      toast.error("Failed to archive purchase orders");
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    try {
+      const result = await bulkRestorePurchaseOrders(Array.from(selectedIds));
+      if (result.success) {
+        toast.success(`${result.successCount} purchase orders restored`);
+      } else {
+        toast.warning(`${result.successCount} restored, ${result.failedCount} failed`);
+      }
+      const updatedPOs = await getPurchaseOrders();
+      setPurchaseOrdersData(updatedPOs);
+      deselectAll();
+    } catch (error) {
+      toast.error("Failed to restore purchase orders");
+    }
+  };
+
+  const handleBulkPermanentDelete = async () => {
+    try {
+      const result = await bulkPermanentlyDeletePurchaseOrders(Array.from(selectedIds));
+      if (result.success) {
+        toast.success(`${result.successCount} purchase orders permanently deleted`);
+      } else {
+        toast.warning(`${result.successCount} deleted, ${result.failedCount} failed`);
+      }
+      setPurchaseOrdersData((prev) => prev?.filter((po) => !selectedIds.has(po.id)) ?? []);
+      deselectAll();
+      setBulkDeleteOpen(false);
+    } catch (error) {
+      toast.error("Failed to permanently delete purchase orders");
     }
   };
 
@@ -945,7 +1044,18 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                 ))}
               </SelectContent>
             </Select>
-            {(searchTerm || filterStatus !== "all") && (
+            {/* Archive Toggle */}
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived(!showArchived)}
+              className={showArchived ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
+            >
+              <Archive className="h-4 w-4 mr-1" />
+              {showArchived ? "Viewing Archived" : "View Archived"}
+            </Button>
+
+            {(searchTerm || filterStatus !== "all" || showArchived) && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
                 <X className="h-4 w-4 mr-1" />
                 Clear Filters
@@ -958,8 +1068,29 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
             <BulkActionsToolbar
               selectionCount={selectionCount}
               onClearSelection={deselectAll}
-              actions={[
-                { label: "Delete Selected", onClick: () => setBulkDeleteOpen(true), variant: "destructive" },
+              actions={showArchived ? [
+                {
+                  id: "restore",
+                  label: "Restore",
+                  icon: <ArchiveRestore className="h-4 w-4 mr-1" />,
+                  variant: "outline",
+                  onClick: handleBulkRestore,
+                },
+                ...(canPermanentlyDelete ? [{
+                  id: "permanent-delete",
+                  label: "Permanently Delete",
+                  icon: <Trash2 className="h-4 w-4 mr-1" />,
+                  variant: "destructive" as const,
+                  onClick: () => setBulkDeleteOpen(true),
+                }] : []),
+              ] : [
+                {
+                  id: "archive",
+                  label: "Archive",
+                  icon: <Archive className="h-4 w-4 mr-1" />,
+                  variant: "outline",
+                  onClick: () => setBulkDeleteOpen(true),
+                },
               ]}
             />
           )}
@@ -967,11 +1098,15 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
           {/* Table */}
           {filteredData.length === 0 ? (
             <EmptyState
-              icon={ShoppingBag}
-              title="No purchase orders found"
-              description={searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : "Create your first purchase order to get started"}
-              actionLabel={canCreate ? "Create PO" : undefined}
-              onAction={canCreate ? () => setIsAddOpen(true) : undefined}
+              icon={showArchived ? Archive : ShoppingBag}
+              title={showArchived ? "No archived purchase orders" : "No purchase orders found"}
+              description={showArchived
+                ? "Archived purchase orders will appear here"
+                : searchTerm || filterStatus !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "Create your first purchase order to get started"}
+              actionLabel={!showArchived && canCreate ? "Create PO" : undefined}
+              onAction={!showArchived && canCreate ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
         <>
@@ -1253,14 +1388,40 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     </div>
 
                     <div className="flex justify-between">
-                      {canDelete && ["Draft", "Cancelled", "Rejected"].includes(po?.status ?? "") && (
-                        <Button variant="destructive" onClick={() => handleDelete(isEditOpen)}>
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete
-                        </Button>
+                      {po?.archived ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleRestore(isEditOpen)}
+                          >
+                            <ArchiveRestore className="h-4 w-4 mr-2" />
+                            Restore
+                          </Button>
+                          {canPermanentlyDelete && (
+                            <Button
+                              variant="destructive"
+                              onClick={() => handlePermanentDelete(isEditOpen)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Permanently Delete
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        canDelete && ["Draft", "Cancelled", "Rejected"].includes(po?.status ?? "") && (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleArchive(isEditOpen)}
+                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            Archive
+                          </Button>
+                        )
                       )}
                       <div className="flex gap-2 ml-auto">
                         <Button variant="outline" onClick={() => { setIsEditOpen(null); resetForm(); }}>Close</Button>
-                        {canEdit && <Button onClick={() => handleUpdate(isEditOpen)}>Save Changes</Button>}
+                        {canEdit && !po?.archived && <Button onClick={() => handleUpdate(isEditOpen)}>Save Changes</Button>}
                       </div>
                     </div>
                   </>
@@ -1340,13 +1501,19 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
         </Dialog>
       )}
 
-          {/* Bulk Delete Dialog */}
+          {/* Bulk Delete/Archive Dialog */}
           <BulkDeleteDialog
             open={bulkDeleteOpen}
             onOpenChange={setBulkDeleteOpen}
             itemCount={selectionCount}
             itemType="purchase orders"
-            onConfirm={handleBulkDelete}
+            onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
+            title={showArchived ? "Permanently Delete Purchase Orders" : "Archive Purchase Orders"}
+            description={showArchived
+              ? `Are you sure you want to permanently delete ${selectionCount} purchase order${selectionCount !== 1 ? "s" : ""}? This action cannot be undone.`
+              : `Are you sure you want to archive ${selectionCount} purchase order${selectionCount !== 1 ? "s" : ""}? Archived purchase orders can be restored later.`
+            }
+            confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
           />
         </CardContent>
       </Card>
