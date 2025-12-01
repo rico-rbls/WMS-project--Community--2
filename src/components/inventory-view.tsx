@@ -90,9 +90,11 @@ function generateLocationCode(category: InventoryCategory, existingItems: Invent
 interface InventoryViewProps {
   initialOpenDialog?: boolean;
   onDialogOpened?: () => void;
+  initialItemId?: string; // Open detail dialog for this item on mount
+  onItemDialogOpened?: () => void; // Callback when item dialog is opened
 }
 
-export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryViewProps) {
+export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId, onItemDialogOpened }: InventoryViewProps) {
   const { inventory, isLoading, setInventory } = useInventory();
   const { suppliers, setSuppliers } = useSuppliers();
   const { isFavorite, getFavoritesByType } = useFavorites();
@@ -106,7 +108,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const [showArchived, setShowArchived] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
-  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(initialItemId ?? null);
   // Use strings for numeric fields to allow empty input during typing
   const [form, setForm] = useState({
     id: "",
@@ -168,6 +170,14 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       onDialogOpened?.();
     }
   }, [initialOpenDialog, onDialogOpened, isAddOpen]);
+
+  // Open detail dialog when navigated from command palette
+  useEffect(() => {
+    if (initialItemId) {
+      setIsDetailOpen(initialItemId);
+      onItemDialogOpened?.();
+    }
+  }, [initialItemId, onItemDialogOpened]);
 
   // Debounce search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -1778,32 +1788,58 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             <Eye className="h-4 w-4 mr-2" />
                             Details
                           </Button>
-                          {canModify && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => {
-                                setIsEditOpen(item.id);
-                                setForm({
-                                  id: item.id,
-                                  name: item.name,
-                                  category: item.category,
-                                  quantity: item.quantity,
-                                  location: item.location,
-                                  reorderLevel: item.reorderLevel,
-                                  brand: item.brand || "Unknown",
-                                  pricePerPiece: item.pricePerPiece ?? 0,
-                                  supplierId: item.supplierId || "SUP-001",
-                                  maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                                  minimumStock: item.minimumStock ?? item.reorderLevel,
-                                  photoUrl: item.photoUrl || "",
-                                });
-                              }}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
+                          {showArchived && item.archived ? (
+                            /* Archive Actions for archived items */
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => handleRestore(item.id)}
+                              >
+                                <ArchiveRestore className="h-4 w-4 mr-2" />
+                                Restore
+                              </Button>
+                              {canPermanentlyDelete && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handlePermanentDelete(item.id)}
+                                  title="Permanently delete this item"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            /* Edit button for active items */
+                            canModify && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => {
+                                  setIsEditOpen(item.id);
+                                  setForm({
+                                    id: item.id,
+                                    name: item.name,
+                                    category: item.category,
+                                    quantity: item.quantity,
+                                    location: item.location,
+                                    reorderLevel: item.reorderLevel,
+                                    brand: item.brand || "Unknown",
+                                    pricePerPiece: item.pricePerPiece ?? 0,
+                                    supplierId: item.supplierId || "SUP-001",
+                                    maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
+                                    minimumStock: item.minimumStock ?? item.reorderLevel,
+                                    photoUrl: item.photoUrl || "",
+                                  });
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </Button>
+                            )
                           )}
                         </div>
                       </div>

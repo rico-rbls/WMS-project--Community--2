@@ -24,6 +24,7 @@ export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState("dashboard" as ViewType);
   const [openAddDialog, setOpenAddDialog] = useState<ViewType | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | undefined>(undefined);
   const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
 
   // Navigate to a view and optionally open its Add dialog
@@ -35,14 +36,20 @@ export default function App() {
   }, []);
 
   // Handle navigation from command palette
-  const handleCommandPaletteNavigate = useCallback((view: ViewType, _itemId?: string) => {
+  const handleCommandPaletteNavigate = useCallback((view: ViewType, itemId?: string) => {
     setCurrentView(view);
-    // Note: itemId can be used in the future to scroll to/highlight specific item
+    // Pass itemId to open detail dialog in the view
+    setSelectedItemId(itemId);
   }, []);
 
   // Clear the pending dialog state after it's been consumed
   const clearOpenAddDialog = useCallback(() => {
     setOpenAddDialog(null);
+  }, []);
+
+  // Clear the selected item ID after it's been consumed
+  const clearSelectedItemId = useCallback(() => {
+    setSelectedItemId(undefined);
   }, []);
 
   // Show loading spinner while checking authentication
@@ -76,6 +83,8 @@ export default function App() {
           <InventoryView
             initialOpenDialog={openAddDialog === "inventory"}
             onDialogOpened={clearOpenAddDialog}
+            initialItemId={selectedItemId}
+            onItemDialogOpened={clearSelectedItemId}
           />
         );
       case "orders":
