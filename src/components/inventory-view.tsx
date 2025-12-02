@@ -1617,11 +1617,9 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             {/* Column Visibility (Table View Only) */}
             {viewMode === "table" && (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
-                    <Settings2 className="h-4 w-4" />
-                    Columns
-                  </Button>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md text-sm font-medium transition-all h-8 px-3 border bg-background text-foreground hover:bg-accent hover:text-accent-foreground">
+                  <Settings2 className="h-4 w-4" />
+                  Columns
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
