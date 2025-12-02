@@ -102,11 +102,17 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   // Form state for creating/editing PO
   const [form, setForm] = useState({
+    poDate: new Date().toISOString().split('T')[0],
     supplierId: "",
     supplierName: "",
+    supplierCountry: "",
+    supplierCity: "",
+    billNumber: "",
     items: [] as { inventoryItemId: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[],
     expectedDeliveryDate: "",
     notes: "",
+    totalPaid: 0,
+    shippingStatus: "Pending" as "Pending" | "Processing" | "Shipped" | "In Transit" | "Out for Delivery" | "Delivered" | "Failed" | "Returned",
   });
 
   // Receive form state
@@ -155,9 +161,14 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   // Handle prefilled item from Dashboard
   useEffect(() => {
     if (prefilledItem && suppliersData.length > 0) {
+      const supplier = suppliersData.find(s => s.id === prefilledItem.supplierId);
       setForm({
+        poDate: new Date().toISOString().split('T')[0],
         supplierId: prefilledItem.supplierId,
         supplierName: prefilledItem.supplierName,
+        supplierCountry: supplier?.country ?? "",
+        supplierCity: supplier?.city ?? "",
+        billNumber: "",
         items: [{
           inventoryItemId: prefilledItem.inventoryItemId,
           itemName: prefilledItem.itemName,
@@ -167,6 +178,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
         }],
         expectedDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: "",
+        totalPaid: 0,
+        shippingStatus: "Pending",
       });
       setIsAddOpen(true);
     }
@@ -369,11 +382,17 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const resetForm = () => {
     setForm({
+      poDate: new Date().toISOString().split('T')[0],
       supplierId: "",
       supplierName: "",
+      supplierCountry: "",
+      supplierCity: "",
+      billNumber: "",
       items: [],
       expectedDeliveryDate: "",
       notes: "",
+      totalPaid: 0,
+      shippingStatus: "Pending",
     });
   };
 
@@ -430,6 +449,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       ...prev,
       supplierId,
       supplierName: supplier?.name ?? "",
+      supplierCountry: supplier?.country ?? "",
+      supplierCity: supplier?.city ?? "",
     }));
   };
 
@@ -440,12 +461,17 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     }
     try {
       const newPO = await createPurchaseOrder({
+        poDate: form.poDate,
         supplierId: form.supplierId,
         supplierName: form.supplierName,
+        supplierCountry: form.supplierCountry,
+        supplierCity: form.supplierCity,
+        billNumber: form.billNumber,
         items: form.items,
         expectedDeliveryDate: form.expectedDeliveryDate,
         notes: form.notes,
         createdBy: user?.id ?? "1",
+        totalPaid: form.totalPaid,
       });
       setPurchaseOrdersData((prev) => [newPO, ...(prev ?? [])]);
       toast.success(`Purchase Order ${newPO.id} created successfully`);
@@ -464,11 +490,17 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     try {
       const updated = await updatePurchaseOrder({
         id,
+        poDate: form.poDate,
         supplierId: form.supplierId,
         supplierName: form.supplierName,
+        supplierCountry: form.supplierCountry,
+        supplierCity: form.supplierCity,
+        billNumber: form.billNumber,
         items: form.items,
         expectedDeliveryDate: form.expectedDeliveryDate,
         notes: form.notes,
+        totalPaid: form.totalPaid,
+        shippingStatus: form.shippingStatus,
       });
       setPurchaseOrdersData((prev) => prev?.map((po) => (po.id === id ? updated : po)) ?? []);
       toast.success(`Purchase Order ${id} updated successfully`);
@@ -694,8 +726,12 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const openEditDialog = (po: PurchaseOrder) => {
     setForm({
+      poDate: po.poDate ?? po.createdDate,
       supplierId: po.supplierId,
       supplierName: po.supplierName,
+      supplierCountry: po.supplierCountry ?? "",
+      supplierCity: po.supplierCity ?? "",
+      billNumber: po.billNumber ?? "",
       items: (po.items ?? []).map((item) => ({
         inventoryItemId: item.inventoryItemId,
         itemName: item.itemName,
@@ -705,19 +741,28 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       })),
       expectedDeliveryDate: po.expectedDeliveryDate,
       notes: po.notes,
+      totalPaid: po.totalPaid ?? 0,
+      shippingStatus: po.shippingStatus ?? "Pending",
     });
     setIsEditOpen(po.id);
   };
 
   const exportToCSV = () => {
-    const headers = ["PO ID", "Supplier", "Items", "Total Amount", "Status", "Created Date", "Expected Delivery", "Notes"];
+    const headers = ["Date", "PO ID", "Supplier ID", "Supplier Name", "Bill #", "Country", "City", "Items", "Total Amount", "Total Paid", "PO Balance", "MT Status", "Shipping Status", "Expected Delivery", "Notes"];
     const rows = filteredData.map((po) => [
+      po.poDate ?? po.createdDate,
       po.id,
+      po.supplierId,
       po.supplierName,
+      po.billNumber ?? "",
+      po.supplierCountry ?? "",
+      po.supplierCity ?? "",
       (po.items ?? []).map((i) => `${i.itemName} (${i.quantity})`).join("; "),
       (po.totalAmount ?? 0).toFixed(2),
+      (po.totalPaid ?? 0).toFixed(2),
+      (po.poBalance ?? po.totalAmount ?? 0).toFixed(2),
       po.status,
-      po.createdDate,
+      po.shippingStatus ?? "Pending",
       po.expectedDeliveryDate,
       po.notes,
     ]);
@@ -910,105 +955,149 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     Create PO
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create Purchase Order</DialogTitle>
                     <DialogDescription>Create a new purchase order for supplier items</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Supplier *</Label>
-                        <Select value={form.supplierId} onValueChange={handleSupplierChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select supplier" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {suppliersData.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Expected Delivery Date *</Label>
-                        <Input
-                          type="date"
-                          value={form.expectedDeliveryDate}
-                          onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Line Items *</Label>
-                        <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                          <Plus className="h-4 w-4 mr-1" /> Add Item
-                        </Button>
-                      </div>
-                      {form.items.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No items added. Click "Add Item" to add items.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {form.items.map((item, index) => (
-                            <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
-                              <div className="flex-1 space-y-1">
-                                <Label className="text-xs">Item</Label>
-                                <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select item" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {inventoryData.map((i) => (
-                                      <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="w-24 space-y-1">
-                                <Label className="text-xs">Quantity</Label>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={item.quantity}
-                                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                />
-                              </div>
-                              <div className="w-28 space-y-1">
-                                <Label className="text-xs">Unit Price</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.unitPrice}
-                                  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-                                />
-                              </div>
-                              <div className="w-28 space-y-1">
-                                <Label className="text-xs">Total</Label>
-                                <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
-                              </div>
-                              <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          ))}
-                          <div className="text-right font-semibold">
-                            Total: ₱{totalAmount.toFixed(2)}
+                  <div className="space-y-6 py-4">
+                    {/* Main PO Information Card */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Purchase Order Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>PO Date *</Label>
+                            <Input
+                              type="date"
+                              value={form.poDate}
+                              onChange={(e) => setForm((prev) => ({ ...prev, poDate: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Supplier *</Label>
+                            <Select value={form.supplierId} onValueChange={handleSupplierChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select supplier" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {suppliersData.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Supplier ID</Label>
+                            <Input value={form.supplierId} disabled placeholder="Auto-populated" />
                           </div>
                         </div>
-                      )}
-                    </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <Input value={form.supplierCountry} disabled placeholder="Auto-populated" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input value={form.supplierCity} disabled placeholder="Auto-populated" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Bill Number</Label>
+                            <Input
+                              value={form.billNumber}
+                              onChange={(e) => setForm((prev) => ({ ...prev, billNumber: e.target.value }))}
+                              placeholder="Invoice/bill reference"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Expected Delivery Date *</Label>
+                            <Input
+                              type="date"
+                              value={form.expectedDeliveryDate}
+                              onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Notes</Label>
+                            <Input
+                              value={form.notes}
+                              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                              placeholder="Optional notes..."
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <Input
-                        value={form.notes}
-                        onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Optional notes..."
-                      />
-                    </div>
+                    {/* Line Items Card */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">Line Items</CardTitle>
+                          <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Item
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {form.items.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">No items added. Click "Add Item" to add items.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {form.items.map((item, index) => (
+                              <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-xs">Item</Label>
+                                  <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select item" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {inventoryData.map((i) => (
+                                        <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="w-24 space-y-1">
+                                  <Label className="text-xs">Quantity</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                  />
+                                </div>
+                                <div className="w-28 space-y-1">
+                                  <Label className="text-xs">Unit Price</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.unitPrice}
+                                    onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+                                  />
+                                </div>
+                                <div className="w-28 space-y-1">
+                                  <Label className="text-xs">Total</Label>
+                                  <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
+                                </div>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            ))}
+                            <div className="text-right font-semibold pt-2 border-t">
+                              Grand Total: ₱{totalAmount.toFixed(2)}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
 
                     <DialogFooter>
                       <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>Cancel</Button>
@@ -1110,7 +1199,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
             />
           ) : (
         <>
-          <div className="border rounded-lg">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1126,6 +1215,14 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     </TableHead>
                   )}
                   <SortableTableHead
+                    sortKey="poDate"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("poDate")}
+                    onSort={handleSort}
+                  >
+                    Date
+                  </SortableTableHead>
+                  <SortableTableHead
                     sortKey="id"
                     currentSortKey={sortColumn}
                     sortDirection={getSortDirection("id")}
@@ -1133,15 +1230,18 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                   >
                     PO ID
                   </SortableTableHead>
+                  <TableHead>Supplier ID</TableHead>
                   <SortableTableHead
                     sortKey="supplierName"
                     currentSortKey={sortColumn}
                     sortDirection={getSortDirection("supplierName")}
                     onSort={handleSort}
                   >
-                    Supplier
+                    Supplier Name
                   </SortableTableHead>
-                  <TableHead>Items</TableHead>
+                  <TableHead>Bill #</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>City</TableHead>
                   <SortableTableHead
                     sortKey="totalAmount"
                     currentSortKey={sortColumn}
@@ -1149,7 +1249,25 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     onSort={handleSort}
                     className="text-right"
                   >
-                    Total
+                    Total Amount
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="totalPaid"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("totalPaid")}
+                    onSort={handleSort}
+                    className="text-right"
+                  >
+                    Total Paid
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="poBalance"
+                    currentSortKey={sortColumn}
+                    sortDirection={getSortDirection("poBalance")}
+                    onSort={handleSort}
+                    className="text-right"
+                  >
+                    PO Balance
                   </SortableTableHead>
                   <SortableTableHead
                     sortKey="status"
@@ -1157,23 +1275,15 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                     sortDirection={getSortDirection("status")}
                     onSort={handleSort}
                   >
-                    Status
+                    MT Status
                   </SortableTableHead>
                   <SortableTableHead
-                    sortKey="createdDate"
+                    sortKey="shippingStatus"
                     currentSortKey={sortColumn}
-                    sortDirection={getSortDirection("createdDate")}
+                    sortDirection={getSortDirection("shippingStatus")}
                     onSort={handleSort}
                   >
-                    Created
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="expectedDeliveryDate"
-                    currentSortKey={sortColumn}
-                    sortDirection={getSortDirection("expectedDeliveryDate")}
-                    onSort={handleSort}
-                  >
-                    Expected
+                    Shipping
                   </SortableTableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -1191,7 +1301,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                         />
                       </TableCell>
                     )}
+                    <TableCell className="whitespace-nowrap">{po.poDate ?? po.createdDate}</TableCell>
                     <TableCell className="font-medium">{po.id}</TableCell>
+                    <TableCell className="text-muted-foreground">{po.supplierId}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <EditableCell
                         value={po.supplierId}
@@ -1205,20 +1317,26 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                         disabled={po.status !== "Draft" || !canCreate}
                       />
                     </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{(po.items ?? []).length} item{(po.items ?? []).length !== 1 ? "s" : ""}</span>
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{po.billNumber || "-"}</TableCell>
+                    <TableCell>{po.supplierCountry || "-"}</TableCell>
+                    <TableCell>{po.supplierCity || "-"}</TableCell>
                     <TableCell className="text-right font-medium">₱{(po.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">₱{(po.totalPaid ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      <span className={cn((po.poBalance ?? po.totalAmount ?? 0) > 0 ? "text-orange-600" : "text-green-600")}>
+                        ₱{(po.poBalance ?? po.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </TableCell>
                     <TableCell>{getStatusBadge(po.status)}</TableCell>
-                    <TableCell>{po.createdDate}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <EditableCell
-                        value={po.expectedDeliveryDate}
-                        type="text"
-                        placeholder="YYYY-MM-DD"
-                        onSave={(v) => handleInlineUpdate(po.id, "expectedDeliveryDate", v)}
-                        disabled={po.status !== "Draft" || !canCreate}
-                      />
+                    <TableCell>
+                      <Badge variant={
+                        po.shippingStatus === "Delivered" ? "default" :
+                        po.shippingStatus === "In Transit" || po.shippingStatus === "Shipped" ? "secondary" :
+                        po.shippingStatus === "Failed" || po.shippingStatus === "Returned" ? "destructive" :
+                        "outline"
+                      }>
+                        {po.shippingStatus ?? "Pending"}
+                      </Badge>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1">
@@ -1273,119 +1391,206 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
       {/* Edit Dialog */}
       {isEditOpen && (
         <Dialog open={!!isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(null); resetForm(); } }}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Purchase Order - {isEditOpen}</DialogTitle>
               <DialogDescription>Update purchase order details</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
               {(() => {
                 const po = list.find((p) => p.id === isEditOpen);
                 const canEdit = po?.status === "Draft";
+                const SHIPPING_STATUSES = ["Pending", "Processing", "Shipped", "In Transit", "Out for Delivery", "Delivered", "Failed", "Returned"] as const;
                 return (
                   <>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-sm text-muted-foreground">Status:</span>
+                    <div className="flex items-center gap-4 mb-4">
+                      <span className="text-sm text-muted-foreground">MT Status:</span>
                       {po && getStatusBadge(po.status)}
+                      <span className="text-sm text-muted-foreground ml-4">Shipping:</span>
+                      <Badge variant={
+                        po?.shippingStatus === "Delivered" ? "default" :
+                        po?.shippingStatus === "In Transit" || po?.shippingStatus === "Shipped" ? "secondary" :
+                        po?.shippingStatus === "Failed" || po?.shippingStatus === "Returned" ? "destructive" :
+                        "outline"
+                      }>
+                        {po?.shippingStatus ?? "Pending"}
+                      </Badge>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Supplier</Label>
-                        <Select value={form.supplierId} onValueChange={handleSupplierChange} disabled={!canEdit}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select supplier" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {suppliersData.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Expected Delivery Date</Label>
-                        <Input
-                          type="date"
-                          value={form.expectedDeliveryDate}
-                          onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
-                          disabled={!canEdit}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Line Items</Label>
-                        {canEdit && (
-                          <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                            <Plus className="h-4 w-4 mr-1" /> Add Item
-                          </Button>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {form.items.map((item, index) => (
-                          <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
-                            <div className="flex-1 space-y-1">
-                              <Label className="text-xs">Item</Label>
-                              <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)} disabled={!canEdit}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select item" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {inventoryData.map((i) => (
-                                    <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="w-24 space-y-1">
-                              <Label className="text-xs">Quantity</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                disabled={!canEdit}
-                              />
-                            </div>
-                            <div className="w-28 space-y-1">
-                              <Label className="text-xs">Unit Price</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.unitPrice}
-                                onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-                                disabled={!canEdit}
-                              />
-                            </div>
-                            <div className="w-28 space-y-1">
-                              <Label className="text-xs">Total</Label>
-                              <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
-                            </div>
-                            {canEdit && (
-                              <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )}
+                    {/* PO Information Card */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Purchase Order Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>PO Date</Label>
+                            <Input
+                              type="date"
+                              value={form.poDate}
+                              onChange={(e) => setForm((prev) => ({ ...prev, poDate: e.target.value }))}
+                              disabled={!canEdit}
+                            />
                           </div>
-                        ))}
-                        <div className="text-right font-semibold">
-                          Total: ₱{totalAmount.toFixed(2)}
+                          <div className="space-y-2">
+                            <Label>Supplier</Label>
+                            <Select value={form.supplierId} onValueChange={handleSupplierChange} disabled={!canEdit}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select supplier" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {suppliersData.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Supplier ID</Label>
+                            <Input value={form.supplierId} disabled />
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <Input value={form.supplierCountry} disabled />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input value={form.supplierCity} disabled />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Bill Number</Label>
+                            <Input
+                              value={form.billNumber}
+                              onChange={(e) => setForm((prev) => ({ ...prev, billNumber: e.target.value }))}
+                              placeholder="Invoice/bill reference"
+                              disabled={!canEdit}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Expected Delivery Date</Label>
+                            <Input
+                              type="date"
+                              value={form.expectedDeliveryDate}
+                              onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                              disabled={!canEdit}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Total Paid</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={form.totalPaid}
+                              onChange={(e) => setForm((prev) => ({ ...prev, totalPaid: Number(e.target.value) || 0 }))}
+                              disabled={!canEdit}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Shipping Status</Label>
+                            <Select value={form.shippingStatus} onValueChange={(v) => setForm((prev) => ({ ...prev, shippingStatus: v as typeof form.shippingStatus }))} disabled={!canEdit}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SHIPPING_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Notes</Label>
+                          <Input
+                            value={form.notes}
+                            onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                            placeholder="Optional notes..."
+                            disabled={!canEdit}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <Input
-                        value={form.notes}
-                        onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Optional notes..."
-                        disabled={!canEdit}
-                      />
-                    </div>
+                    {/* Line Items Card */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">Line Items</CardTitle>
+                          {canEdit && (
+                            <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                              <Plus className="h-4 w-4 mr-1" /> Add Item
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {form.items.map((item, index) => (
+                            <div key={index} className="flex gap-2 items-end p-3 border rounded-lg">
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-xs">Item</Label>
+                                <Select value={item.inventoryItemId} onValueChange={(v) => handleItemChange(index, "inventoryItemId", v)} disabled={!canEdit}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select item" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {inventoryData.map((i) => (
+                                      <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="w-24 space-y-1">
+                                <Label className="text-xs">Quantity</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="w-28 space-y-1">
+                                <Label className="text-xs">Unit Price</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="w-28 space-y-1">
+                                <Label className="text-xs">Total</Label>
+                                <Input value={`₱${item.totalPrice.toFixed(2)}`} disabled />
+                              </div>
+                              {canEdit && (
+                                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                          <div className="flex justify-between items-center pt-2 border-t">
+                            <div className="text-sm text-muted-foreground">
+                              PO Balance: <span className={cn((totalAmount - form.totalPaid) > 0 ? "text-orange-600 font-medium" : "text-green-600 font-medium")}>
+                                ₱{(totalAmount - form.totalPaid).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="font-semibold">
+                              Grand Total: ₱{totalAmount.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
 
                     <div className="flex justify-between">
                       {po?.archived ? (

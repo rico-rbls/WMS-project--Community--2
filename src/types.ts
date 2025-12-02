@@ -227,6 +227,16 @@ export type POStatus =
   | "Received"
   | "Cancelled";
 
+export type ShippingStatus =
+  | "Pending"
+  | "Processing"
+  | "Shipped"
+  | "In Transit"
+  | "Out for Delivery"
+  | "Delivered"
+  | "Failed"
+  | "Returned";
+
 export interface POLineItem {
   inventoryItemId: string;
   itemName: string;
@@ -238,13 +248,20 @@ export interface POLineItem {
 
 export interface PurchaseOrder {
   id: string; // Format: PO-001, PO-002, etc.
+  poDate: string; // Date when PO was created (ISO date)
   supplierId: string;
   supplierName: string;
+  supplierCountry: string; // Supplier's country (auto-populated)
+  supplierCity: string; // Supplier's city (auto-populated)
+  billNumber: string; // Invoice/bill reference number from supplier
   items: POLineItem[];
   totalAmount: number;
-  status: POStatus;
+  totalPaid: number; // Amount already paid to supplier
+  poBalance: number; // Remaining balance (totalAmount - totalPaid)
+  status: POStatus; // Material/procurement status
+  shippingStatus: ShippingStatus; // Delivery/shipping status
   createdBy: string;
-  createdDate: string; // ISO date
+  createdDate: string; // ISO date (legacy, same as poDate)
   approvedBy: string | null;
   approvedDate: string | null;
   receivedDate: string | null;
@@ -258,24 +275,35 @@ export interface PurchaseOrder {
 
 export interface CreatePurchaseOrderInput {
   id?: string;
+  poDate?: string;
   supplierId: string;
   supplierName: string;
+  supplierCountry?: string;
+  supplierCity?: string;
+  billNumber?: string;
   items: Omit<POLineItem, 'quantityReceived'>[];
   expectedDeliveryDate: string;
   notes?: string;
   createdBy: string;
+  totalPaid?: number;
 }
 
 export interface UpdatePurchaseOrderInput {
   id: string;
+  poDate?: string;
   supplierId?: string;
   supplierName?: string;
+  supplierCountry?: string;
+  supplierCity?: string;
+  billNumber?: string;
   items?: POLineItem[];
   expectedDeliveryDate?: string;
   notes?: string;
   status?: POStatus;
+  shippingStatus?: ShippingStatus;
   approvedBy?: string;
   approvedDate?: string;
   receivedDate?: string;
   actualCost?: number;
+  totalPaid?: number;
 }

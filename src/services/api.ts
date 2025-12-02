@@ -131,14 +131,21 @@ const DEFAULT_SHIPMENTS: Shipment[] = [
 const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
   {
     id: "PO-001",
+    poDate: "2025-10-01",
     supplierId: "SUP-001",
-    supplierName: "Tech Electronics Co",
+    supplierName: "TechSource LLC",
+    supplierCountry: "United States",
+    supplierCity: "San Francisco",
+    billNumber: "INV-2025-0142",
     items: [
       { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 50, unitPrice: 899.99, totalPrice: 44999.50, quantityReceived: 50 },
       { inventoryItemId: "INV-007", itemName: "Keyboard Mechanical", quantity: 100, unitPrice: 129.99, totalPrice: 12999.00, quantityReceived: 100 },
     ],
     totalAmount: 57998.50,
+    totalPaid: 57998.50,
+    poBalance: 0,
     status: "Received",
+    shippingStatus: "Delivered",
     createdBy: "1",
     createdDate: "2025-10-01",
     approvedBy: "1",
@@ -150,14 +157,21 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: "PO-002",
+    poDate: "2025-10-15",
     supplierId: "SUP-002",
-    supplierName: "Furniture Plus",
+    supplierName: "FurniCraft Industries",
+    supplierCountry: "United States",
+    supplierCity: "Grand Rapids",
+    billNumber: "FC-INV-4521",
     items: [
       { inventoryItemId: "INV-002", itemName: "Office Chair", quantity: 30, unitPrice: 549.00, totalPrice: 16470.00 },
       { inventoryItemId: "INV-003", itemName: "Standing Desk", quantity: 20, unitPrice: 799.00, totalPrice: 15980.00 },
     ],
     totalAmount: 32450.00,
+    totalPaid: 16225.00,
+    poBalance: 16225.00,
     status: "Ordered",
+    shippingStatus: "In Transit",
     createdBy: "1",
     createdDate: "2025-10-15",
     approvedBy: "1",
@@ -168,13 +182,20 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: "PO-003",
+    poDate: "2025-10-20",
     supplierId: "SUP-003",
-    supplierName: "Office Supply Hub",
+    supplierName: "Global Gadgets",
+    supplierCountry: "Philippines",
+    supplierCity: "Makati",
+    billNumber: "",
     items: [
       { inventoryItemId: "INV-004", itemName: "Wireless Mouse", quantity: 100, unitPrice: 29.99, totalPrice: 2999.00 },
     ],
     totalAmount: 2999.00,
+    totalPaid: 0,
+    poBalance: 2999.00,
     status: "Pending Approval",
+    shippingStatus: "Pending",
     createdBy: "2",
     createdDate: "2025-10-20",
     approvedBy: null,
@@ -185,13 +206,20 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: "PO-004",
+    poDate: "2025-10-22",
     supplierId: "SUP-001",
-    supplierName: "Tech Electronics Co",
+    supplierName: "TechSource LLC",
+    supplierCountry: "United States",
+    supplierCity: "San Francisco",
+    billNumber: "",
     items: [
       { inventoryItemId: "INV-006", itemName: "Monitor 27\"", quantity: 25, unitPrice: 349.99, totalPrice: 8749.75 },
     ],
     totalAmount: 8749.75,
+    totalPaid: 0,
+    poBalance: 8749.75,
     status: "Draft",
+    shippingStatus: "Pending",
     createdBy: "1",
     createdDate: "2025-10-22",
     approvedBy: null,
@@ -199,6 +227,30 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
     receivedDate: null,
     notes: "",
     expectedDeliveryDate: "2025-11-15",
+  },
+  {
+    id: "PO-005",
+    poDate: "2025-11-01",
+    supplierId: "SUP-002",
+    supplierName: "FurniCraft Industries",
+    supplierCountry: "United States",
+    supplierCity: "Grand Rapids",
+    billNumber: "FC-INV-4590",
+    items: [
+      { inventoryItemId: "INV-008", itemName: "Filing Cabinet", quantity: 15, unitPrice: 299.00, totalPrice: 4485.00 },
+    ],
+    totalAmount: 4485.00,
+    totalPaid: 4485.00,
+    poBalance: 0,
+    status: "Approved",
+    shippingStatus: "Processing",
+    createdBy: "1",
+    createdDate: "2025-11-01",
+    approvedBy: "1",
+    approvedDate: "2025-11-02",
+    receivedDate: null,
+    notes: "Additional filing cabinets for archive room",
+    expectedDeliveryDate: "2025-11-20",
   },
 ];
 
@@ -255,15 +307,28 @@ function migrateOrdersCurrency(orders: Order[]): Order[] {
   });
 }
 
-// Migration function for purchase orders to ensure items array exists
+// Migration function for purchase orders to ensure all fields exist
 function migratePurchaseOrders(purchaseOrdersData: PurchaseOrder[]): PurchaseOrder[] {
-  return purchaseOrdersData.map(po => ({
-    ...po,
-    items: po.items ?? [],
-    totalAmount: po.totalAmount ?? 0,
-    status: po.status ?? "Draft",
-    createdDate: po.createdDate ?? new Date().toISOString().split('T')[0],
-  }));
+  return purchaseOrdersData.map(po => {
+    const totalAmount = po.totalAmount ?? 0;
+    const totalPaid = po.totalPaid ?? 0;
+    const poDate = po.poDate ?? po.createdDate ?? new Date().toISOString().split('T')[0];
+
+    return {
+      ...po,
+      poDate,
+      supplierCountry: po.supplierCountry ?? "",
+      supplierCity: po.supplierCity ?? "",
+      billNumber: po.billNumber ?? "",
+      items: po.items ?? [],
+      totalAmount,
+      totalPaid,
+      poBalance: po.poBalance ?? (totalAmount - totalPaid),
+      status: po.status ?? "Draft",
+      shippingStatus: po.shippingStatus ?? "Pending",
+      createdDate: po.createdDate ?? poDate,
+    };
+  });
 }
 
 // Migration for suppliers - add new fields if they don't exist
@@ -1301,16 +1366,25 @@ export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Prom
   }
 
   const totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  const totalPaid = input.totalPaid ?? 0;
+  const poDate = input.poDate ?? new Date().toISOString().split('T')[0];
 
   const po: PurchaseOrder = {
     id,
+    poDate,
     supplierId: input.supplierId,
     supplierName: input.supplierName,
+    supplierCountry: input.supplierCountry ?? "",
+    supplierCity: input.supplierCity ?? "",
+    billNumber: input.billNumber ?? "",
     items: input.items.map(item => ({ ...item, quantityReceived: 0 })),
     totalAmount,
+    totalPaid,
+    poBalance: totalAmount - totalPaid,
     status: "Draft",
+    shippingStatus: "Pending",
     createdBy: input.createdBy,
-    createdDate: new Date().toISOString().split('T')[0],
+    createdDate: poDate,
     approvedBy: null,
     approvedDate: null,
     receivedDate: null,
@@ -1334,6 +1408,11 @@ export async function updatePurchaseOrder(input: UpdatePurchaseOrderInput): Prom
   // Recalculate total if items changed
   if (input.items) {
     next.totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  }
+
+  // Recalculate balance if totalAmount or totalPaid changed
+  if (input.items !== undefined || input.totalPaid !== undefined) {
+    next.poBalance = next.totalAmount - next.totalPaid;
   }
 
   purchaseOrders[index] = next;
