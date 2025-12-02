@@ -24,7 +24,15 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems } from "../services/api";
@@ -160,6 +168,69 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
+
+  // Column visibility state for table view
+  const COLUMN_VISIBILITY_STORAGE_KEY = "inventory-column-visibility";
+
+  // Define optional columns that can be toggled (excluding always-visible: checkbox, photo, item ID, name, actions)
+  type OptionalColumn = "category" | "quantityPurchased" | "quantitySold" | "quantity" | "reorderRequired" | "pricePerPiece" | "supplier" | "brand" | "location" | "status";
+
+  const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
+    { key: "category", label: "Category" },
+    { key: "quantityPurchased", label: "Quantity Purchased" },
+    { key: "quantitySold", label: "Quantity Sold" },
+    { key: "quantity", label: "Remaining Quantity" },
+    { key: "reorderRequired", label: "Reorder Required" },
+    { key: "pricePerPiece", label: "Price per Piece" },
+    { key: "supplier", label: "Supplier" },
+    { key: "brand", label: "Brand" },
+    { key: "location", label: "Location" },
+    { key: "status", label: "Status" },
+  ];
+
+  // Default visible columns
+  const DEFAULT_VISIBLE_COLUMNS: OptionalColumn[] = [
+    "category", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
+  ];
+
+  // Column visibility state with localStorage persistence
+  const [visibleColumns, setVisibleColumns] = useState<Set<OptionalColumn>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return new Set(parsed as OptionalColumn[]);
+          }
+        } catch {
+          // Invalid JSON, use defaults
+        }
+      }
+    }
+    return new Set(DEFAULT_VISIBLE_COLUMNS);
+  });
+
+  // Save column visibility to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
+  }, [visibleColumns]);
+
+  // Toggle column visibility
+  const toggleColumnVisibility = useCallback((column: OptionalColumn) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(column)) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }, []);
+
+  // Check if a column is visible
+  const isColumnVisible = useCallback((column: OptionalColumn) => visibleColumns.has(column), [visibleColumns]);
 
   // Open dialog when triggered from Dashboard Quick Actions
   useEffect(() => {
@@ -1542,6 +1613,31 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Column Visibility (Table View Only) */}
+            {viewMode === "table" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <Settings2 className="h-4 w-4" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {OPTIONAL_COLUMNS.map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.key}
+                      checked={isColumnVisible(column.key)}
+                      onCheckedChange={() => toggleColumnVisibility(column.key)}
+                    >
+                      {column.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
 
           {/* Bulk Actions Toolbar */}
@@ -1800,6 +1896,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {/* Always visible: Checkbox */}
                     <TableHead className="w-12">
                       <Checkbox
                         checked={isAllSelected}
@@ -1812,7 +1909,9 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         aria-label="Select all items"
                       />
                     </TableHead>
+                    {/* Always visible: Photo */}
                     <TableHead className="w-16">Photo</TableHead>
+                    {/* Always visible: Item ID */}
                     <SortableTableHead
                       sortKey="id"
                       currentSortKey={sortConfig.key as string | null}
@@ -1821,6 +1920,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     >
                       Item ID
                     </SortableTableHead>
+                    {/* Always visible: Name */}
                     <SortableTableHead
                       sortKey="name"
                       currentSortKey={sortConfig.key as string | null}
@@ -1829,55 +1929,110 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     >
                       Name
                     </SortableTableHead>
-                    <SortableTableHead
-                      sortKey="brand"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("brand")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Brand
-                    </SortableTableHead>
-                    <SortableTableHead
-                      sortKey="category"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("category")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Category
-                    </SortableTableHead>
-                    <SortableTableHead
-                      sortKey="quantity"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("quantity")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Quantity
-                    </SortableTableHead>
-                    <SortableTableHead
-                      sortKey="pricePerPiece"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("pricePerPiece")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Price
-                    </SortableTableHead>
-                    <TableHead>Supplier</TableHead>
-                    <SortableTableHead
-                      sortKey="location"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("location")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Location
-                    </SortableTableHead>
-                    <SortableTableHead
-                      sortKey="status"
-                      currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("status")}
-                      onSort={(key) => requestSort(key as keyof InventoryItem)}
-                    >
-                      Status
-                    </SortableTableHead>
+                    {/* Optional: Category */}
+                    {isColumnVisible("category") && (
+                      <SortableTableHead
+                        sortKey="category"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("category")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Category
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Quantity Purchased */}
+                    {isColumnVisible("quantityPurchased") && (
+                      <SortableTableHead
+                        sortKey="quantityPurchased"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("quantityPurchased")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Qty Purchased
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Quantity Sold */}
+                    {isColumnVisible("quantitySold") && (
+                      <SortableTableHead
+                        sortKey="quantitySold"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("quantitySold")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Qty Sold
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Remaining Quantity */}
+                    {isColumnVisible("quantity") && (
+                      <SortableTableHead
+                        sortKey="quantity"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("quantity")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Remaining
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Reorder Required */}
+                    {isColumnVisible("reorderRequired") && (
+                      <SortableTableHead
+                        sortKey="reorderRequired"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("reorderRequired")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Reorder
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Price */}
+                    {isColumnVisible("pricePerPiece") && (
+                      <SortableTableHead
+                        sortKey="pricePerPiece"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("pricePerPiece")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Price
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Supplier */}
+                    {isColumnVisible("supplier") && (
+                      <TableHead>Supplier</TableHead>
+                    )}
+                    {/* Optional: Brand */}
+                    {isColumnVisible("brand") && (
+                      <SortableTableHead
+                        sortKey="brand"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("brand")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Brand
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Location */}
+                    {isColumnVisible("location") && (
+                      <SortableTableHead
+                        sortKey="location"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("location")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Location
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Status */}
+                    {isColumnVisible("status") && (
+                      <SortableTableHead
+                        sortKey="status"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("status")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Status
+                      </SortableTableHead>
+                    )}
+                    {/* Always visible: Actions */}
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1891,6 +2046,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         key={item.id}
                         className={cn(itemIsSelected && "bg-muted/50")}
                       >
+                        {/* Always visible: Checkbox */}
                         <TableCell>
                           <Checkbox
                             checked={itemIsSelected}
@@ -1898,6 +2054,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             aria-label={`Select ${item.name}`}
                           />
                         </TableCell>
+                        {/* Always visible: Photo */}
                         <TableCell>
                           {item.photoUrl ? (
                             <button
@@ -1917,7 +2074,9 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             </div>
                           )}
                         </TableCell>
+                        {/* Always visible: Item ID */}
                         <TableCell>{item.id}</TableCell>
+                        {/* Always visible: Name */}
                         <TableCell>
                           <button
                             type="button"
@@ -1928,72 +2087,128 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             {item.name}
                           </button>
                         </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.brand || 'Unknown'}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(item.id, "brand", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.category}
-                            type="select"
-                            options={CATEGORIES.map(c => ({ value: c, label: c }))}
-                            onSave={(v) => handleInlineUpdate(item.id, "category", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.quantity}
-                            type="number"
-                            min={0}
-                            step={1}
-                            onSave={(v) => handleInlineUpdate(item.id, "quantity", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.pricePerPiece ?? 0}
-                            displayValue={`₱${(item.pricePerPiece ?? 0).toFixed(2)}`}
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            onSave={(v) => handleInlineUpdate(item.id, "pricePerPiece", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.supplierId}
-                            displayValue={supplierName}
-                            type="select"
-                            options={suppliers?.filter(s => s.status === "Active").map(s => ({ value: s.id, label: s.name })) || []}
-                            onSave={(v) => handleInlineUpdate(item.id, "supplierId", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.location}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(item.id, "location", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <EditableCell
-                            value={item.status}
-                            type="badge"
-                            options={STATUSES.map(s => ({ value: s, label: s }))}
-                            badgeClassName={getStatusColor(item.status)}
-                            onSave={(v) => handleInlineUpdate(item.id, "status", v)}
-                            disabled={!canModify}
-                          />
-                        </TableCell>
+                        {/* Optional: Category */}
+                        {isColumnVisible("category") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.category}
+                              type="select"
+                              options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                              onSave={(v) => handleInlineUpdate(item.id, "category", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Quantity Purchased */}
+                        {isColumnVisible("quantityPurchased") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.quantityPurchased ?? 0}
+                              type="number"
+                              min={0}
+                              step={1}
+                              onSave={(v) => handleInlineUpdate(item.id, "quantityPurchased", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Quantity Sold */}
+                        {isColumnVisible("quantitySold") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.quantitySold ?? 0}
+                              type="number"
+                              min={0}
+                              step={1}
+                              onSave={(v) => handleInlineUpdate(item.id, "quantitySold", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Remaining Quantity */}
+                        {isColumnVisible("quantity") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.quantity}
+                              type="number"
+                              min={0}
+                              step={1}
+                              onSave={(v) => handleInlineUpdate(item.id, "quantity", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Reorder Required */}
+                        {isColumnVisible("reorderRequired") && (
+                          <TableCell>
+                            <Badge variant={item.reorderRequired ? "destructive" : "secondary"}>
+                              {item.reorderRequired ? "Yes" : "No"}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {/* Optional: Price */}
+                        {isColumnVisible("pricePerPiece") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.pricePerPiece ?? 0}
+                              displayValue={`₱${(item.pricePerPiece ?? 0).toFixed(2)}`}
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              onSave={(v) => handleInlineUpdate(item.id, "pricePerPiece", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Supplier */}
+                        {isColumnVisible("supplier") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.supplierId}
+                              displayValue={supplierName}
+                              type="select"
+                              options={suppliers?.filter(s => s.status === "Active").map(s => ({ value: s.id, label: s.name })) || []}
+                              onSave={(v) => handleInlineUpdate(item.id, "supplierId", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Brand */}
+                        {isColumnVisible("brand") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.brand || 'Unknown'}
+                              type="text"
+                              onSave={(v) => handleInlineUpdate(item.id, "brand", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Location */}
+                        {isColumnVisible("location") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.location}
+                              type="text"
+                              onSave={(v) => handleInlineUpdate(item.id, "location", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Optional: Status */}
+                        {isColumnVisible("status") && (
+                          <TableCell>
+                            <EditableCell
+                              value={item.status}
+                              type="badge"
+                              options={STATUSES.map(s => ({ value: s, label: s }))}
+                              badgeClassName={getStatusColor(item.status)}
+                              onSave={(v) => handleInlineUpdate(item.id, "status", v)}
+                              disabled={!canModify}
+                            />
+                          </TableCell>
+                        )}
+                        {/* Always visible: Actions */}
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <FavoriteButton
