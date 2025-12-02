@@ -28,7 +28,7 @@ import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsh
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems } from "../services/api";
-import type { InventoryCategory, InventoryItem, SavedSearch, Supplier } from "../types";
+import type { InventoryCategory, InventoryItem, Supplier } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { useInventory, useSuppliers } from "../context/app-context";
@@ -43,7 +43,7 @@ import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { BulkUpdateDialog, type BulkUpdateField } from "./ui/bulk-update-dialog";
 import { FavoriteButton } from "./ui/favorite-button";
-import { SaveSearchDialog } from "./ui/save-search-dialog";
+
 import { useFavorites } from "../context/favorites-context";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -230,33 +230,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     });
   }, [inventoryItems, debouncedSearchTerm, filterCategory, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
 
-  // Handle applying saved searches
-  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
-    if (search.searchTerm) {
-      setSearchTerm(search.searchTerm);
-    }
-    if (search.filters.category && typeof search.filters.category === "string") {
-      setFilterCategory(search.filters.category);
-    }
-    if (search.filters.favoritesOnly === "true") {
-      setShowFavoritesOnly(true);
-    }
-  }, []);
 
-  // Get current filter configuration for saving
-  const getCurrentFilters = useMemo(() => {
-    const filters: Record<string, string | string[]> = {};
-    if (filterCategory !== "all") {
-      filters.category = filterCategory;
-    }
-    if (filterStatus !== "all") {
-      filters.status = filterStatus;
-    }
-    if (showFavoritesOnly) {
-      filters.favoritesOnly = "true";
-    }
-    return filters;
-  }, [filterCategory, filterStatus, showFavoritesOnly]);
 
   // Clear all filters helper
   const clearAllFilters = useCallback(() => {
@@ -1541,12 +1515,6 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 Clear Filters
               </Button>
             )}
-            <SaveSearchDialog
-              entityType="inventory"
-              currentSearchTerm={searchTerm}
-              currentFilters={getCurrentFilters}
-              onApplySearch={handleApplySavedSearch}
-            />
 
             {/* View Mode Toggle */}
             <div className="flex items-center border rounded-md">

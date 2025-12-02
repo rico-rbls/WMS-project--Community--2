@@ -15,7 +15,7 @@ import { EmptyState } from "./ui/empty-state";
 import { DateRangeFilter } from "./ui/date-range-filter";
 
 import { createOrder, deleteOrder, getOrders, updateOrder, bulkDeleteOrders, bulkUpdateOrderStatus } from "../services/api";
-import type { Order, SavedSearch } from "../types";
+import type { Order } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -26,7 +26,7 @@ import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { BulkUpdateDialog } from "./ui/bulk-update-dialog";
 import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
-import { SaveSearchDialog } from "./ui/save-search-dialog";
+
 import { useFavorites } from "../context/favorites-context";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -237,39 +237,7 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
     });
   }, [list, debouncedSearchTerm, filterStatus, fromDate, toDate, showFavoritesOnly, isFavorite]);
 
-  // Handle applying saved searches
-  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
-    if (search.searchTerm) {
-      setSearchTerm(search.searchTerm);
-    }
-    if (search.filters.fromDate && typeof search.filters.fromDate === "string") {
-      setFromDate(search.filters.fromDate);
-    }
-    if (search.filters.toDate && typeof search.filters.toDate === "string") {
-      setToDate(search.filters.toDate);
-    }
-    if (search.filters.favoritesOnly === "true") {
-      setShowFavoritesOnly(true);
-    }
-  }, []);
 
-  // Get current filter configuration for saving
-  const getCurrentFilters = useMemo(() => {
-    const filters: Record<string, string | string[]> = {};
-    if (filterStatus !== "all") {
-      filters.status = filterStatus;
-    }
-    if (fromDate) {
-      filters.fromDate = fromDate;
-    }
-    if (toDate) {
-      filters.toDate = toDate;
-    }
-    if (showFavoritesOnly) {
-      filters.favoritesOnly = "true";
-    }
-    return filters;
-  }, [filterStatus, fromDate, toDate, showFavoritesOnly]);
 
   // Sorting - applied before pagination
   const {
@@ -826,12 +794,6 @@ export function OrdersView({ initialOpenDialog, onDialogOpened }: OrdersViewProp
                   </Badge>
                 )}
               </Button>
-              <SaveSearchDialog
-                entityType="orders"
-                currentSearchTerm={searchTerm}
-                currentFilters={getCurrentFilters}
-                onApplySearch={handleApplySavedSearch}
-              />
 
               {/* Clear All Filters */}
               {(searchTerm || filterStatus !== "all" || fromDate || toDate || showFavoritesOnly) && (

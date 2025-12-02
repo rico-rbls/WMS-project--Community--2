@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus, getPurchaseOrders, getInventory, archiveSupplier, restoreSupplier, permanentlyDeleteSupplier, bulkArchiveSuppliers, bulkRestoreSuppliers, bulkPermanentlyDeleteSuppliers } from "../services/api";
-import type { Supplier, SavedSearch, PurchaseOrder, InventoryItem } from "../types";
+import type { Supplier, PurchaseOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -38,7 +38,7 @@ import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
-import { SaveSearchDialog } from "./ui/save-search-dialog";
+
 import { useFavorites } from "../context/favorites-context";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -223,30 +223,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     });
   }, [list, debouncedSearchTerm, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
 
-  // Handle applying saved searches
-  const handleApplySavedSearch = useCallback((search: SavedSearch) => {
-    if (search.searchTerm) {
-      setSearchTerm(search.searchTerm);
-    }
-    if (search.filters.status) {
-      setFilterStatus(search.filters.status as string);
-    }
-    if (search.filters.favoritesOnly === "true") {
-      setShowFavoritesOnly(true);
-    }
-  }, []);
 
-  // Get current filter configuration for saving
-  const getCurrentFilters = useMemo(() => {
-    const filters: Record<string, string | string[]> = {};
-    if (filterStatus !== "all") {
-      filters.status = filterStatus;
-    }
-    if (showFavoritesOnly) {
-      filters.favoritesOnly = "true";
-    }
-    return filters;
-  }, [filterStatus, showFavoritesOnly]);
 
   // Clear all filters
   function clearAllFilters() {
@@ -805,12 +782,6 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                   </Badge>
                 )}
               </Button>
-              <SaveSearchDialog
-                entityType="suppliers"
-                currentSearchTerm={searchTerm}
-                currentFilters={getCurrentFilters}
-                onApplySearch={handleApplySavedSearch}
-              />
               {/* Archive Toggle */}
               <Button
                 variant={showArchived ? "default" : "outline"}
