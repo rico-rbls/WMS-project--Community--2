@@ -88,11 +88,11 @@ const DEFAULT_INVENTORY: InventoryItem[] = [
 ];
 
 const DEFAULT_SUPPLIERS: Supplier[] = [
-  { id: "SUP-001", name: "TechSource LLC", contact: "John Smith", email: "john@techsource.com", phone: "+1 (555) 123-4567", category: "Electronics", status: "Active" },
-  { id: "SUP-002", name: "FurniCraft Industries", contact: "Sarah Johnson", email: "sarah@furnicraft.com", phone: "+1 (555) 234-5678", category: "Furniture", status: "Active" },
-  { id: "SUP-003", name: "Global Electronics Co", contact: "Michael Chen", email: "michael@globalelec.com", phone: "+1 (555) 345-6789", category: "Electronics", status: "Active" },
-  { id: "SUP-004", name: "Metro Supplies Inc", contact: "Emily Davis", email: "emily@metrosupplies.com", phone: "+1 (555) 456-7890", category: "Office Supplies", status: "Inactive" },
-  { id: "SUP-005", name: "Premium Parts Ltd", contact: "Robert Wilson", email: "robert@premiumparts.com", phone: "+1 (555) 567-8901", category: "Electronics", status: "Active" },
+  { id: "SUP-001", name: "TechSource LLC", contact: "John Smith", email: "john@techsource.com", phone: "+1 (555) 123-4567", category: "Electronics", status: "Active", country: "United States", city: "San Francisco", address: "123 Tech Blvd, Suite 100", purchases: 125000, payments: 100000, balance: 25000 },
+  { id: "SUP-002", name: "FurniCraft Industries", contact: "Sarah Johnson", email: "sarah@furnicraft.com", phone: "+1 (555) 234-5678", category: "Furniture", status: "Active", country: "United States", city: "Grand Rapids", address: "456 Furniture Ave", purchases: 85000, payments: 85000, balance: 0 },
+  { id: "SUP-003", name: "Global Electronics Co", contact: "Michael Chen", email: "michael@globalelec.com", phone: "+1 (555) 345-6789", category: "Electronics", status: "Active", country: "China", city: "Shenzhen", address: "789 Electronics Park, Building A", purchases: 250000, payments: 200000, balance: 50000 },
+  { id: "SUP-004", name: "Metro Supplies Inc", contact: "Emily Davis", email: "emily@metrosupplies.com", phone: "+1 (555) 456-7890", category: "Office Supplies", status: "Inactive", country: "United States", city: "New York", address: "321 Office Tower, Floor 5", purchases: 45000, payments: 45000, balance: 0 },
+  { id: "SUP-005", name: "Premium Parts Ltd", contact: "Robert Wilson", email: "robert@premiumparts.com", phone: "+1 (555) 567-8901", category: "Electronics", status: "Active", country: "United Kingdom", city: "London", address: "10 Premium Lane, Industrial Estate", purchases: 175000, payments: 150000, balance: 25000 },
 ];
 
 const DEFAULT_ORDERS: Order[] = [
@@ -252,8 +252,21 @@ function migratePurchaseOrders(purchaseOrdersData: PurchaseOrder[]): PurchaseOrd
   }));
 }
 
+// Migration for suppliers - add new fields if they don't exist
+function migrateSuppliers(items: any[]): Supplier[] {
+  return items.map((item) => ({
+    ...item,
+    country: item.country ?? "",
+    city: item.city ?? "",
+    address: item.address ?? "",
+    purchases: item.purchases ?? 0,
+    payments: item.payments ?? 0,
+    balance: item.balance ?? (item.purchases ?? 0) - (item.payments ?? 0),
+  }));
+}
+
 let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STORAGE_KEYS.INVENTORY, DEFAULT_INVENTORY));
-let suppliers: Supplier[] = loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS);
+let suppliers: Supplier[] = migrateSuppliers(loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
 let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
@@ -261,6 +274,7 @@ let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage
 // Save migrated data back to localStorage
 saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
 saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
+saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
 saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
 
 // ============================================================================
@@ -494,6 +508,11 @@ export async function getSuppliers(): Promise<Supplier[]> {
 export async function createSupplier(input: CreateSupplierInput): Promise<Supplier> {
   const id = input.id && input.id.trim() !== "" ? input.id : generateSupplierId();
   if (suppliers.some((s) => s.id === id)) throw new Error(`Supplier with id ${id} already exists`);
+
+  const purchases = input.purchases ?? 0;
+  const payments = input.payments ?? 0;
+  const balance = purchases - payments;
+
   const supplier: Supplier = {
     id,
     name: input.name.trim(),
@@ -502,6 +521,12 @@ export async function createSupplier(input: CreateSupplierInput): Promise<Suppli
     phone: input.phone.trim(),
     category: input.category.trim(),
     status: input.status ?? "Active",
+    country: input.country?.trim() ?? "",
+    city: input.city?.trim() ?? "",
+    address: input.address?.trim() ?? "",
+    purchases,
+    payments,
+    balance,
   };
 
   suppliers = [supplier, ...suppliers];
@@ -514,7 +539,19 @@ export async function updateSupplier(input: UpdateSupplierInput): Promise<Suppli
   const index = suppliers.findIndex((s) => s.id === input.id);
   if (index === -1) throw new Error("Supplier not found");
   const prev = suppliers[index];
-  const next: Supplier = { ...prev, ...input } as Supplier;
+
+  // Calculate new purchases, payments, and balance
+  const purchases = input.purchases !== undefined ? input.purchases : prev.purchases;
+  const payments = input.payments !== undefined ? input.payments : prev.payments;
+  const balance = purchases - payments;
+
+  const next: Supplier = {
+    ...prev,
+    ...input,
+    purchases,
+    payments,
+    balance,
+  };
 
   suppliers[index] = next;
   saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);

@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +82,11 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     phone: "",
     category: "",
     status: "Active" as Supplier["status"],
+    country: "",
+    city: "",
+    address: "",
+    purchases: 0,
+    payments: 0,
   });
 
   // Debounce search term for better performance
@@ -505,6 +510,25 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     }
   }, [selectedIds, deselectAll]);
 
+  // Handle edit from detail dialog
+  const handleEdit = useCallback((supplier: Supplier) => {
+    setForm({
+      id: supplier.id,
+      name: supplier.name,
+      contact: supplier.contact,
+      email: supplier.email,
+      phone: supplier.phone,
+      category: supplier.category,
+      status: supplier.status,
+      country: supplier.country || "",
+      city: supplier.city || "",
+      address: supplier.address || "",
+      purchases: supplier.purchases || 0,
+      payments: supplier.payments || 0,
+    });
+    setIsEditOpen(supplier.id);
+  }, []);
+
   // Get names of selected suppliers for dialogs
   const selectedSupplierNames = useMemo(() => {
     return selectedItems.map(supplier => supplier.name);
@@ -630,14 +654,14 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" }); }}>
+              <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 }); }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" })} disabled={!canModify} title={!canModify ? "You don't have permission to add suppliers" : undefined}>
+                  <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 })} disabled={!canModify} title={!canModify ? "You don't have permission to add suppliers" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Supplier
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create New Supplier</DialogTitle>
                     <DialogDescription>Enter the details for the new supplier.</DialogDescription>
@@ -700,6 +724,40 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Location Fields */}
+                    <div className="border-t pt-4 mt-2">
+                      <Label className="text-sm font-medium text-muted-foreground mb-3 block">Location Information</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="country">Country</Label>
+                          <Input id="country" placeholder="e.g., United States" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="city">City</Label>
+                          <Input id="city" placeholder="e.g., San Francisco" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                        </div>
+                      </div>
+                      <div className="grid gap-2 mt-4">
+                        <Label htmlFor="address">Address</Label>
+                        <Input id="address" placeholder="Full street address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                      </div>
+                    </div>
+
+                    {/* Financial Fields */}
+                    <div className="border-t pt-4 mt-2">
+                      <Label className="text-sm font-medium text-muted-foreground mb-3 block">Financial Information</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="purchases">Total Purchases (₱)</Label>
+                          <Input id="purchases" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchases} onChange={(e) => setForm({ ...form, purchases: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="payments">Total Payments (₱)</Label>
+                          <Input id="payments" type="number" min="0" step="0.01" placeholder="0.00" value={form.payments} onChange={(e) => setForm({ ...form, payments: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddOpen(false)}>
@@ -719,11 +777,16 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                             phone: form.phone,
                             category: form.category,
                             status: form.status,
+                            country: form.country,
+                            city: form.city,
+                            address: form.address,
+                            purchases: form.purchases,
+                            payments: form.payments,
                           });
                           setSuppliersData((prev) => [created, ...(prev ?? [])]);
                           setIsAddOpen(false);
                           toast.success("Supplier added successfully");
-                          setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active" });
+                          setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 });
                         } catch (e: any) {
                           toast.error(e?.message || "Failed to add supplier");
                         }
@@ -941,6 +1004,38 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                     >
                       Status
                     </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="country"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("country")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Location
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="purchases"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("purchases")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Purchases
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="payments"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("payments")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Payments
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="balance"
+                      currentSortKey={sortConfig.key as string | null}
+                      sortDirection={getSortDirection("balance")}
+                      onSort={(key) => requestSort(key as keyof Supplier)}
+                    >
+                      Balance
+                    </SortableTableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1011,17 +1106,37 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <div className="text-sm">
+                            {supplier.city && supplier.country ? (
+                              <span>{supplier.city}, {supplier.country}</span>
+                            ) : supplier.city || supplier.country ? (
+                              <span>{supplier.city || supplier.country}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ₱{supplier.purchases.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ₱{supplier.payments.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className={cn("text-right font-medium", supplier.balance > 0 ? "text-amber-600" : supplier.balance < 0 ? "text-emerald-600" : "")}>
+                          ₱{supplier.balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1">
                             <FavoriteButton
                               entityType="suppliers"
                               entityId={supplier.id}
                               entityName={supplier.name}
                             />
-                          <Dialog open={isEditOpen === supplier.id} onOpenChange={(o) => { setIsEditOpen(o ? supplier.id : null); if (o) setForm({ ...supplier }); }}>
+                          <Dialog open={isEditOpen === supplier.id} onOpenChange={(o) => { setIsEditOpen(o ? supplier.id : null); if (o) setForm({ ...supplier, country: supplier.country || "", city: supplier.city || "", address: supplier.address || "", purchases: supplier.purchases || 0, payments: supplier.payments || 0 }); }}>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="sm" disabled={!canModify} title={!canModify ? "You don't have permission to edit suppliers" : undefined}>Edit</Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[500px]">
+                            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>Edit Supplier</DialogTitle>
                                 <DialogDescription>Supplier ID: {supplier.id}</DialogDescription>
@@ -1084,6 +1199,40 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                     </SelectContent>
                                   </Select>
                                 </div>
+
+                                {/* Location Fields */}
+                                <div className="border-t pt-4 mt-2">
+                                  <Label className="text-sm font-medium text-muted-foreground mb-3 block">Location Information</Label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-country">Country</Label>
+                                      <Input id="edit-country" placeholder="e.g., United States" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-city">City</Label>
+                                      <Input id="edit-city" placeholder="e.g., San Francisco" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                                    </div>
+                                  </div>
+                                  <div className="grid gap-2 mt-4">
+                                    <Label htmlFor="edit-address">Address</Label>
+                                    <Input id="edit-address" placeholder="Full street address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                                  </div>
+                                </div>
+
+                                {/* Financial Fields */}
+                                <div className="border-t pt-4 mt-2">
+                                  <Label className="text-sm font-medium text-muted-foreground mb-3 block">Financial Information</Label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-purchases">Total Purchases (₱)</Label>
+                                      <Input id="edit-purchases" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchases} onChange={(e) => setForm({ ...form, purchases: parseFloat(e.target.value) || 0 })} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label htmlFor="edit-payments">Total Payments (₱)</Label>
+                                      <Input id="edit-payments" type="number" min="0" step="0.01" placeholder="0.00" value={form.payments} onChange={(e) => setForm({ ...form, payments: parseFloat(e.target.value) || 0 })} />
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                               <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
                                 {supplier.archived ? (
@@ -1127,7 +1276,20 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                         return;
                                       }
                                       try {
-                                        const updated = await updateSupplier({ id: form.id, name: form.name, contact: form.contact, email: form.email, phone: form.phone, category: form.category, status: form.status });
+                                        const updated = await updateSupplier({
+                                          id: form.id,
+                                          name: form.name,
+                                          contact: form.contact,
+                                          email: form.email,
+                                          phone: form.phone,
+                                          category: form.category,
+                                          status: form.status,
+                                          country: form.country,
+                                          city: form.city,
+                                          address: form.address,
+                                          purchases: form.purchases,
+                                          payments: form.payments,
+                                        });
                                         setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
                                         setIsEditOpen(null);
                                         toast.success("Supplier updated");
@@ -1250,6 +1412,65 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                           <p className="text-xs text-muted-foreground">Phone</p>
                           <p className="font-medium">{supplier.phone}</p>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Location Information */}
+                  {(supplier.country || supplier.city || supplier.address) && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Location</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        {(supplier.city || supplier.country) && (
+                          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs text-muted-foreground">City / Country</p>
+                              <p className="font-medium">
+                                {supplier.city && supplier.country
+                                  ? `${supplier.city}, ${supplier.country}`
+                                  : supplier.city || supplier.country}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {supplier.address && (
+                          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Address</p>
+                              <p className="font-medium">{supplier.address}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Financial Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Financial Summary</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-center">
+                        <TrendingUp className="h-4 w-4 mx-auto mb-1 text-blue-600" />
+                        <p className="text-lg font-bold text-blue-600">
+                          ₱{supplier.purchases.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total Purchases</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-center">
+                        <DollarSign className="h-4 w-4 mx-auto mb-1 text-green-600" />
+                        <p className="text-lg font-bold text-green-600">
+                          ₱{supplier.payments.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total Payments</p>
+                      </div>
+                      <div className={cn("p-3 rounded-lg text-center", supplier.balance > 0 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-emerald-50 dark:bg-emerald-950/30")}>
+                        <DollarSign className={cn("h-4 w-4 mx-auto mb-1", supplier.balance > 0 ? "text-amber-600" : "text-emerald-600")} />
+                        <p className={cn("text-lg font-bold", supplier.balance > 0 ? "text-amber-600" : "text-emerald-600")}>
+                          ₱{supplier.balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Balance</p>
                       </div>
                     </div>
                   </div>

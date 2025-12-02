@@ -61,6 +61,14 @@ export interface Supplier {
   phone: string;
   category: string;
   status: "Active" | "Inactive";
+  // Location fields
+  country: string;
+  city: string;
+  address: string;
+  // Financial fields
+  purchases: number; // Total amount purchased from this supplier
+  payments: number; // Total amount paid to this supplier
+  balance: number; // Outstanding balance (purchases - payments)
   // Archive fields
   archived?: boolean; // Whether the supplier is archived (soft-deleted)
   archivedAt?: string; // ISO date when the supplier was archived
@@ -74,6 +82,11 @@ export interface CreateSupplierInput {
   phone: string;
   category: string;
   status?: "Active" | "Inactive";
+  country?: string;
+  city?: string;
+  address?: string;
+  purchases?: number;
+  payments?: number;
 }
 
 export interface UpdateSupplierInput {
@@ -82,6 +95,11 @@ export interface UpdateSupplierInput {
   contact?: string;
   email?: string;
   phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+  purchases?: number;
+  payments?: number;
   category?: string;
   status?: "Active" | "Inactive";
 }
