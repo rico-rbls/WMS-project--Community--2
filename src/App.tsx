@@ -113,6 +113,8 @@ export default function App() {
           <SuppliersView
             initialOpenDialog={openAddDialog === "suppliers"}
             onDialogOpened={clearOpenAddDialog}
+            initialSupplierId={selectedItemId}
+            onSupplierDialogOpened={clearSelectedItemId}
           />
         );
       case "users":

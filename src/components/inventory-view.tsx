@@ -90,11 +90,9 @@ function generateLocationCode(category: InventoryCategory, existingItems: Invent
 interface InventoryViewProps {
   initialOpenDialog?: boolean;
   onDialogOpened?: () => void;
-  initialItemId?: string; // Open detail dialog for this item on mount
-  onItemDialogOpened?: () => void; // Callback when item dialog is opened
 }
 
-export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId, onItemDialogOpened }: InventoryViewProps) {
+export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryViewProps) {
   const { inventory, isLoading, setInventory } = useInventory();
   const { suppliers, setSuppliers } = useSuppliers();
   const { isFavorite, getFavoritesByType } = useFavorites();
@@ -108,7 +106,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
   const [showArchived, setShowArchived] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
-  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(initialItemId ?? null);
+  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
   // Use strings for numeric fields to allow empty input during typing
   const [form, setForm] = useState({
     id: "",
@@ -170,14 +168,6 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
       onDialogOpened?.();
     }
   }, [initialOpenDialog, onDialogOpened, isAddOpen]);
-
-  // Open detail dialog when navigated from command palette
-  useEffect(() => {
-    if (initialItemId) {
-      setIsDetailOpen(initialItemId);
-      onItemDialogOpened?.();
-    }
-  }, [initialItemId, onItemDialogOpened]);
 
   // Debounce search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -1666,15 +1656,13 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
             <TableLoadingSkeleton rows={8} />
           ) : filteredItems.length === 0 ? (
             <EmptyState
-              icon={showArchived ? Archive : Package}
-              title={showArchived ? "No archived items" : "No inventory items found"}
-              description={showArchived
-                ? "There are no archived items. Items you archive will appear here."
-                : searchTerm || filterCategory !== "all" || filterStatus !== "all"
-                  ? "Try adjusting your search or filter criteria"
-                  : "Get started by adding your first inventory item"}
-              actionLabel={!showArchived && !searchTerm && filterCategory === "all" && filterStatus === "all" ? "Add Item" : undefined}
-              onAction={!showArchived && !searchTerm && filterCategory === "all" && filterStatus === "all" ? () => setIsAddOpen(true) : undefined}
+              icon={Package}
+              title="No inventory items found"
+              description={searchTerm || filterCategory !== "all" || filterStatus !== "all"
+                ? "Try adjusting your search or filter criteria"
+                : "Get started by adding your first inventory item"}
+              actionLabel={!searchTerm && filterCategory === "all" && filterStatus === "all" ? "Add Item" : undefined}
+              onAction={!searchTerm && filterCategory === "all" && filterStatus === "all" ? () => setIsAddOpen(true) : undefined}
             />
           ) : viewMode === "catalog" ? (
             /* ============ CATALOG VIEW ============ */
@@ -1788,58 +1776,32 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
                             <Eye className="h-4 w-4 mr-2" />
                             Details
                           </Button>
-                          {showArchived && item.archived ? (
-                            /* Archive Actions for archived items */
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => handleRestore(item.id)}
-                              >
-                                <ArchiveRestore className="h-4 w-4 mr-2" />
-                                Restore
-                              </Button>
-                              {canPermanentlyDelete && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handlePermanentDelete(item.id)}
-                                  title="Permanently delete this item"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </>
-                          ) : (
-                            /* Edit button for active items */
-                            canModify && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => {
-                                  setIsEditOpen(item.id);
-                                  setForm({
-                                    id: item.id,
-                                    name: item.name,
-                                    category: item.category,
-                                    quantity: item.quantity,
-                                    location: item.location,
-                                    reorderLevel: item.reorderLevel,
-                                    brand: item.brand || "Unknown",
-                                    pricePerPiece: item.pricePerPiece ?? 0,
-                                    supplierId: item.supplierId || "SUP-001",
-                                    maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                                    minimumStock: item.minimumStock ?? item.reorderLevel,
-                                    photoUrl: item.photoUrl || "",
-                                  });
-                                }}
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </Button>
-                            )
+                          {canModify && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => {
+                                setIsEditOpen(item.id);
+                                setForm({
+                                  id: item.id,
+                                  name: item.name,
+                                  category: item.category,
+                                  quantity: item.quantity,
+                                  location: item.location,
+                                  reorderLevel: item.reorderLevel,
+                                  brand: item.brand || "Unknown",
+                                  pricePerPiece: item.pricePerPiece ?? 0,
+                                  supplierId: item.supplierId || "SUP-001",
+                                  maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
+                                  minimumStock: item.minimumStock ?? item.reorderLevel,
+                                  photoUrl: item.photoUrl || "",
+                                });
+                              }}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -2295,25 +2257,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
                                 {/* Action Buttons */}
                                 <div className="flex gap-2 pt-2">
                                   <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                                  {item.archived ? (
-                                    <>
-                                      <Button variant="outline" size="lg" onClick={() => handleRestore(item.id)}>
-                                        <ArchiveRestore className="h-4 w-4 mr-1" />
-                                        Restore
-                                      </Button>
-                                      {canPermanentlyDelete && (
-                                        <Button variant="destructive" size="lg" onClick={() => handlePermanentDelete(item.id)}>
-                                          <Trash2 className="h-4 w-4 mr-1" />
-                                          Permanently Delete
-                                        </Button>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <Button variant="outline" size="lg" onClick={() => handleArchive(item.id)}>
-                                      <Archive className="h-4 w-4 mr-1" />
-                                      Archive
-                                    </Button>
-                                  )}
+                                  <Button variant="destructive" size="lg" onClick={() => handleDelete(item.id)}>Delete</Button>
                                 </div>
                               </div>
                             </DialogContent>
@@ -2833,31 +2777,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened, initialItemId
               {/* Action Buttons */}
               <div className="flex gap-2 pt-2">
                 <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                {(() => {
-                  const currentItem = inventoryItems.find((i) => i.id === form.id);
-                  if (currentItem?.archived) {
-                    return (
-                      <>
-                        <Button variant="outline" size="lg" onClick={() => handleRestore(form.id)}>
-                          <ArchiveRestore className="h-4 w-4 mr-1" />
-                          Restore
-                        </Button>
-                        {canPermanentlyDelete && (
-                          <Button variant="destructive" size="lg" onClick={() => handlePermanentDelete(form.id)}>
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Permanently Delete
-                          </Button>
-                        )}
-                      </>
-                    );
-                  }
-                  return (
-                    <Button variant="outline" size="lg" onClick={() => handleArchive(form.id)}>
-                      <Archive className="h-4 w-4 mr-1" />
-                      Archive
-                    </Button>
-                  );
-                })()}
+                <Button variant="destructive" size="lg" onClick={() => handleDelete(form.id)}>Delete</Button>
               </div>
             </div>
           </DialogContent>

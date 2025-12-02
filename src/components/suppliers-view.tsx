@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
-import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus, getPurchaseOrders, getInventory } from "../services/api";
+import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus, getPurchaseOrders, getInventory, archiveSupplier, restoreSupplier, permanentlyDeleteSupplier, bulkArchiveSuppliers, bulkRestoreSuppliers, bulkPermanentlyDeleteSuppliers } from "../services/api";
 import type { Supplier, SavedSearch, PurchaseOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
@@ -43,7 +43,7 @@ import { useFavorites } from "../context/favorites-context";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
-import { canWrite } from "../lib/permissions";
+import { canWrite, isAdmin } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
 
 const SUPPLIER_STATUSES = ["Active", "Inactive"] as const;
@@ -52,23 +52,28 @@ const SUPPLIER_CATEGORIES = ["Electronics", "Furniture", "Clothing", "Food", "Ot
 interface SuppliersViewProps {
   initialOpenDialog?: boolean;
   onDialogOpened?: () => void;
+  initialSupplierId?: string;
+  onSupplierDialogOpened?: () => void;
 }
 
 type SupplierStatus = (typeof SUPPLIER_STATUSES)[number];
 
-export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersViewProps) {
+export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSupplierId, onSupplierDialogOpened }: SuppliersViewProps) {
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
+  const canPermanentlyDelete = user ? isAdmin(user.role) : false;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[]>([]);
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "",
     name: "",
@@ -104,6 +109,18 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
       onDialogOpened?.();
     }
   }, [initialOpenDialog, onDialogOpened, isAddOpen]);
+
+  // Open detail dialog when triggered from Command Palette search
+  useEffect(() => {
+    if (initialSupplierId && suppliersData) {
+      // Find the supplier and open the detail dialog
+      const supplier = suppliersData.find(s => s.id === initialSupplierId);
+      if (supplier) {
+        setIsDetailOpen(initialSupplierId);
+        onSupplierDialogOpened?.();
+      }
+    }
+  }, [initialSupplierId, suppliersData, onSupplierDialogOpened]);
 
   const list = useMemo<Supplier[]>(() => suppliersData ?? [], [suppliersData]);
 
@@ -976,12 +993,12 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
                         </TableCell>
                         <TableCell className="font-mono text-sm">{supplier.id}</TableCell>
                         <TableCell>
-                          <EditableCell
-                            value={supplier.name}
-                            type="text"
-                            onSave={(v) => handleInlineUpdate(supplier.id, "name", v)}
-                            disabled={!canModify}
-                          />
+                          <button
+                            className="text-left font-medium text-primary hover:underline cursor-pointer bg-transparent border-none p-0"
+                            onClick={() => setIsDetailOpen(supplier.id)}
+                          >
+                            {supplier.name}
+                          </button>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
@@ -1174,6 +1191,153 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened }: SuppliersVi
           )}
         </CardContent>
       </Card>
+
+      {/* Supplier Detail Dialog (Read-Only) */}
+      <Dialog open={isDetailOpen !== null} onOpenChange={(open) => !open && setIsDetailOpen(null)}>
+        <DialogContent className="sm:max-w-[600px]">
+          {isDetailOpen && (() => {
+            const supplier = list.find(s => s.id === isDetailOpen);
+            if (!supplier) return null;
+
+            // Get related purchase orders for this supplier
+            const supplierPOs = purchaseOrdersData.filter(po => po.supplierId === supplier.id);
+            const totalPOValue = supplierPOs.reduce((sum, po) => sum + po.totalAmount, 0);
+
+            // Get products from this supplier
+            const supplierProducts = inventoryData.filter(item => item.supplierId === supplier.id);
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    Supplier Details
+                  </DialogTitle>
+                  <DialogDescription>
+                    View supplier information and statistics
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Basic Information</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Hash className="h-3 w-3" />
+                          Supplier ID
+                        </div>
+                        <p className="font-mono text-sm">{supplier.id}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3" />
+                          Name
+                        </div>
+                        <p className="font-medium">{supplier.name}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Tag className="h-3 w-3" />
+                          Category
+                        </div>
+                        <Badge variant="outline">{supplier.category}</Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <CheckCircle className="h-3 w-3" />
+                          Status
+                        </div>
+                        <Badge variant={supplier.status === "Active" ? "default" : "secondary"}>
+                          {supplier.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Contact Information</h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Contact Person</p>
+                          <p className="font-medium">{supplier.contact}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Email</p>
+                          <p className="font-medium">{supplier.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Phone</p>
+                          <p className="font-medium">{supplier.phone}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Statistics */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Statistics</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-center">
+                        <ShoppingCart className="h-4 w-4 mx-auto mb-1 text-blue-600" />
+                        <p className="text-lg font-bold text-blue-600">{supplierPOs.length}</p>
+                        <p className="text-xs text-muted-foreground">Purchase Orders</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-center">
+                        <TrendingUp className="h-4 w-4 mx-auto mb-1 text-green-600" />
+                        <p className="text-lg font-bold text-green-600">
+                          ${totalPOValue.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total Value</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 text-center">
+                        <Package className="h-4 w-4 mx-auto mb-1 text-purple-600" />
+                        <p className="text-lg font-bold text-purple-600">{supplierProducts.length}</p>
+                        <p className="text-xs text-muted-foreground">Products</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Archive Status */}
+                  {supplier.archived && (
+                    <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                      <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                        <Archive className="h-4 w-4" />
+                        <span className="font-medium">Archived</span>
+                      </div>
+                      {supplier.archivedAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Archived on {new Date(supplier.archivedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDetailOpen(null)}>
+                    Close
+                  </Button>
+                  {canModify && !supplier.archived && (
+                    <Button onClick={() => { setIsDetailOpen(null); handleEdit(supplier); }}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Supplier
+                    </Button>
+                  )}
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
