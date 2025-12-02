@@ -1,4 +1,4 @@
-import { useState, Suspense, useCallback } from "react";
+import { useState, Suspense, useCallback, useEffect } from "react";
 import { SidebarProvider, SidebarInset } from "./components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
 import React from "react";
@@ -20,12 +20,44 @@ import { CommandPalette, useCommandPalette } from "./components/command-palette"
 import { Topbar } from "./components/topbar";
 export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers" | "users" | "profile";
 
+// Valid view types for URL parsing
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "shipments", "suppliers", "users", "profile"];
+
+// Get initial view from URL hash
+function getViewFromHash(): ViewType {
+  const hash = window.location.hash.slice(1); // Remove the '#'
+  if (hash && VALID_VIEWS.includes(hash as ViewType)) {
+    return hash as ViewType;
+  }
+  return "dashboard";
+}
+
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [currentView, setCurrentView] = useState("dashboard" as ViewType);
+  const [currentView, setCurrentView] = useState<ViewType>(getViewFromHash);
   const [openAddDialog, setOpenAddDialog] = useState<ViewType | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(undefined);
   const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
+
+  // Sync URL hash with current view
+  useEffect(() => {
+    // Update the URL hash when view changes
+    const newHash = currentView === "dashboard" ? "" : `#${currentView}`;
+    if (window.location.hash !== newHash && window.location.hash !== `#${currentView}`) {
+      window.history.replaceState(null, "", newHash || window.location.pathname);
+    }
+  }, [currentView]);
+
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const viewFromHash = getViewFromHash();
+      setCurrentView(viewFromHash);
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   // Navigate to a view and optionally open its Add dialog
   const navigateToView = useCallback((view: ViewType, openDialog: boolean = false) => {
