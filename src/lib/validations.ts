@@ -125,6 +125,44 @@ export const supplierSchema = z.object({
 
 export type SupplierInput = z.infer<typeof supplierSchema>;
 
+// Customer validation schema
+export const customerSchema = z.object({
+  name: z.string()
+    .min(1, "Customer name is required")
+    .min(2, "Customer name must be at least 2 characters")
+    .max(100, "Customer name must be less than 100 characters"),
+  contact: z.string()
+    .min(1, "Contact person is required")
+    .min(2, "Contact name must be at least 2 characters"),
+  email: z.string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address"),
+  phone: z.string()
+    .min(1, "Phone number is required"),
+  category: z.string()
+    .min(1, "Category is required"),
+  status: z.enum(["Active", "Inactive"], {
+    errorMap: () => ({ message: "Please select a valid status" }),
+  }).optional(),
+  country: z.string()
+    .max(100, "Country must be less than 100 characters")
+    .optional(),
+  city: z.string()
+    .max(100, "City must be less than 100 characters")
+    .optional(),
+  address: z.string()
+    .max(200, "Address must be less than 200 characters")
+    .optional(),
+  purchases: z.coerce.number()
+    .min(0, "Purchases cannot be negative")
+    .optional(),
+  payments: z.coerce.number()
+    .min(0, "Payments cannot be negative")
+    .optional(),
+});
+
+export type CustomerInput = z.infer<typeof customerSchema>;
+
 // Purchase Order validation schema
 export const poLineItemSchema = z.object({
   inventoryItemId: z.string().min(1, "Item is required"),

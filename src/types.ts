@@ -104,6 +104,57 @@ export interface UpdateSupplierInput {
   status?: "Active" | "Inactive";
 }
 
+export interface Customer {
+  id: string;
+  name: string; // company or customer name
+  contact: string;
+  email: string;
+  phone: string;
+  category: string;
+  status: "Active" | "Inactive";
+  // Location fields
+  country: string;
+  city: string;
+  address: string;
+  // Financial fields
+  purchases: number; // Total amount purchased by this customer
+  payments: number; // Total amount paid by this customer
+  balance: number; // Outstanding balance (purchases - payments)
+  // Archive fields
+  archived?: boolean; // Whether the customer is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the customer was archived
+}
+
+export interface CreateCustomerInput {
+  id?: string;
+  name: string;
+  contact: string;
+  email: string;
+  phone: string;
+  category: string;
+  status?: "Active" | "Inactive";
+  country?: string;
+  city?: string;
+  address?: string;
+  purchases?: number;
+  payments?: number;
+}
+
+export interface UpdateCustomerInput {
+  id: string;
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+  purchases?: number;
+  payments?: number;
+  category?: string;
+  status?: "Active" | "Inactive";
+}
+
 export interface Order {
   id: string;
   customer: string;

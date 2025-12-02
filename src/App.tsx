@@ -8,6 +8,7 @@ const OrdersView = React.lazy(() => import("./components/orders-view").then(m =>
 const PurchaseOrdersView = React.lazy(() => import("./components/purchase-orders-view").then(m => ({ default: m.PurchaseOrdersView })));
 const ShipmentsView = React.lazy(() => import("./components/shipments-view").then(m => ({ default: m.ShipmentsView })));
 const SuppliersView = React.lazy(() => import("./components/suppliers-view").then(m => ({ default: m.SuppliersView })));
+const CustomersView = React.lazy(() => import("./components/customers-view").then(m => ({ default: m.CustomersView })));
 const UserManagementView = React.lazy(() => import("./components/user-management-view").then(m => ({ default: m.UserManagementView })));
 const AdminProfileView = React.lazy(() => import("./components/admin-profile-view").then(m => ({ default: m.AdminProfileView })));
 import { Toaster } from "./components/ui/sonner";
@@ -18,10 +19,10 @@ import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
-export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers" | "users" | "profile";
+export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers" | "customers" | "users" | "profile";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "shipments", "suppliers", "users", "profile"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "shipments", "suppliers", "customers", "users", "profile"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -147,6 +148,15 @@ export default function App() {
             onDialogOpened={clearOpenAddDialog}
             initialSupplierId={selectedItemId}
             onSupplierDialogOpened={clearSelectedItemId}
+          />
+        );
+      case "customers":
+        return (
+          <CustomersView
+            initialOpenDialog={openAddDialog === "customers"}
+            onDialogOpened={clearOpenAddDialog}
+            initialCustomerId={selectedItemId}
+            onCustomerDialogOpened={clearSelectedItemId}
           />
         );
       case "users":

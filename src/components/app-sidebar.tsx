@@ -53,6 +53,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
     { id: "shipments" as ViewType, label: "Shipments", icon: Truck },
     { id: "suppliers" as ViewType, label: "Suppliers", icon: Users },
+    { id: "customers" as ViewType, label: "Customers", icon: Users },
   ];
 
   // Admin-only menu items

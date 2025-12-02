@@ -6,6 +6,9 @@ import type {
   Supplier,
   CreateSupplierInput,
   UpdateSupplierInput,
+  Customer,
+  CreateCustomerInput,
+  UpdateCustomerInput,
   Order,
   Shipment,
   PurchaseOrder,
@@ -22,6 +25,7 @@ import type {
 const STORAGE_KEYS = {
   INVENTORY: 'wms_inventory',
   SUPPLIERS: 'wms_suppliers',
+  CUSTOMERS: 'wms_customers',
   ORDERS: 'wms_orders',
   SHIPMENTS: 'wms_shipments',
   PURCHASE_ORDERS: 'wms_purchase_orders',
@@ -93,6 +97,14 @@ const DEFAULT_SUPPLIERS: Supplier[] = [
   { id: "SUP-003", name: "Global Electronics Co", contact: "Michael Chen", email: "michael@globalelec.com", phone: "+1 (555) 345-6789", category: "Electronics", status: "Active", country: "China", city: "Shenzhen", address: "789 Electronics Park, Building A", purchases: 250000, payments: 200000, balance: 50000 },
   { id: "SUP-004", name: "Metro Supplies Inc", contact: "Emily Davis", email: "emily@metrosupplies.com", phone: "+1 (555) 456-7890", category: "Office Supplies", status: "Inactive", country: "United States", city: "New York", address: "321 Office Tower, Floor 5", purchases: 45000, payments: 45000, balance: 0 },
   { id: "SUP-005", name: "Premium Parts Ltd", contact: "Robert Wilson", email: "robert@premiumparts.com", phone: "+1 (555) 567-8901", category: "Electronics", status: "Active", country: "United Kingdom", city: "London", address: "10 Premium Lane, Industrial Estate", purchases: 175000, payments: 150000, balance: 25000 },
+];
+
+const DEFAULT_CUSTOMERS: Customer[] = [
+  { id: "CUS-001", name: "Acme Corp", contact: "Alice Johnson", email: "alice@acmecorp.com", phone: "+1 (555) 111-2222", category: "Technology", status: "Active", country: "United States", city: "San Francisco", address: "100 Market St, Suite 500", purchases: 45000, payments: 40000, balance: 5000 },
+  { id: "CUS-002", name: "TechStart Inc", contact: "Bob Williams", email: "bob@techstart.io", phone: "+1 (555) 222-3333", category: "Startup", status: "Active", country: "United States", city: "Austin", address: "200 Innovation Blvd", purchases: 28000, payments: 28000, balance: 0 },
+  { id: "CUS-003", name: "Global Solutions", contact: "Carol Martinez", email: "carol@globalsolutions.com", phone: "+1 (555) 333-4444", category: "Enterprise", status: "Active", country: "United Kingdom", city: "London", address: "50 Canary Wharf", purchases: 120000, payments: 100000, balance: 20000 },
+  { id: "CUS-004", name: "Beta Systems", contact: "David Lee", email: "david@betasystems.net", phone: "+1 (555) 444-5555", category: "Technology", status: "Active", country: "Canada", city: "Toronto", address: "789 Bay Street", purchases: 65000, payments: 60000, balance: 5000 },
+  { id: "CUS-005", name: "Metro Supplies", contact: "Eva Brown", email: "eva@metrosupplies.com", phone: "+1 (555) 555-6666", category: "Retail", status: "Inactive", country: "United States", city: "New York", address: "321 Fifth Avenue", purchases: 15000, payments: 15000, balance: 0 },
 ];
 
 const DEFAULT_ORDERS: Order[] = [
@@ -265,8 +277,22 @@ function migrateSuppliers(items: any[]): Supplier[] {
   }));
 }
 
+// Migration for customers - add new fields if they don't exist
+function migrateCustomers(items: any[]): Customer[] {
+  return items.map((item) => ({
+    ...item,
+    country: item.country ?? "",
+    city: item.city ?? "",
+    address: item.address ?? "",
+    purchases: item.purchases ?? 0,
+    payments: item.payments ?? 0,
+    balance: item.balance ?? (item.purchases ?? 0) - (item.payments ?? 0),
+  }));
+}
+
 let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STORAGE_KEYS.INVENTORY, DEFAULT_INVENTORY));
 let suppliers: Supplier[] = migrateSuppliers(loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
+let customers: Customer[] = migrateCustomers(loadFromLocalStorage(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
 let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
@@ -275,6 +301,7 @@ let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage
 saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
 saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
 saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
 saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
 
 // ============================================================================
@@ -301,6 +328,14 @@ function generateSupplierId(): string {
     .reduce((a, b) => Math.max(a, b), 0);
   const next = maxNum + 1;
   return `SUP-${String(next).padStart(3, "0")}`;
+}
+
+function generateCustomerId(): string {
+  const maxNum = customers
+    .map((c) => Number(c.id.replace(/[^0-9]/g, "")) || 0)
+    .reduce((a, b) => Math.max(a, b), 0);
+  const next = maxNum + 1;
+  return `CUS-${String(next).padStart(3, "0")}`;
 }
 
 function generatePurchaseOrderId(): string {
@@ -678,6 +713,228 @@ export async function bulkPermanentlyDeleteSuppliers(ids: string[]): Promise<Bul
   }
 
   saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+// ============================================================================
+// Customer CRUD Operations
+// ============================================================================
+
+export async function getCustomers(): Promise<Customer[]> {
+  return delay([...customers]);
+}
+
+export async function createCustomer(input: CreateCustomerInput): Promise<Customer> {
+  const id = input.id && input.id.trim() !== "" ? input.id : generateCustomerId();
+  const purchases = input.purchases ?? 0;
+  const payments = input.payments ?? 0;
+  const balance = purchases - payments;
+
+  const newCustomer: Customer = {
+    id,
+    name: input.name,
+    contact: input.contact,
+    email: input.email,
+    phone: input.phone,
+    category: input.category,
+    status: input.status ?? "Active",
+    country: input.country ?? "",
+    city: input.city ?? "",
+    address: input.address ?? "",
+    purchases,
+    payments,
+    balance,
+  };
+  customers.push(newCustomer);
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(newCustomer);
+}
+
+export async function updateCustomer(input: UpdateCustomerInput): Promise<Customer> {
+  const index = customers.findIndex((c) => c.id === input.id);
+  if (index === -1) throw new Error("Customer not found");
+
+  const existing = customers[index];
+  const purchases = input.purchases ?? existing.purchases;
+  const payments = input.payments ?? existing.payments;
+  const balance = purchases - payments;
+
+  const updated: Customer = {
+    ...existing,
+    ...input,
+    purchases,
+    payments,
+    balance,
+  };
+  customers[index] = updated;
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(updated);
+}
+
+export async function deleteCustomer(id: string): Promise<void> {
+  const index = customers.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Customer not found");
+  customers.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(undefined);
+}
+
+export async function archiveCustomer(id: string): Promise<Customer> {
+  const index = customers.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Customer not found");
+
+  const updated: Customer = {
+    ...customers[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+  customers[index] = updated;
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(updated);
+}
+
+export async function restoreCustomer(id: string): Promise<Customer> {
+  const index = customers.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Customer not found");
+
+  const updated: Customer = {
+    ...customers[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+  customers[index] = updated;
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(updated);
+}
+
+export async function permanentlyDeleteCustomer(id: string): Promise<void> {
+  const index = customers.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Customer not found");
+  customers.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+  return delay(undefined);
+}
+
+export async function bulkDeleteCustomers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = customers.findIndex((c) => c.id === id);
+    if (index === -1) {
+      errors.push(`Customer ${id} not found`);
+      continue;
+    }
+    customers.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkArchiveCustomers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = customers.findIndex((c) => c.id === id);
+    if (index === -1) {
+      errors.push(`Customer ${id} not found`);
+      continue;
+    }
+    customers[index] = {
+      ...customers[index],
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkRestoreCustomers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = customers.findIndex((c) => c.id === id);
+    if (index === -1) {
+      errors.push(`Customer ${id} not found`);
+      continue;
+    }
+    customers[index] = {
+      ...customers[index],
+      archived: false,
+      archivedAt: undefined,
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkPermanentlyDeleteCustomers(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = customers.findIndex((c) => c.id === id);
+    if (index === -1) {
+      errors.push(`Customer ${id} not found`);
+      continue;
+    }
+    customers.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
+
+  return delay({
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+}
+
+export async function bulkUpdateCustomerStatus(ids: string[], status: "Active" | "Inactive"): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = customers.findIndex((c) => c.id === id);
+    if (index === -1) {
+      errors.push(`Customer ${id} not found`);
+      continue;
+    }
+    customers[index] = { ...customers[index], status };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
 
   return delay({
     successCount,
