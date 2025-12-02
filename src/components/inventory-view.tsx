@@ -66,6 +66,30 @@ const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
 type ViewMode = "table" | "catalog";
 const VIEW_MODE_STORAGE_KEY = "inventory-view-mode";
 
+// Column visibility configuration
+const COLUMN_VISIBILITY_STORAGE_KEY = "inventory-column-visibility";
+
+// Define optional columns that can be toggled (excluding always-visible: checkbox, photo, item ID, name, actions)
+type OptionalColumn = "category" | "quantityPurchased" | "quantitySold" | "quantity" | "reorderRequired" | "pricePerPiece" | "supplier" | "brand" | "location" | "status";
+
+const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
+  { key: "category", label: "Category" },
+  { key: "quantityPurchased", label: "Quantity Purchased" },
+  { key: "quantitySold", label: "Quantity Sold" },
+  { key: "quantity", label: "Remaining Quantity" },
+  { key: "reorderRequired", label: "Reorder Required" },
+  { key: "pricePerPiece", label: "Price per Piece" },
+  { key: "supplier", label: "Supplier" },
+  { key: "brand", label: "Brand" },
+  { key: "location", label: "Location" },
+  { key: "status", label: "Status" },
+];
+
+// Default visible columns
+const DEFAULT_VISIBLE_COLUMNS: OptionalColumn[] = [
+  "category", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
+];
+
 // Category prefixes for auto-generating location codes
 const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
   Electronics: "E",
@@ -168,30 +192,6 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
-
-  // Column visibility state for table view
-  const COLUMN_VISIBILITY_STORAGE_KEY = "inventory-column-visibility";
-
-  // Define optional columns that can be toggled (excluding always-visible: checkbox, photo, item ID, name, actions)
-  type OptionalColumn = "category" | "quantityPurchased" | "quantitySold" | "quantity" | "reorderRequired" | "pricePerPiece" | "supplier" | "brand" | "location" | "status";
-
-  const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
-    { key: "category", label: "Category" },
-    { key: "quantityPurchased", label: "Quantity Purchased" },
-    { key: "quantitySold", label: "Quantity Sold" },
-    { key: "quantity", label: "Remaining Quantity" },
-    { key: "reorderRequired", label: "Reorder Required" },
-    { key: "pricePerPiece", label: "Price per Piece" },
-    { key: "supplier", label: "Supplier" },
-    { key: "brand", label: "Brand" },
-    { key: "location", label: "Location" },
-    { key: "status", label: "Status" },
-  ];
-
-  // Default visible columns
-  const DEFAULT_VISIBLE_COLUMNS: OptionalColumn[] = [
-    "category", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
-  ];
 
   // Column visibility state with localStorage persistence
   const [visibleColumns, setVisibleColumns] = useState<Set<OptionalColumn>>(() => {
