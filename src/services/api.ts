@@ -3,6 +3,7 @@ import type {
   InventoryItem,
   UpdateInventoryItemInput,
   InventoryCategory,
+  CategoryDefinition,
   Supplier,
   CreateSupplierInput,
   UpdateSupplierInput,
@@ -29,6 +30,7 @@ const STORAGE_KEYS = {
   ORDERS: 'wms_orders',
   SHIPMENTS: 'wms_shipments',
   PURCHASE_ORDERS: 'wms_purchase_orders',
+  CATEGORIES: 'wms_categories',
 } as const;
 
 /**
@@ -290,12 +292,33 @@ function migrateCustomers(items: any[]): Customer[] {
   }));
 }
 
+// Default categories with subcategories
+const DEFAULT_CATEGORIES: CategoryDefinition[] = [
+  {
+    name: "Electronics",
+    subcategories: ["Phones", "Laptops", "Tablets", "Accessories", "Monitors"],
+  },
+  {
+    name: "Furniture",
+    subcategories: ["Desks", "Chairs", "Cabinets", "Shelving"],
+  },
+  {
+    name: "Clothing",
+    subcategories: ["Shirts", "Pants", "Shoes", "Accessories"],
+  },
+  {
+    name: "Food",
+    subcategories: ["Beverages", "Snacks", "Canned Goods", "Fresh Produce"],
+  },
+];
+
 let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STORAGE_KEYS.INVENTORY, DEFAULT_INVENTORY));
 let suppliers: Supplier[] = migrateSuppliers(loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 let customers: Customer[] = migrateCustomers(loadFromLocalStorage(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
 let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
+let categories: CategoryDefinition[] = loadFromLocalStorage(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
 
 // Save migrated data back to localStorage
 saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
@@ -303,6 +326,7 @@ saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
 saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
 saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
 saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
 
 // ============================================================================
 // Helper Functions
@@ -1731,4 +1755,84 @@ export async function getPurchaseOrderStats(): Promise<{
   });
 
   return delay(stats);
+}
+
+// ============================================================================
+// Category Management
+// ============================================================================
+
+export async function getCategories(): Promise<CategoryDefinition[]> {
+  return delay([...categories]);
+}
+
+export async function addCategory(name: string): Promise<CategoryDefinition> {
+  const existing = categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    throw new Error(`Category "${name}" already exists`);
+  }
+  const newCategory: CategoryDefinition = {
+    name,
+    subcategories: [],
+  };
+  categories = [...categories, newCategory];
+  saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
+  return delay(newCategory);
+}
+
+export async function addSubcategory(categoryName: string, subcategoryName: string): Promise<CategoryDefinition> {
+  const categoryIndex = categories.findIndex(c => c.name === categoryName);
+  if (categoryIndex === -1) {
+    throw new Error(`Category "${categoryName}" not found`);
+  }
+
+  const category = categories[categoryIndex];
+  if (category.subcategories.some(s => s.toLowerCase() === subcategoryName.toLowerCase())) {
+    throw new Error(`Subcategory "${subcategoryName}" already exists in "${categoryName}"`);
+  }
+
+  const updatedCategory: CategoryDefinition = {
+    ...category,
+    subcategories: [...category.subcategories, subcategoryName],
+  };
+
+  categories = [
+    ...categories.slice(0, categoryIndex),
+    updatedCategory,
+    ...categories.slice(categoryIndex + 1),
+  ];
+
+  saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
+  return delay(updatedCategory);
+}
+
+export async function deleteCategory(name: string): Promise<void> {
+  const index = categories.findIndex(c => c.name === name);
+  if (index === -1) {
+    throw new Error(`Category "${name}" not found`);
+  }
+  categories = categories.filter(c => c.name !== name);
+  saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
+  return delay(undefined);
+}
+
+export async function deleteSubcategory(categoryName: string, subcategoryName: string): Promise<CategoryDefinition> {
+  const categoryIndex = categories.findIndex(c => c.name === categoryName);
+  if (categoryIndex === -1) {
+    throw new Error(`Category "${categoryName}" not found`);
+  }
+
+  const category = categories[categoryIndex];
+  const updatedCategory: CategoryDefinition = {
+    ...category,
+    subcategories: category.subcategories.filter(s => s !== subcategoryName),
+  };
+
+  categories = [
+    ...categories.slice(0, categoryIndex),
+    updatedCategory,
+    ...categories.slice(categoryIndex + 1),
+  ];
+
+  saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
+  return delay(updatedCategory);
 }

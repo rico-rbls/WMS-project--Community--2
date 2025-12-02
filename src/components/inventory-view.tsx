@@ -35,8 +35,8 @@ import {
 } from "./ui/dropdown-menu";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems } from "../services/api";
-import type { InventoryCategory, InventoryItem, Supplier } from "../types";
+import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems, getCategories, addCategory, addSubcategory } from "../services/api";
+import type { InventoryCategory, InventoryItem, Supplier, CategoryDefinition } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { useInventory, useSuppliers } from "../context/app-context";
@@ -58,9 +58,10 @@ import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
-
-const CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
 const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
+
+// Default categories (fallback)
+const DEFAULT_CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
 
 // View modes for inventory display
 type ViewMode = "table" | "catalog";
@@ -70,10 +71,11 @@ const VIEW_MODE_STORAGE_KEY = "inventory-view-mode";
 const COLUMN_VISIBILITY_STORAGE_KEY = "inventory-column-visibility";
 
 // Define optional columns that can be toggled (excluding always-visible: checkbox, photo, item ID, name, actions)
-type OptionalColumn = "category" | "quantityPurchased" | "quantitySold" | "quantity" | "reorderRequired" | "pricePerPiece" | "supplier" | "brand" | "location" | "status";
+type OptionalColumn = "category" | "subcategory" | "quantityPurchased" | "quantitySold" | "quantity" | "reorderRequired" | "pricePerPiece" | "supplier" | "brand" | "location" | "status";
 
 const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
   { key: "category", label: "Category" },
+  { key: "subcategory", label: "Subcategory" },
   { key: "quantityPurchased", label: "Quantity Purchased" },
   { key: "quantitySold", label: "Quantity Sold" },
   { key: "quantity", label: "Remaining Quantity" },
@@ -87,11 +89,11 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
 
 // Default visible columns
 const DEFAULT_VISIBLE_COLUMNS: OptionalColumn[] = [
-  "category", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
+  "category", "subcategory", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
 ];
 
-// Category prefixes for auto-generating location codes
-const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
+// Default category prefixes for auto-generating location codes
+const DEFAULT_CATEGORY_LOCATION_PREFIX: Record<string, string> = {
   Electronics: "E",
   Furniture: "F",
   Clothing: "C",
@@ -100,7 +102,7 @@ const CATEGORY_LOCATION_PREFIX: Record<InventoryCategory, string> = {
 
 // Generate auto-location code based on category and existing items
 function generateLocationCode(category: InventoryCategory, existingItems: InventoryItem[]): string {
-  const prefix = CATEGORY_LOCATION_PREFIX[category];
+  const prefix = DEFAULT_CATEGORY_LOCATION_PREFIX[category] || category.charAt(0).toUpperCase();
 
   // Find existing locations with this prefix
   const existingLocations = existingItems
@@ -133,17 +135,33 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const canPermanentlyDelete = user?.role === "Admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterSubcategory, setFilterSubcategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState<string | null>(null);
+
+  // Categories state
+  const [categories, setCategories] = useState<CategoryDefinition[]>([]);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [isAddSubcategoryOpen, setIsAddSubcategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+  const [selectedCategoryForSubcategory, setSelectedCategoryForSubcategory] = useState("");
+
+  // Load categories on mount
+  useEffect(() => {
+    getCategories().then(setCategories);
+  }, []);
+
   // Use strings for numeric fields to allow empty input during typing
   const [form, setForm] = useState({
     id: "",
     name: "",
     category: "Electronics" as InventoryCategory,
+    subcategory: "",
     quantity: "" as string | number,
     location: "",
     brand: "",
@@ -178,6 +196,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     phone: "",
     category: "",
   });
+
+  // Get available subcategories for selected category in form
+  const availableSubcategories = useMemo(() => {
+    const cat = categories.find(c => c.name === form.category);
+    return cat?.subcategories ?? [];
+  }, [categories, form.category]);
+
+  // Get category names for dropdowns
+  const categoryNames = useMemo(() => {
+    return categories.map(c => c.name);
+  }, [categories]);
 
   // View mode state with localStorage persistence
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -283,6 +312,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         return false;
       }
 
+      // Early return for subcategory filter
+      if (filterSubcategory !== "all" && item.subcategory !== filterSubcategory) {
+        return false;
+      }
+
       // Early return for status filter
       if (filterStatus !== "all" && item.status !== filterStatus) {
         return false;
@@ -300,14 +334,20 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         item.id.toLowerCase().includes(searchLower)
       );
     });
-  }, [inventoryItems, debouncedSearchTerm, filterCategory, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
+  }, [inventoryItems, debouncedSearchTerm, filterCategory, filterSubcategory, filterStatus, showFavoritesOnly, isFavorite, showArchived]);
 
-
+  // Get available subcategories for the current filter category
+  const filterSubcategoryOptions = useMemo(() => {
+    if (filterCategory === "all") return [];
+    const cat = categories.find(c => c.name === filterCategory);
+    return cat?.subcategories ?? [];
+  }, [categories, filterCategory]);
 
   // Clear all filters helper
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
     setFilterCategory("all");
+    setFilterSubcategory("all");
     setFilterStatus("all");
     setShowFavoritesOnly(false);
     setShowArchived(false);
@@ -352,10 +392,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     const overstockCount = items.filter(item => item.quantity > 200).length; // Arbitrary threshold for overstock
 
     // Category breakdown
-    const categoryBreakdown = CATEGORIES.reduce((acc, cat) => {
+    const categoryBreakdown = categoryNames.reduce((acc, cat) => {
       acc[cat] = items.filter(item => item.category === cat).length;
       return acc;
-    }, {} as Record<InventoryCategory, number>);
+    }, {} as Record<string, number>);
 
     // Health rate (items not requiring reorder)
     const healthyItems = items.filter(item => !item.reorderRequired && item.quantity > 0).length;
@@ -405,12 +445,13 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   function resetForm() {
-    const defaultCategory: InventoryCategory = "Electronics";
+    const defaultCategory: InventoryCategory = categoryNames[0] || "Electronics";
     const autoLocation = generateLocationCode(defaultCategory, inventoryItems);
     setForm({
       id: "",
       name: "",
       category: defaultCategory,
+      subcategory: "",
       quantity: "",
       location: autoLocation,
       brand: "",
@@ -528,6 +569,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       const created = await createInventoryItem({
         name: form.name,
         category: form.category,
+        subcategory: form.subcategory || undefined,
         quantity: Number(form.quantity) || 0,
         location: form.location,
         brand: form.brand,
@@ -562,6 +604,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         id: form.id,
         name: form.name,
         category: form.category,
+        subcategory: form.subcategory || undefined,
         quantity: Number(form.quantity) || 0,
         location: form.location,
         brand: form.brand,
@@ -683,10 +726,9 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             return;
           }
 
-          // Validate category
-          const validCategories = ["Electronics", "Furniture", "Clothing", "Food"];
-          if (!validCategories.includes(category)) {
-            errors.push(`Row ${rowNum}: Invalid category "${category}". Must be one of: ${validCategories.join(", ")}`);
+          // Validate category (allow any category since we support custom categories)
+          if (!category) {
+            errors.push(`Row ${rowNum}: Category is required`);
             return;
           }
 
@@ -984,7 +1026,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           type: "select",
           label: "New Category",
           placeholder: "Select category",
-          options: CATEGORIES.map(c => ({ value: c, label: c })),
+          options: categoryNames.map(c => ({ value: c, label: c })),
         };
       case "status":
         return {
@@ -1238,19 +1280,32 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       {fieldErrors.name && <p className="text-sm text-red-500">{fieldErrors.name}</p>}
                     </div>
 
-                    {/* Category & Brand Row */}
+                    {/* Category & Subcategory Row */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="category">Category</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setIsAddCategoryOpen(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                        </div>
                         <Select value={form.category} onValueChange={(v) => {
                           handleCategoryChange(v as InventoryCategory, false);
+                          setForm(prev => ({ ...prev, subcategory: "" }));
                           clearFieldError("category");
                         }}>
                           <SelectTrigger id="category" className={fieldErrors.category ? "border-red-500" : ""}>
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            {CATEGORIES.map((c) => (
+                            {categoryNames.map((c) => (
                               <SelectItem key={c} value={c}>{c}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1258,19 +1313,54 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         {fieldErrors.category && <p className="text-sm text-red-500">{fieldErrors.category}</p>}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="brand">Brand</Label>
-                        <Input
-                          id="brand"
-                          placeholder="Enter brand name"
-                          value={form.brand}
-                          onChange={(e) => {
-                            setForm({ ...form, brand: e.target.value });
-                            clearFieldError("brand");
-                          }}
-                          className={fieldErrors.brand ? "border-red-500" : ""}
-                        />
-                        {fieldErrors.brand && <p className="text-sm text-red-500">{fieldErrors.brand}</p>}
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="subcategory">Subcategory</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setSelectedCategoryForSubcategory(form.category);
+                              setIsAddSubcategoryOpen(true);
+                            }}
+                            disabled={!form.category}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                        <Select
+                          value={form.subcategory}
+                          onValueChange={(v) => setForm(prev => ({ ...prev, subcategory: v }))}
+                          disabled={availableSubcategories.length === 0}
+                        >
+                          <SelectTrigger id="subcategory">
+                            <SelectValue placeholder={availableSubcategories.length === 0 ? "No subcategories" : "Select subcategory"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableSubcategories.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
+                    </div>
+
+                    {/* Brand Row */}
+                    <div className="space-y-2">
+                      <Label htmlFor="brand">Brand</Label>
+                      <Input
+                        id="brand"
+                        placeholder="Enter brand name"
+                        value={form.brand}
+                        onChange={(e) => {
+                          setForm({ ...form, brand: e.target.value });
+                          clearFieldError("brand");
+                        }}
+                        className={fieldErrors.brand ? "border-red-500" : ""}
+                      />
+                      {fieldErrors.brand && <p className="text-sm text-red-500">{fieldErrors.brand}</p>}
                     </div>
 
                     {/* Quantity & Location Row */}
@@ -1536,19 +1626,35 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 className="pl-9"
               />
             </div>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <Select value={filterCategory} onValueChange={(v) => {
+              setFilterCategory(v);
+              setFilterSubcategory("all");
+            }}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Electronics">Electronics</SelectItem>
-                <SelectItem value="Furniture">Furniture</SelectItem>
-                <SelectItem value="Clothing">Clothing</SelectItem>
-                <SelectItem value="Food">Food</SelectItem>
+                {categoryNames.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {filterSubcategoryOptions.length > 0 && (
+              <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Subcategory" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Subcategories</SelectItem>
+                  {filterSubcategoryOptions.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[160px]">
                 <Filter className="h-4 w-4 mr-2" />
@@ -1854,6 +1960,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   id: item.id,
                                   name: item.name,
                                   category: item.category,
+                                  subcategory: item.subcategory || "",
                                   quantity: item.quantity,
                                   location: item.location,
                                   brand: item.brand || "Unknown",
@@ -1936,6 +2043,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                         onSort={(key) => requestSort(key as keyof InventoryItem)}
                       >
                         Category
+                      </SortableTableHead>
+                    )}
+                    {/* Optional: Subcategory */}
+                    {isColumnVisible("subcategory") && (
+                      <SortableTableHead
+                        sortKey="subcategory"
+                        currentSortKey={sortConfig.key as string | null}
+                        sortDirection={getSortDirection("subcategory")}
+                        onSort={(key) => requestSort(key as keyof InventoryItem)}
+                      >
+                        Subcategory
                       </SortableTableHead>
                     )}
                     {/* Optional: Quantity Purchased */}
@@ -2091,10 +2209,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             <EditableCell
                               value={item.category}
                               type="select"
-                              options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                              options={categoryNames.map(c => ({ value: c, label: c }))}
                               onSave={(v) => handleInlineUpdate(item.id, "category", v)}
                               disabled={!canModify}
                             />
+                          </TableCell>
+                        )}
+                        {/* Optional: Subcategory */}
+                        {isColumnVisible("subcategory") && (
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {item.subcategory || "-"}
+                            </span>
                           </TableCell>
                         )}
                         {/* Optional: Quantity Purchased */}
@@ -2228,6 +2354,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                               id: item.id,
                               name: item.name,
                               category: item.category,
+                              subcategory: item.subcategory || "",
                               quantity: item.quantity,
                               location: item.location,
                               brand: item.brand || "Unknown",
@@ -2254,25 +2381,74 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   <Input id="edit-name" placeholder="Enter item name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                                 </div>
 
-                                {/* Category & Brand Row */}
+                                {/* Category & Subcategory Row */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-2">
-                                    <Label htmlFor="edit-category">Category</Label>
-                                    <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as InventoryCategory })}>
+                                    <div className="flex items-center justify-between">
+                                      <Label htmlFor="edit-category">Category</Label>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() => setIsAddCategoryOpen(true)}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add
+                                      </Button>
+                                    </div>
+                                    <Select value={form.category} onValueChange={(v) => {
+                                      setForm({ ...form, category: v as InventoryCategory, subcategory: "" });
+                                    }}>
                                       <SelectTrigger id="edit-category">
                                         <SelectValue placeholder="Select category" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {CATEGORIES.map((c) => (
+                                        {categoryNames.map((c) => (
                                           <SelectItem key={c} value={c}>{c}</SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
                                   <div className="space-y-2">
-                                    <Label htmlFor="edit-brand">Brand</Label>
-                                    <Input id="edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+                                    <div className="flex items-center justify-between">
+                                      <Label htmlFor="edit-subcategory">Subcategory</Label>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() => {
+                                          setSelectedCategoryForSubcategory(form.category);
+                                          setIsAddSubcategoryOpen(true);
+                                        }}
+                                        disabled={!form.category}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add
+                                      </Button>
+                                    </div>
+                                    <Select
+                                      value={form.subcategory}
+                                      onValueChange={(v) => setForm({ ...form, subcategory: v })}
+                                      disabled={availableSubcategories.length === 0}
+                                    >
+                                      <SelectTrigger id="edit-subcategory">
+                                        <SelectValue placeholder={availableSubcategories.length === 0 ? "No subcategories" : "Select subcategory"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableSubcategories.map((s) => (
+                                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
+                                </div>
+
+                                {/* Brand Row */}
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-brand">Brand</Label>
+                                  <Input id="edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
                                 </div>
 
                                 {/* Quantity & Location Row */}
@@ -2736,6 +2912,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       id: item.id,
                       name: item.name,
                       category: item.category,
+                      subcategory: item.subcategory || "",
                       quantity: item.quantity,
                       location: item.location,
                       brand: item.brand || "Unknown",
@@ -2791,25 +2968,74 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 <Input id="catalog-edit-name" placeholder="Enter item name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
 
-              {/* Category & Brand Row */}
+              {/* Category & Subcategory Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="catalog-edit-category">Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as InventoryCategory })}>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="catalog-edit-category">Category</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setIsAddCategoryOpen(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  <Select value={form.category} onValueChange={(v) => {
+                    setForm({ ...form, category: v as InventoryCategory, subcategory: "" });
+                  }}>
                     <SelectTrigger id="catalog-edit-category">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {CATEGORIES.map((c) => (
+                      {categoryNames.map((c) => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="catalog-edit-brand">Brand</Label>
-                  <Input id="catalog-edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="catalog-edit-subcategory">Subcategory</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setSelectedCategoryForSubcategory(form.category);
+                        setIsAddSubcategoryOpen(true);
+                      }}
+                      disabled={!form.category}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  <Select
+                    value={form.subcategory}
+                    onValueChange={(v) => setForm({ ...form, subcategory: v })}
+                    disabled={availableSubcategories.length === 0}
+                  >
+                    <SelectTrigger id="catalog-edit-subcategory">
+                      <SelectValue placeholder={availableSubcategories.length === 0 ? "No subcategories" : "Select subcategory"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSubcategories.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              {/* Brand Row */}
+              <div className="space-y-2">
+                <Label htmlFor="catalog-edit-brand">Brand</Label>
+                <Input id="catalog-edit-brand" placeholder="Enter brand name" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
               </div>
 
               {/* Quantity & Location Row */}
@@ -2997,6 +3223,115 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add Category Dialog */}
+      <Dialog open={isAddCategoryOpen} onOpenChange={(open) => {
+        setIsAddCategoryOpen(open);
+        if (!open) setNewCategoryName("");
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Category</DialogTitle>
+            <DialogDescription>Create a new category for inventory items.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-category-name">Category Name</Label>
+              <Input
+                id="new-category-name"
+                placeholder="Enter category name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddCategoryOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!newCategoryName.trim()) {
+                toast.error("Category name is required");
+                return;
+              }
+              if (categoryNames.includes(newCategoryName.trim())) {
+                toast.error("Category already exists");
+                return;
+              }
+              const updated = await addCategory(newCategoryName.trim());
+              setCategories(updated);
+              toast.success(`Category "${newCategoryName.trim()}" added`);
+              setNewCategoryName("");
+              setIsAddCategoryOpen(false);
+            }}>
+              Add Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Subcategory Dialog */}
+      <Dialog open={isAddSubcategoryOpen} onOpenChange={(open) => {
+        setIsAddSubcategoryOpen(open);
+        if (!open) {
+          setNewSubcategoryName("");
+          setSelectedCategoryForSubcategory("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Subcategory</DialogTitle>
+            <DialogDescription>Create a new subcategory within a category.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="subcategory-parent">Parent Category</Label>
+              <Select value={selectedCategoryForSubcategory} onValueChange={setSelectedCategoryForSubcategory}>
+                <SelectTrigger id="subcategory-parent">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryNames.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-subcategory-name">Subcategory Name</Label>
+              <Input
+                id="new-subcategory-name"
+                placeholder="Enter subcategory name"
+                value={newSubcategoryName}
+                onChange={(e) => setNewSubcategoryName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddSubcategoryOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!selectedCategoryForSubcategory) {
+                toast.error("Please select a parent category");
+                return;
+              }
+              if (!newSubcategoryName.trim()) {
+                toast.error("Subcategory name is required");
+                return;
+              }
+              const cat = categories.find(c => c.name === selectedCategoryForSubcategory);
+              if (cat?.subcategories.includes(newSubcategoryName.trim())) {
+                toast.error("Subcategory already exists in this category");
+                return;
+              }
+              const updated = await addSubcategory(selectedCategoryForSubcategory, newSubcategoryName.trim());
+              setCategories(updated);
+              toast.success(`Subcategory "${newSubcategoryName.trim()}" added to ${selectedCategoryForSubcategory}`);
+              setNewSubcategoryName("");
+              setIsAddSubcategoryOpen(false);
+            }}>
+              Add Subcategory
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

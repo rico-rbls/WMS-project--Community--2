@@ -1,9 +1,16 @@
-export type InventoryCategory = "Electronics" | "Furniture" | "Clothing" | "Food";
+export type InventoryCategory = "Electronics" | "Furniture" | "Clothing" | "Food" | string;
+
+// Category with subcategories structure
+export interface CategoryDefinition {
+  name: string;
+  subcategories: string[];
+}
 
 export interface InventoryItem {
   id: string; // Human-readable code like INV-001
   name: string;
   category: InventoryCategory;
+  subcategory?: string; // Optional subcategory within the category
   quantity: number; // Remaining quantity (current stock)
   location: string;
   status: "In Stock" | "Low Stock" | "Critical" | "Overstock" | "Unknown";
@@ -25,6 +32,7 @@ export interface CreateInventoryItemInput {
   id?: string; // optional; will be generated if omitted
   name: string;
   category: InventoryCategory;
+  subcategory?: string;
   quantity: number; // Remaining quantity
   location: string;
   brand: string;
@@ -41,6 +49,7 @@ export interface UpdateInventoryItemInput {
   id: string;
   name?: string;
   category?: InventoryCategory;
+  subcategory?: string;
   quantity?: number;
   location?: string;
   brand?: string;

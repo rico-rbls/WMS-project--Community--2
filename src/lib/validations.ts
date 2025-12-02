@@ -57,9 +57,9 @@ export const inventoryItemSchema = z.object({
     .min(1, "Item name is required")
     .min(3, "Item name must be at least 3 characters")
     .max(100, "Item name must be less than 100 characters"),
-  category: z.enum(["Electronics", "Furniture", "Clothing", "Food"], {
-    errorMap: () => ({ message: "Please select a valid category" }),
-  }),
+  category: z.string()
+    .min(1, "Category is required"),
+  subcategory: z.string().optional(),
   quantity: z.coerce.number()
     .int("Quantity must be a whole number")
     .min(0, "Quantity cannot be negative"),
