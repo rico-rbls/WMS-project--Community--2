@@ -4,16 +4,16 @@ export interface InventoryItem {
   id: string; // Human-readable code like INV-001
   name: string;
   category: InventoryCategory;
-  quantity: number;
+  quantity: number; // Remaining quantity (current stock)
   location: string;
-  reorderLevel: number; // Kept for backward compatibility, same as minimumStock
   status: "In Stock" | "Low Stock" | "Critical" | "Overstock" | "Unknown";
-  // New fields
+  // Fields
   brand: string; // Manufacturer or brand name
   pricePerPiece: number; // Unit price for each item
   supplierId: string; // Reference to Supplier.id
-  maintainStockAt: number; // Target/optimal stock level
-  minimumStock: number; // Minimum stock level (same as reorderLevel)
+  quantityPurchased: number; // Total quantity purchased/received
+  quantitySold: number; // Total quantity sold/shipped
+  reorderRequired: boolean; // Whether this item needs to be reordered
   photoUrl?: string; // Optional product photo URL
   description?: string; // Optional product description
   // Archive fields
@@ -25,15 +25,14 @@ export interface CreateInventoryItemInput {
   id?: string; // optional; will be generated if omitted
   name: string;
   category: InventoryCategory;
-  quantity: number;
+  quantity: number; // Remaining quantity
   location: string;
-  reorderLevel: number;
-  // New fields
   brand: string;
   pricePerPiece: number;
   supplierId: string;
-  maintainStockAt: number;
-  minimumStock: number;
+  quantityPurchased: number;
+  quantitySold: number;
+  reorderRequired: boolean;
   photoUrl?: string;
   description?: string;
 }
@@ -44,13 +43,12 @@ export interface UpdateInventoryItemInput {
   category?: InventoryCategory;
   quantity?: number;
   location?: string;
-  reorderLevel?: number;
-  // New fields
   brand?: string;
   pricePerPiece?: number;
   supplierId?: string;
-  maintainStockAt?: number;
-  minimumStock?: number;
+  quantityPurchased?: number;
+  quantitySold?: number;
+  reorderRequired?: boolean;
   photoUrl?: string;
   description?: string;
 }

@@ -29,12 +29,12 @@ describe('Inventory API', () => {
       category: 'Electronics',
       quantity: 10,
       location: 'A-1',
-      reorderLevel: 2,
       brand: 'Acme',
       pricePerPiece: 5,
       supplierId: 'SUP-001',
-      maintainStockAt: 20,
-      minimumStock: 2,
+      quantityPurchased: 20,
+      quantitySold: 10,
+      reorderRequired: false,
     })
     let list = await getInventory()
     expect(list.find(i => i.id === created.id)).toBeTruthy()

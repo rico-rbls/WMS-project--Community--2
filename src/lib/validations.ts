@@ -66,11 +66,6 @@ export const inventoryItemSchema = z.object({
   location: z.string()
     .min(1, "Location is required")
     .regex(/^[A-Z]-\d+$/, "Location must be in format A-12 (Letter-Number)"),
-  reorderLevel: z.coerce.number()
-    .int("Reorder level must be a whole number")
-    .min(0, "Reorder level cannot be negative")
-    .max(10000, "Reorder level seems too high"),
-  // New fields
   brand: z.string()
     .min(1, "Brand is required")
     .min(2, "Brand must be at least 2 characters")
@@ -81,21 +76,14 @@ export const inventoryItemSchema = z.object({
   supplierId: z.string()
     .min(1, "Supplier is required")
     .regex(/^SUP-\d+$/, "Supplier ID must be in format SUP-001"),
-  maintainStockAt: z.coerce.number()
-    .int("Maintain stock at must be a whole number")
-    .min(0, "Maintain stock at cannot be negative")
-    .max(100000, "Maintain stock at seems too high"),
-  minimumStock: z.coerce.number()
-    .int("Minimum stock must be a whole number")
-    .min(0, "Minimum stock cannot be negative")
-    .max(100000, "Minimum stock seems too high"),
-}).refine(
-  (data) => data.maintainStockAt >= data.minimumStock,
-  {
-    message: "Maintain stock at must be greater than or equal to minimum stock",
-    path: ["maintainStockAt"],
-  }
-);
+  quantityPurchased: z.coerce.number()
+    .int("Quantity purchased must be a whole number")
+    .min(0, "Quantity purchased cannot be negative"),
+  quantitySold: z.coerce.number()
+    .int("Quantity sold must be a whole number")
+    .min(0, "Quantity sold cannot be negative"),
+  reorderRequired: z.boolean(),
+});
 
 export type InventoryItemInput = z.infer<typeof inventoryItemSchema>;
 

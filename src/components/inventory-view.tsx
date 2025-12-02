@@ -114,12 +114,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     category: "Electronics" as InventoryCategory,
     quantity: "" as string | number,
     location: "",
-    reorderLevel: "" as string | number,
     brand: "",
     pricePerPiece: "" as string | number,
     supplierId: "",
-    maintainStockAt: "" as string | number,
-    minimumStock: "" as string | number,
+    quantityPurchased: "" as string | number,
+    quantitySold: "" as string | number,
+    reorderRequired: false,
     photoUrl: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -178,15 +178,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
     return inventory.map(item => {
       // Check if item has new fields, if not, add defaults
-      if (!item.brand || item.pricePerPiece === undefined || !item.supplierId ||
-        item.maintainStockAt === undefined || item.minimumStock === undefined) {
+      if (item.quantityPurchased === undefined || item.quantitySold === undefined ||
+        item.reorderRequired === undefined) {
         return {
           ...item,
           brand: item.brand || "Unknown",
           pricePerPiece: item.pricePerPiece ?? 0,
           supplierId: item.supplierId || "SUP-001",
-          maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-          minimumStock: item.minimumStock ?? item.reorderLevel,
+          quantityPurchased: item.quantityPurchased ?? Math.floor(item.quantity * 1.5),
+          quantitySold: item.quantitySold ?? Math.floor(item.quantity * 0.5),
+          reorderRequired: item.reorderRequired ?? false,
         };
       }
       return item;
@@ -272,12 +273,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
     const totalValue = items.reduce((sum, item) => sum + (item.pricePerPiece * item.quantity), 0);
 
-    // Status counts
-    const inStockCount = items.filter(item => item.quantity > item.maintainStockAt).length;
-    const lowStockCount = items.filter(item => item.quantity <= item.maintainStockAt && item.quantity > item.minimumStock).length;
-    const criticalCount = items.filter(item => item.quantity <= item.minimumStock && item.quantity > 0).length;
+    // Status counts based on reorderRequired and quantity
+    const inStockCount = items.filter(item => item.quantity > 0 && !item.reorderRequired).length;
+    const lowStockCount = items.filter(item => item.reorderRequired && item.quantity > 0).length;
+    const criticalCount = items.filter(item => item.quantity <= 10 && item.quantity > 0).length;
     const outOfStockCount = items.filter(item => item.quantity === 0).length;
-    const overstockCount = items.filter(item => item.quantity > item.maintainStockAt * 1.5).length;
+    const overstockCount = items.filter(item => item.quantity > 200).length; // Arbitrary threshold for overstock
 
     // Category breakdown
     const categoryBreakdown = CATEGORIES.reduce((acc, cat) => {
@@ -285,8 +286,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       return acc;
     }, {} as Record<InventoryCategory, number>);
 
-    // Health rate (items at or above maintain stock level)
-    const healthyItems = items.filter(item => item.quantity >= item.maintainStockAt).length;
+    // Health rate (items not requiring reorder)
+    const healthyItems = items.filter(item => !item.reorderRequired && item.quantity > 0).length;
     const healthRate = totalItems > 0 ? Math.round((healthyItems / totalItems) * 100) : 0;
 
     return {
@@ -329,7 +330,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   // Bulk operation states
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [bulkUpdateType, setBulkUpdateType] = useState<"category" | "status" | "location" | "reorderLevel" | "supplier" | null>(null);
+  const [bulkUpdateType, setBulkUpdateType] = useState<"category" | "status" | "location" | "reorderRequired" | "supplier" | null>(null);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   function resetForm() {
@@ -341,12 +342,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       category: defaultCategory,
       quantity: "",
       location: autoLocation,
-      reorderLevel: "",
       brand: "",
       pricePerPiece: "",
       supplierId: "",
-      maintainStockAt: "",
-      minimumStock: "",
+      quantityPurchased: "",
+      quantitySold: "",
+      reorderRequired: false,
       photoUrl: "",
     });
     setFieldErrors({});
@@ -418,12 +419,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         category: form.category,
         quantity: form.quantity,
         location: form.location,
-        reorderLevel: form.reorderLevel,
         brand: form.brand,
         pricePerPiece: form.pricePerPiece,
         supplierId: form.supplierId,
-        maintainStockAt: form.maintainStockAt,
-        minimumStock: form.minimumStock,
+        quantityPurchased: form.quantityPurchased,
+        quantitySold: form.quantitySold,
+        reorderRequired: form.reorderRequired,
       });
 
       if (!result.success) {
@@ -458,12 +459,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         category: form.category,
         quantity: Number(form.quantity) || 0,
         location: form.location,
-        reorderLevel: Number(form.reorderLevel) || 0,
         brand: form.brand,
         pricePerPiece: Number(form.pricePerPiece) || 0,
         supplierId: form.supplierId,
-        maintainStockAt: Number(form.maintainStockAt) || 0,
-        minimumStock: Number(form.minimumStock) || 0,
+        quantityPurchased: Number(form.quantityPurchased) || 0,
+        quantitySold: Number(form.quantitySold) || 0,
+        reorderRequired: form.reorderRequired,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory([created, ...(inventory ?? [])]);
@@ -492,12 +493,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         category: form.category,
         quantity: Number(form.quantity) || 0,
         location: form.location,
-        reorderLevel: Number(form.reorderLevel) || 0,
         brand: form.brand,
         pricePerPiece: Number(form.pricePerPiece) || 0,
         supplierId: form.supplierId,
-        maintainStockAt: Number(form.maintainStockAt) || 0,
-        minimumStock: Number(form.minimumStock) || 0,
+        quantityPurchased: Number(form.quantityPurchased) || 0,
+        quantitySold: Number(form.quantitySold) || 0,
+        reorderRequired: form.reorderRequired,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory((inventory ?? []).map((i) => (i.id === updated.id ? updated : i)));
@@ -596,12 +597,13 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           const category = row.Category || row.category || row.CATEGORY;
           const quantity = Number(row.Quantity || row.quantity || row.QUANTITY || 0);
           const location = row.Location || row.location || row.LOCATION || "";
-          const reorderLevel = Number(row["Reorder Level"] || row.reorderLevel || row.ReorderLevel || 0);
           const brand = row.Brand || row.brand || row.BRAND || "Unknown";
           const pricePerPiece = Number(row["Price Per Piece"] || row.pricePerPiece || row.Price || row.price || 0);
           const supplierId = row["Supplier ID"] || row.supplierId || row.SupplierId || "";
-          const maintainStockAt = Number(row["Maintain Stock At"] || row.maintainStockAt || reorderLevel * 2);
-          const minimumStock = Number(row["Minimum Stock"] || row.minimumStock || reorderLevel);
+          const quantityPurchased = Number(row["Quantity Purchased"] || row.quantityPurchased || 0);
+          const quantitySold = Number(row["Quantity Sold"] || row.quantitySold || 0);
+          const reorderRequiredRaw = row["Reorder Required"] || row.reorderRequired || "false";
+          const reorderRequired = reorderRequiredRaw === true || reorderRequiredRaw === "true" || reorderRequiredRaw === "yes" || reorderRequiredRaw === "Yes";
           const photoUrl = row["Photo URL"] || row.photoUrl || row.PhotoUrl || "";
 
           // Validate required fields
@@ -627,12 +629,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             category: category as InventoryCategory,
             quantity,
             location,
-            reorderLevel,
             brand,
             pricePerPiece,
             supplierId,
-            maintainStockAt,
-            minimumStock,
+            quantityPurchased,
+            quantitySold,
+            reorderRequired,
             photoUrl: photoUrl || undefined,
           });
         });
@@ -664,12 +666,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           category: item.category!,
           quantity: item.quantity ?? 0,
           location: item.location ?? "",
-          reorderLevel: item.reorderLevel ?? 0,
           brand: item.brand ?? "Unknown",
           pricePerPiece: item.pricePerPiece ?? 0,
           supplierId: item.supplierId ?? "",
-          maintainStockAt: item.maintainStockAt ?? 0,
-          minimumStock: item.minimumStock ?? 0,
+          quantityPurchased: item.quantityPurchased ?? 0,
+          quantitySold: item.quantitySold ?? 0,
+          reorderRequired: item.reorderRequired ?? false,
           photoUrl: item.photoUrl,
         });
         createdItems.push(created);
@@ -867,8 +869,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         case "location":
           updates = { location: value };
           break;
-        case "reorderLevel":
-          updates = { reorderLevel: parseInt(value, 10) };
+        case "reorderRequired":
+          updates = { reorderRequired: value === "true" };
           break;
         case "supplier":
           updates = { supplierId: value };
@@ -927,14 +929,15 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           placeholder: "e.g., A-12",
           validate: (v) => v.trim().length === 0 ? "Location is required" : null,
         };
-      case "reorderLevel":
+      case "reorderRequired":
         return {
-          type: "number",
-          label: "New Reorder Level",
-          placeholder: "Enter reorder level",
-          min: 0,
-          step: 1,
-          validate: (v) => parseInt(v, 10) < 0 ? "Reorder level must be positive" : null,
+          type: "select",
+          label: "Reorder Required",
+          placeholder: "Select option",
+          options: [
+            { value: "true", label: "Yes" },
+            { value: "false", label: "No" },
+          ],
         };
       case "supplier":
         return {
@@ -1348,49 +1351,51 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="reorder">Reorder Level</Label>
+                          <Label htmlFor="quantityPurchased">Quantity Purchased</Label>
                           <Input
-                            id="reorder"
+                            id="quantityPurchased"
                             type="number"
                             placeholder="0"
-                            value={form.reorderLevel}
+                            value={form.quantityPurchased}
                             onChange={(e) => {
-                              setForm({ ...form, reorderLevel: e.target.value });
-                              clearFieldError("reorderLevel");
+                              setForm({ ...form, quantityPurchased: e.target.value });
+                              clearFieldError("quantityPurchased");
                             }}
-                            className={fieldErrors.reorderLevel ? "border-red-500" : ""}
+                            className={fieldErrors.quantityPurchased ? "border-red-500" : ""}
                           />
-                          {fieldErrors.reorderLevel && <p className="text-sm text-red-500">{fieldErrors.reorderLevel}</p>}
+                          {fieldErrors.quantityPurchased && <p className="text-sm text-red-500">{fieldErrors.quantityPurchased}</p>}
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="minimumStock">Minimum Stock</Label>
+                          <Label htmlFor="quantitySold">Quantity Sold</Label>
                           <Input
-                            id="minimumStock"
+                            id="quantitySold"
                             type="number"
                             placeholder="0"
-                            value={form.minimumStock}
+                            value={form.quantitySold}
                             onChange={(e) => {
-                              setForm({ ...form, minimumStock: e.target.value });
-                              clearFieldError("minimumStock");
+                              setForm({ ...form, quantitySold: e.target.value });
+                              clearFieldError("quantitySold");
                             }}
-                            className={fieldErrors.minimumStock ? "border-red-500" : ""}
+                            className={fieldErrors.quantitySold ? "border-red-500" : ""}
                           />
-                          {fieldErrors.minimumStock && <p className="text-sm text-red-500">{fieldErrors.minimumStock}</p>}
+                          {fieldErrors.quantitySold && <p className="text-sm text-red-500">{fieldErrors.quantitySold}</p>}
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="maintainStock">Maintain Stock At</Label>
-                          <Input
-                            id="maintainStock"
-                            type="number"
-                            placeholder="0"
-                            value={form.maintainStockAt}
-                            onChange={(e) => {
-                              setForm({ ...form, maintainStockAt: e.target.value });
-                              clearFieldError("maintainStockAt");
+                          <Label htmlFor="reorderRequired">Reorder Required</Label>
+                          <Select
+                            value={form.reorderRequired ? "true" : "false"}
+                            onValueChange={(value) => {
+                              setForm({ ...form, reorderRequired: value === "true" });
                             }}
-                            className={fieldErrors.maintainStockAt ? "border-red-500" : ""}
-                          />
-                          {fieldErrors.maintainStockAt && <p className="text-sm text-red-500">{fieldErrors.maintainStockAt}</p>}
+                          >
+                            <SelectTrigger id="reorderRequired">
+                              <SelectValue placeholder="Select..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="false">No</SelectItem>
+                              <SelectItem value="true">Yes</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -1578,10 +1583,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     { value: "category", label: "Update Category" },
                     { value: "status", label: "Update Status" },
                     { value: "location", label: "Update Location" },
-                    { value: "reorderLevel", label: "Update Reorder Level" },
+                    { value: "reorderRequired", label: "Update Reorder Required" },
                     { value: "supplier", label: "Update Supplier" },
                   ],
-                  onSelect: (value) => setBulkUpdateType(value as "category" | "status" | "location" | "reorderLevel" | "supplier"),
+                  onSelect: (value) => setBulkUpdateType(value as "category" | "status" | "location" | "reorderRequired" | "supplier"),
                 },
               ]}
               className="mb-4"
@@ -1610,8 +1615,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             <BulkUpdateDialog
               open={!!bulkUpdateType}
               onOpenChange={(open) => !open && setBulkUpdateType(null)}
-              title={`Update ${bulkUpdateType === "price" ? "Price" : bulkUpdateType === "location" ? "Location" : bulkUpdateType === "reorderLevel" ? "Reorder Level" : "Supplier"}`}
-              description={`Set new ${bulkUpdateType === "price" ? "price" : bulkUpdateType === "location" ? "location" : bulkUpdateType === "reorderLevel" ? "reorder level" : "supplier"} for selected items`}
+              title={`Update ${bulkUpdateType === "reorderRequired" ? "Reorder Required" : bulkUpdateType === "location" ? "Location" : bulkUpdateType === "category" ? "Category" : "Supplier"}`}
+              description={`Set new ${bulkUpdateType === "reorderRequired" ? "reorder required status" : bulkUpdateType === "location" ? "location" : bulkUpdateType === "category" ? "category" : "supplier"} for selected items`}
               itemCount={selectionCount}
               itemNames={selectedItemNames}
               field={getBulkUpdateField()!}
@@ -1757,12 +1762,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   category: item.category,
                                   quantity: item.quantity,
                                   location: item.location,
-                                  reorderLevel: item.reorderLevel,
                                   brand: item.brand || "Unknown",
                                   pricePerPiece: item.pricePerPiece ?? 0,
                                   supplierId: item.supplierId || "SUP-001",
-                                  maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                                  minimumStock: item.minimumStock ?? item.reorderLevel,
+                                  quantityPurchased: item.quantityPurchased ?? 0,
+                                  quantitySold: item.quantitySold ?? 0,
+                                  reorderRequired: item.reorderRequired ?? false,
                                   photoUrl: item.photoUrl || "",
                                 });
                               }}
@@ -2012,12 +2017,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                               category: item.category,
                               quantity: item.quantity,
                               location: item.location,
-                              reorderLevel: item.reorderLevel,
                               brand: item.brand || "Unknown",
                               pricePerPiece: item.pricePerPiece ?? 0,
                               supplierId: item.supplierId || "SUP-001",
-                              maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                              minimumStock: item.minimumStock ?? item.reorderLevel,
+                              quantityPurchased: item.quantityPurchased ?? 0,
+                              quantitySold: item.quantitySold ?? 0,
+                              reorderRequired: item.reorderRequired ?? false,
                               photoUrl: item.photoUrl || "",
                             });
                           }}>
@@ -2169,16 +2174,27 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
                                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div className="space-y-2">
-                                      <Label htmlFor="edit-reorder">Reorder Level</Label>
-                                      <Input id="edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
+                                      <Label htmlFor="edit-quantityPurchased">Quantity Purchased</Label>
+                                      <Input id="edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} onChange={(e) => setForm({ ...form, quantityPurchased: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label htmlFor="edit-minimumStock">Minimum Stock</Label>
-                                      <Input id="edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: e.target.value })} />
+                                      <Label htmlFor="edit-quantitySold">Quantity Sold</Label>
+                                      <Input id="edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label htmlFor="edit-maintainStock">Maintain Stock At</Label>
-                                      <Input id="edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: e.target.value })} />
+                                      <Label htmlFor="edit-reorderRequired">Reorder Required</Label>
+                                      <Select
+                                        value={form.reorderRequired ? "true" : "false"}
+                                        onValueChange={(value) => setForm({ ...form, reorderRequired: value === "true" })}
+                                      >
+                                        <SelectTrigger id="edit-reorderRequired">
+                                          <SelectValue placeholder="Select..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="false">No</SelectItem>
+                                          <SelectItem value="true">Yes</SelectItem>
+                                        </SelectContent>
+                                      </Select>
                                     </div>
                                   </div>
                                 </div>
@@ -2465,18 +2481,24 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     <TrendingUp className="h-4 w-4" />
                     Stock Levels
                   </h4>
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="grid grid-cols-4 gap-4 text-center">
                     <div className="p-3 rounded-md bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Minimum Stock</p>
-                      <p className="text-lg font-semibold">{item.minimumStock ?? item.reorderLevel}</p>
+                      <p className="text-xs text-muted-foreground">Qty Purchased</p>
+                      <p className="text-lg font-semibold">{item.quantityPurchased ?? 0}</p>
                     </div>
                     <div className="p-3 rounded-md bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Current Stock</p>
+                      <p className="text-xs text-muted-foreground">Qty Sold</p>
+                      <p className="text-lg font-semibold">{item.quantitySold ?? 0}</p>
+                    </div>
+                    <div className="p-3 rounded-md bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Remaining</p>
                       <p className="text-lg font-semibold text-primary">{item.quantity}</p>
                     </div>
                     <div className="p-3 rounded-md bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Target Stock</p>
-                      <p className="text-lg font-semibold">{item.maintainStockAt ?? "-"}</p>
+                      <p className="text-xs text-muted-foreground">Reorder Required</p>
+                      <Badge variant={item.reorderRequired ? "destructive" : "secondary"} className="mt-1">
+                        {item.reorderRequired ? "Yes" : "No"}
+                      </Badge>
                     </div>
                   </div>
                 </div>
@@ -2503,12 +2525,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       category: item.category,
                       quantity: item.quantity,
                       location: item.location,
-                      reorderLevel: item.reorderLevel,
                       brand: item.brand || "Unknown",
                       pricePerPiece: item.pricePerPiece ?? 0,
                       supplierId: item.supplierId || "SUP-001",
-                      maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-                      minimumStock: item.minimumStock ?? item.reorderLevel,
+                      quantityPurchased: item.quantityPurchased ?? 0,
+                      quantitySold: item.quantitySold ?? 0,
+                      reorderRequired: item.reorderRequired ?? false,
                       photoUrl: item.photoUrl || "",
                     });
                     setIsEditOpen(item.id);
@@ -2689,16 +2711,27 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="catalog-edit-reorder">Reorder Level</Label>
-                    <Input id="catalog-edit-reorder" type="number" placeholder="0" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
+                    <Label htmlFor="catalog-edit-quantityPurchased">Quantity Purchased</Label>
+                    <Input id="catalog-edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} onChange={(e) => setForm({ ...form, quantityPurchased: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="catalog-edit-minimumStock">Minimum Stock</Label>
-                    <Input id="catalog-edit-minimumStock" type="number" placeholder="0" value={form.minimumStock} onChange={(e) => setForm({ ...form, minimumStock: e.target.value })} />
+                    <Label htmlFor="catalog-edit-quantitySold">Quantity Sold</Label>
+                    <Input id="catalog-edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="catalog-edit-maintainStock">Maintain Stock At</Label>
-                    <Input id="catalog-edit-maintainStock" type="number" placeholder="0" value={form.maintainStockAt} onChange={(e) => setForm({ ...form, maintainStockAt: e.target.value })} />
+                    <Label htmlFor="catalog-edit-reorderRequired">Reorder Required</Label>
+                    <Select
+                      value={form.reorderRequired ? "true" : "false"}
+                      onValueChange={(value) => setForm({ ...form, reorderRequired: value === "true" })}
+                    >
+                      <SelectTrigger id="catalog-edit-reorderRequired">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="false">No</SelectItem>
+                        <SelectItem value="true">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

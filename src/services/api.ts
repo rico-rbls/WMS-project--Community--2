@@ -77,14 +77,14 @@ export function resetToDefaultData(): void {
 // ============================================================================
 
 const DEFAULT_INVENTORY: InventoryItem[] = [
-  { id: "INV-001", name: "Laptop Computer", category: "Electronics", quantity: 145, location: "A-12", reorderLevel: 50, status: "In Stock", brand: "Dell", pricePerPiece: 899.99, supplierId: "SUP-001", maintainStockAt: 100, minimumStock: 50, description: "15.6-inch display, Intel Core i7 processor, 16GB RAM, 512GB SSD. Perfect for business and professional use with long battery life and lightweight design." },
-  { id: "INV-002", name: "Office Chair", category: "Furniture", quantity: 23, location: "B-08", reorderLevel: 30, status: "Low Stock", brand: "Herman Miller", pricePerPiece: 549.00, supplierId: "SUP-002", maintainStockAt: 50, minimumStock: 30, description: "Ergonomic office chair with adjustable lumbar support, armrests, and seat height. Breathable mesh back for all-day comfort." },
-  { id: "INV-003", name: "Standing Desk", category: "Furniture", quantity: 67, location: "B-05", reorderLevel: 20, status: "In Stock", brand: "Uplift", pricePerPiece: 799.00, supplierId: "SUP-002", maintainStockAt: 40, minimumStock: 20, description: "Electric height-adjustable standing desk with memory presets. 60x30 inch bamboo top with cable management system." },
-  { id: "INV-004", name: "Wireless Mouse", category: "Electronics", quantity: 8, location: "A-15", reorderLevel: 25, status: "Critical", brand: "Logitech", pricePerPiece: 29.99, supplierId: "SUP-003", maintainStockAt: 50, minimumStock: 25, description: "Ergonomic wireless mouse with customizable buttons and long battery life. 2.4GHz wireless connection with USB receiver." },
-  { id: "INV-005", name: "USB-C Cable", category: "Electronics", quantity: 234, location: "A-20", reorderLevel: 100, status: "In Stock", brand: "Anker", pricePerPiece: 12.99, supplierId: "SUP-001", maintainStockAt: 200, minimumStock: 100, description: "Premium braided USB-C to USB-C cable, 6ft length. Supports fast charging up to 100W and data transfer speeds up to 480Mbps." },
-  { id: "INV-006", name: "Monitor 27\"", category: "Electronics", quantity: 89, location: "A-10", reorderLevel: 40, status: "In Stock", brand: "LG", pricePerPiece: 349.99, supplierId: "SUP-003", maintainStockAt: 80, minimumStock: 40, description: "27-inch 4K UHD IPS display with HDR10 support. USB-C connectivity with 65W power delivery. Ideal for creative professionals." },
-  { id: "INV-007", name: "Keyboard Mechanical", category: "Electronics", quantity: 156, location: "A-14", reorderLevel: 50, status: "In Stock", brand: "Corsair", pricePerPiece: 129.99, supplierId: "SUP-001", maintainStockAt: 100, minimumStock: 50, description: "Full-size mechanical keyboard with Cherry MX Brown switches. RGB backlighting with dedicated media controls and USB passthrough." },
-  { id: "INV-008", name: "Filing Cabinet", category: "Furniture", quantity: 34, location: "B-03", reorderLevel: 15, status: "In Stock", brand: "Steelcase", pricePerPiece: 299.00, supplierId: "SUP-002", maintainStockAt: 30, minimumStock: 15, description: "4-drawer vertical filing cabinet with full-extension drawers. Built-in lock for security. Holds letter and legal size documents." },
+  { id: "INV-001", name: "Laptop Computer", category: "Electronics", quantity: 145, location: "A-12", status: "In Stock", brand: "Dell", pricePerPiece: 899.99, supplierId: "SUP-001", quantityPurchased: 200, quantitySold: 55, reorderRequired: false, description: "15.6-inch display, Intel Core i7 processor, 16GB RAM, 512GB SSD. Perfect for business and professional use with long battery life and lightweight design." },
+  { id: "INV-002", name: "Office Chair", category: "Furniture", quantity: 23, location: "B-08", status: "Low Stock", brand: "Herman Miller", pricePerPiece: 549.00, supplierId: "SUP-002", quantityPurchased: 100, quantitySold: 77, reorderRequired: true, description: "Ergonomic office chair with adjustable lumbar support, armrests, and seat height. Breathable mesh back for all-day comfort." },
+  { id: "INV-003", name: "Standing Desk", category: "Furniture", quantity: 67, location: "B-05", status: "In Stock", brand: "Uplift", pricePerPiece: 799.00, supplierId: "SUP-002", quantityPurchased: 120, quantitySold: 53, reorderRequired: false, description: "Electric height-adjustable standing desk with memory presets. 60x30 inch bamboo top with cable management system." },
+  { id: "INV-004", name: "Wireless Mouse", category: "Electronics", quantity: 8, location: "A-15", status: "Critical", brand: "Logitech", pricePerPiece: 29.99, supplierId: "SUP-003", quantityPurchased: 150, quantitySold: 142, reorderRequired: true, description: "Ergonomic wireless mouse with customizable buttons and long battery life. 2.4GHz wireless connection with USB receiver." },
+  { id: "INV-005", name: "USB-C Cable", category: "Electronics", quantity: 234, location: "A-20", status: "In Stock", brand: "Anker", pricePerPiece: 12.99, supplierId: "SUP-001", quantityPurchased: 500, quantitySold: 266, reorderRequired: false, description: "Premium braided USB-C to USB-C cable, 6ft length. Supports fast charging up to 100W and data transfer speeds up to 480Mbps." },
+  { id: "INV-006", name: "Monitor 27\"", category: "Electronics", quantity: 89, location: "A-10", status: "In Stock", brand: "LG", pricePerPiece: 349.99, supplierId: "SUP-003", quantityPurchased: 150, quantitySold: 61, reorderRequired: false, description: "27-inch 4K UHD IPS display with HDR10 support. USB-C connectivity with 65W power delivery. Ideal for creative professionals." },
+  { id: "INV-007", name: "Keyboard Mechanical", category: "Electronics", quantity: 156, location: "A-14", status: "In Stock", brand: "Corsair", pricePerPiece: 129.99, supplierId: "SUP-001", quantityPurchased: 250, quantitySold: 94, reorderRequired: false, description: "Full-size mechanical keyboard with Cherry MX Brown switches. RGB backlighting with dedicated media controls and USB passthrough." },
+  { id: "INV-008", name: "Filing Cabinet", category: "Furniture", quantity: 34, location: "B-03", status: "In Stock", brand: "Steelcase", pricePerPiece: 299.00, supplierId: "SUP-002", quantityPurchased: 60, quantitySold: 26, reorderRequired: false, description: "4-drawer vertical filing cabinet with full-extension drawers. Built-in lock for security. Holds letter and legal size documents." },
 ];
 
 const DEFAULT_SUPPLIERS: Supplier[] = [
@@ -199,15 +199,28 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
 function migrateInventoryItems(items: any[]): InventoryItem[] {
   return items.map(item => {
     // Check if item has new fields, if not, add defaults
-    if (!item.brand || item.pricePerPiece === undefined || !item.supplierId ||
-      item.maintainStockAt === undefined || item.minimumStock === undefined) {
+    const needsMigration = item.quantityPurchased === undefined ||
+      item.quantitySold === undefined ||
+      item.reorderRequired === undefined;
+
+    if (needsMigration) {
+      // Remove old fields that no longer exist
+      const { reorderLevel, maintainStockAt, minimumStock, ...rest } = item;
+
+      // Calculate new field values from old data or set reasonable defaults
+      const quantityPurchased = item.quantityPurchased ?? Math.floor(item.quantity * 1.5);
+      const quantitySold = item.quantitySold ?? Math.floor(quantityPurchased - item.quantity);
+      // Item needs reorder if quantity is low (using old logic if available)
+      const reorderRequired = item.reorderRequired ?? (item.quantity <= (item.minimumStock ?? item.reorderLevel ?? 20));
+
       return {
-        ...item,
+        ...rest,
         brand: item.brand || "Unknown",
         pricePerPiece: item.pricePerPiece ?? 0,
         supplierId: item.supplierId || "SUP-001",
-        maintainStockAt: item.maintainStockAt ?? (item.reorderLevel * 2),
-        minimumStock: item.minimumStock ?? item.reorderLevel,
+        quantityPurchased,
+        quantitySold,
+        reorderRequired,
       };
     }
     return item;
@@ -254,11 +267,9 @@ saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
 // Helper Functions
 // ============================================================================
 
-function computeStatus(quantity: number, reorderLevel: number, maintainStockAt?: number): InventoryItem["status"] {
+function computeStatus(quantity: number, reorderRequired: boolean): InventoryItem["status"] {
   if (quantity <= 0) return "Critical";
-  if (quantity <= Math.max(1, reorderLevel)) return "Low Stock";
-  // Check for overstock: quantity exceeds the target/optimal stock level
-  if (maintainStockAt && maintainStockAt > 0 && quantity > maintainStockAt) return "Overstock";
+  if (reorderRequired) return "Low Stock";
   return "In Stock";
 }
 
@@ -297,23 +308,23 @@ export async function getInventory(): Promise<InventoryItem[]> {
 export async function createInventoryItem(input: CreateInventoryItemInput): Promise<InventoryItem> {
   const id = input.id && input.id.trim() !== "" ? input.id : generateId();
   const quantity = Math.max(0, Math.floor(input.quantity));
-  const reorderLevel = Math.max(0, Math.floor(input.reorderLevel));
-  const minimumStock = Math.max(0, Math.floor(input.minimumStock));
-  const maintainStockAt = Math.max(0, Math.floor(input.maintainStockAt));
-  const status = computeStatus(quantity, reorderLevel, maintainStockAt);
+  const quantityPurchased = Math.max(0, Math.floor(input.quantityPurchased));
+  const quantitySold = Math.max(0, Math.floor(input.quantitySold));
+  const reorderRequired = input.reorderRequired;
+  const status = computeStatus(quantity, reorderRequired);
   const item: InventoryItem = {
     id,
     name: input.name.trim(),
     category: input.category,
     quantity,
     location: input.location.trim(),
-    reorderLevel,
     status,
     brand: input.brand.trim(),
     pricePerPiece: input.pricePerPiece,
     supplierId: input.supplierId.trim(),
-    maintainStockAt,
-    minimumStock,
+    quantityPurchased,
+    quantitySold,
+    reorderRequired,
   };
   const exists = inventory.some((i) => i.id === id);
   if (exists) throw new Error(`Item with id ${id} already exists`);
@@ -329,17 +340,17 @@ export async function updateInventoryItem(input: UpdateInventoryItemInput): Prom
   if (index === -1) throw new Error("Item not found");
   const prev = inventory[index];
   const quantity = input.quantity !== undefined ? Math.max(0, Math.floor(input.quantity)) : prev.quantity;
-  const reorderLevel = input.reorderLevel !== undefined ? Math.max(0, Math.floor(input.reorderLevel)) : prev.reorderLevel;
-  const minimumStock = input.minimumStock !== undefined ? Math.max(0, Math.floor(input.minimumStock)) : prev.minimumStock;
-  const maintainStockAt = input.maintainStockAt !== undefined ? Math.max(0, Math.floor(input.maintainStockAt)) : prev.maintainStockAt;
+  const quantityPurchased = input.quantityPurchased !== undefined ? Math.max(0, Math.floor(input.quantityPurchased)) : prev.quantityPurchased;
+  const quantitySold = input.quantitySold !== undefined ? Math.max(0, Math.floor(input.quantitySold)) : prev.quantitySold;
+  const reorderRequired = input.reorderRequired !== undefined ? input.reorderRequired : prev.reorderRequired;
   const next: InventoryItem = {
     ...prev,
     ...input,
     quantity,
-    reorderLevel,
-    minimumStock,
-    maintainStockAt,
-    status: computeStatus(quantity, reorderLevel, maintainStockAt),
+    quantityPurchased,
+    quantitySold,
+    reorderRequired,
+    status: computeStatus(quantity, reorderRequired),
   };
 
   inventory[index] = next;
