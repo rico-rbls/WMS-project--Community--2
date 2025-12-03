@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink, DollarSign, Activity, Target, BarChart3, TrendingDown, Gauge, Star, Calendar, RefreshCw } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink, DollarSign, Activity, Target, BarChart3, TrendingDown, Gauge, Star, Calendar, RefreshCw, Landmark, Wallet, CreditCard, Banknote } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart, Legend } from "recharts";
 import { useAppContext } from "../context/app-context";
 import { useIsMobile } from "./ui/use-mobile";
@@ -9,9 +9,9 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toast } from "sonner";
-import type { InventoryCategory, PurchaseOrder } from "../types";
+import type { InventoryCategory, PurchaseOrder, CashBankTransaction, PaymentTransaction } from "../types";
 import type { ViewType } from "../App";
-import { getPurchaseOrders } from "../services/api";
+import { getPurchaseOrders, getCashBankTransactions, getPaymentTransactions } from "../services/api";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { Progress } from "./ui/progress";
@@ -37,10 +37,20 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   const isMobile = useIsMobile();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [cashBankTransactions, setCashBankTransactions] = useState<CashBankTransaction[]>([]);
+  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
 
-  // Fetch purchase orders
+  // Fetch purchase orders, cash/bank transactions, and payment transactions
   useEffect(() => {
-    getPurchaseOrders().then(setPurchaseOrders).catch(console.error);
+    Promise.all([
+      getPurchaseOrders(),
+      getCashBankTransactions(),
+      getPaymentTransactions(),
+    ]).then(([pos, cashBank, payments]) => {
+      setPurchaseOrders(pos);
+      setCashBankTransactions(cashBank);
+      setPaymentTransactions(payments);
+    }).catch(console.error);
   }, []);
 
   const handleRefresh = async (silent = false) => {
@@ -52,6 +62,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         refreshShipments(),
         refreshSuppliers(),
         getPurchaseOrders().then(setPurchaseOrders),
+        getCashBankTransactions().then(setCashBankTransactions),
+        getPaymentTransactions().then(setPaymentTransactions),
       ]);
       if (!silent) {
         toast.success("Dashboard refreshed");
@@ -190,6 +202,78 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       totalExcessValue,
     };
   }, [inventory, orders, shipments, suppliers, purchaseOrders]);
+
+  // Calculate Cash Flow Statistics
+  const cashFlowStats = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    // Cash & Bank (Receipts) statistics
+    const activeReceipts = cashBankTransactions.filter(trx => !trx.archived);
+    const totalReceipts = activeReceipts.reduce((sum, trx) => sum + trx.amountReceived, 0);
+    const receiptsByMode = {
+      cash: activeReceipts.filter(trx => trx.paymentMode === "Cash").reduce((sum, trx) => sum + trx.amountReceived, 0),
+      bankTransfer: activeReceipts.filter(trx => trx.paymentMode === "Bank Transfer").reduce((sum, trx) => sum + trx.amountReceived, 0),
+      creditCard: activeReceipts.filter(trx => trx.paymentMode === "Credit Card").reduce((sum, trx) => sum + trx.amountReceived, 0),
+      check: activeReceipts.filter(trx => trx.paymentMode === "Check").reduce((sum, trx) => sum + trx.amountReceived, 0),
+      online: activeReceipts.filter(trx => trx.paymentMode === "Online Payment").reduce((sum, trx) => sum + trx.amountReceived, 0),
+    };
+    const recentReceipts = activeReceipts.filter(trx => new Date(trx.createdAt) >= oneWeekAgo).length;
+
+    // Payments (Outgoing) statistics
+    const activePayments = paymentTransactions.filter(trx => !trx.archived);
+    const totalPayments = activePayments.reduce((sum, trx) => sum + trx.amountPaid, 0);
+    const paymentsByMode = {
+      cash: activePayments.filter(trx => trx.paymentMode === "Cash").reduce((sum, trx) => sum + trx.amountPaid, 0),
+      bankTransfer: activePayments.filter(trx => trx.paymentMode === "Bank Transfer").reduce((sum, trx) => sum + trx.amountPaid, 0),
+      creditCard: activePayments.filter(trx => trx.paymentMode === "Credit Card").reduce((sum, trx) => sum + trx.amountPaid, 0),
+      check: activePayments.filter(trx => trx.paymentMode === "Check").reduce((sum, trx) => sum + trx.amountPaid, 0),
+      online: activePayments.filter(trx => trx.paymentMode === "Online Payment").reduce((sum, trx) => sum + trx.amountPaid, 0),
+    };
+    const recentPayments = activePayments.filter(trx => new Date(trx.createdAt) >= oneWeekAgo).length;
+
+    // Net cash flow
+    const netCashFlow = totalReceipts - totalPayments;
+    const cashFlowPositive = netCashFlow >= 0;
+
+    // Outstanding payables (unpaid PO amounts)
+    const outstandingPayables = purchaseOrders
+      .filter(po => !po.archived && ["Ordered", "Partially Received", "Received"].includes(po.status))
+      .reduce((sum, po) => sum + Math.max(0, po.totalAmount - (po.totalPaid || 0)), 0);
+
+    // Payment mode distribution for chart
+    const receiptModeData = [
+      { name: "Cash", value: receiptsByMode.cash },
+      { name: "Bank Transfer", value: receiptsByMode.bankTransfer },
+      { name: "Credit Card", value: receiptsByMode.creditCard },
+      { name: "Check", value: receiptsByMode.check },
+      { name: "Online", value: receiptsByMode.online },
+    ].filter(item => item.value > 0);
+
+    const paymentModeData = [
+      { name: "Cash", value: paymentsByMode.cash },
+      { name: "Bank Transfer", value: paymentsByMode.bankTransfer },
+      { name: "Credit Card", value: paymentsByMode.creditCard },
+      { name: "Check", value: paymentsByMode.check },
+      { name: "Online", value: paymentsByMode.online },
+    ].filter(item => item.value > 0);
+
+    return {
+      totalReceipts,
+      totalPayments,
+      netCashFlow,
+      cashFlowPositive,
+      receiptsByMode,
+      paymentsByMode,
+      recentReceipts,
+      recentPayments,
+      outstandingPayables,
+      receiptModeData,
+      paymentModeData,
+      totalReceiptTransactions: activeReceipts.length,
+      totalPaymentTransactions: activePayments.length,
+    };
+  }, [cashBankTransactions, paymentTransactions, purchaseOrders]);
 
   // Calculate category distribution
   const categoryData = useMemo(() => {
@@ -482,6 +566,219 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             <p className="text-xs text-muted-foreground mt-1">
               ₱{stats.pendingPOValue.toLocaleString(undefined, { minimumFractionDigits: 0 })} value
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cash Flow Overview */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("cash-bank")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Total Receipts</CardTitle>
+            <Landmark className="h-5 w-5 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+              ₱{cashFlowStats.totalReceipts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+              <ArrowUpRight className="h-3 w-3" />
+              {cashFlowStats.totalReceiptTransactions} transactions • {cashFlowStats.recentReceipts} this week
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border-rose-200 dark:border-rose-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("payments")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-300">Total Payments</CardTitle>
+            <Wallet className="h-5 w-5 text-rose-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-rose-900 dark:text-rose-100">
+              ₱{cashFlowStats.totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
+              <ArrowDownRight className="h-3 w-3" />
+              {cashFlowStats.totalPaymentTransactions} transactions • {cashFlowStats.recentPayments} this week
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={`bg-gradient-to-br ${cashFlowStats.cashFlowPositive ? 'from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 border-teal-200 dark:border-teal-800' : 'from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800'}`}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className={`text-sm font-medium ${cashFlowStats.cashFlowPositive ? 'text-teal-700 dark:text-teal-300' : 'text-amber-700 dark:text-amber-300'}`}>Net Cash Flow</CardTitle>
+            {cashFlowStats.cashFlowPositive ? (
+              <TrendingUp className="h-5 w-5 text-teal-600" />
+            ) : (
+              <TrendingDown className="h-5 w-5 text-amber-600" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${cashFlowStats.cashFlowPositive ? 'text-teal-900 dark:text-teal-100' : 'text-amber-900 dark:text-amber-100'}`}>
+              {cashFlowStats.cashFlowPositive ? '+' : ''}₱{cashFlowStats.netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className={`text-xs mt-1 ${cashFlowStats.cashFlowPositive ? 'text-teal-600 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              {cashFlowStats.cashFlowPositive ? 'Positive cash flow' : 'Negative cash flow'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("purchase-orders")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Outstanding Payables</CardTitle>
+            <CreditCard className="h-5 w-5 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+              ₱{cashFlowStats.outstandingPayables.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              From pending purchase orders
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment Mode Breakdown */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        {/* Receipts by Payment Mode */}
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("cash-bank")}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-emerald-600" />
+                  Receipts by Payment Mode
+                </CardTitle>
+                <CardDescription>Cash & Bank collection breakdown</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-emerald-600 border-emerald-300">
+                {cashFlowStats.totalReceiptTransactions} trx
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {cashFlowStats.receiptsByMode.cash > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Cash</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.receiptsByMode.bankTransfer > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm">Bank Transfer</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.bankTransfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.receiptsByMode.creditCard > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-purple-600" />
+                    <span className="text-sm">Credit Card</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.creditCard.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.receiptsByMode.check > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm">Check</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.check.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.receiptsByMode.online > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-cyan-600" />
+                    <span className="text-sm">Online Payment</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.online.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.totalReceipts === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No receipts recorded yet</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payments by Payment Mode */}
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("payments")}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-rose-600" />
+                  Payments by Payment Mode
+                </CardTitle>
+                <CardDescription>Supplier payment breakdown</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-rose-600 border-rose-300">
+                {cashFlowStats.totalPaymentTransactions} trx
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {cashFlowStats.paymentsByMode.cash > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Cash</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.paymentsByMode.bankTransfer > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm">Bank Transfer</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.bankTransfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.paymentsByMode.creditCard > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-purple-600" />
+                    <span className="text-sm">Credit Card</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.creditCard.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.paymentsByMode.check > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm">Check</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.check.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.paymentsByMode.online > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-cyan-600" />
+                    <span className="text-sm">Online Payment</span>
+                  </div>
+                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.online.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cashFlowStats.totalPayments === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No payments recorded yet</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
