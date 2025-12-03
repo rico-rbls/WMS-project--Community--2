@@ -322,7 +322,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     }
 
     // Aggregate Cash & Bank receipts by month
-    cashBankTransactions
+    (cashBankTransactions || [])
       .filter(trx => !trx.archived)
       .forEach(trx => {
         const date = new Date(trx.trxDate);
@@ -333,7 +333,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       });
 
     // Aggregate Payments by month
-    paymentTransactions
+    (paymentTransactions || [])
       .filter(trx => !trx.archived)
       .forEach(trx => {
         const date = new Date(trx.trxDate);
@@ -344,7 +344,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       });
 
     // Aggregate Sales Orders by order date
-    orders
+    (orders || [])
       .filter(order => !order.archived)
       .forEach(order => {
         const date = new Date(order.createdAt);
@@ -355,7 +355,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       });
 
     // Aggregate Shipments by shipment date
-    shipments
+    (shipments || [])
       .filter(shipment => !shipment.archived)
       .forEach(shipment => {
         const date = new Date(shipment.createdAt);
@@ -420,68 +420,34 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">Warehouse Management System Overview</p>
+    <div className="space-y-8">
+      {/* ==================== HEADER SECTION ==================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">Warehouse Management System Overview</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="w-fit"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
       </div>
 
-      {/* Alerts Section */}
-      {stats.lowStockCount > 0 && (
-        <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950">
-          <AlertTriangle className="h-4 w-4 text-orange-600" />
-          <AlertTitle className="text-orange-900 dark:text-orange-100">Low Stock Alert</AlertTitle>
-          <AlertDescription className="text-orange-800 dark:text-orange-200">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>
-                {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
-                {stats.totalRestockCost > 0 && (
-                  <span className="ml-1 font-medium">
-                    Estimated restock: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
-              </span>
-              <Button
-                variant="link"
-                className="h-auto p-0 text-orange-700 dark:text-orange-300 underline-offset-4 hover:underline"
-                onClick={() => navigateToView?.("inventory")}
-              >
-                View in Inventory →
-              </Button>
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* ==================== KEY PERFORMANCE INDICATORS ==================== */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-1 w-1 rounded-full bg-primary"></div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Performance Indicators</h3>
+          <div className="flex-1 h-px bg-border"></div>
+        </div>
 
-      {/* Overstock Alert */}
-      {stats.overstockCount > 0 && (
-        <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-          <Package className="h-4 w-4 text-blue-600" />
-          <AlertTitle className="text-blue-900 dark:text-blue-100">Overstock Alert</AlertTitle>
-          <AlertDescription className="text-blue-800 dark:text-blue-200">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>
-                {stats.overstockCount} item{stats.overstockCount > 1 ? 's exceed' : ' exceeds'} target stock level.
-                {stats.totalExcessValue > 0 && (
-                  <span className="ml-1 font-medium">
-                    Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
-              </span>
-              <Button
-                variant="link"
-                className="h-auto p-0 text-blue-700 dark:text-blue-300 underline-offset-4 hover:underline"
-                onClick={() => navigateToView?.("inventory")}
-              >
-                View in Inventory →
-              </Button>
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Primary KPIs - Financial Overview */}
+        {/* Primary KPIs - Financial Overview */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -552,139 +518,220 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </Card>
       </div>
 
-      {/* Secondary Stats Grid */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("inventory")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-blue-600" />
+        {/* Secondary Stats Grid */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("inventory")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
+              <Package className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalItems.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across {inventory.length} SKUs
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("orders")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.activeOrders}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.deliveredOrders} delivered
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("shipments")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">In Transit</CardTitle>
+              <Truck className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inTransit}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.pendingShipments} pending
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className={`cursor-pointer hover:bg-muted/50 transition-colors ${stats.lowStockCount > 0 ? 'border-orange-300 dark:border-orange-800' : ''}`} onClick={() => navigateToView?.("inventory")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock</CardTitle>
+              <AlertTriangle className={`h-4 w-4 ${stats.lowStockCount > 0 ? 'text-orange-600' : 'text-muted-foreground'}`} />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${stats.lowStockCount > 0 ? 'text-orange-600' : ''}`}>{stats.lowStockCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.criticalItems} critical
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("purchase-orders")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending POs</CardTitle>
+              <ClipboardList className="h-4 w-4 text-indigo-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pendingPOCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                ₱{stats.pendingPOValue.toLocaleString(undefined, { minimumFractionDigits: 0 })} value
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* ==================== QUICK ACTIONS ==================== */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-1 w-1 rounded-full bg-primary"></div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h3>
+          <div className="flex-1 h-px bg-border"></div>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-4">
+            <CardDescription>
+              {canModify ? "Frequently used operations for quick access" : "Read-only mode - Contact an Admin to perform actions"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalItems.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {inventory.length} SKUs
-            </p>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
+                onClick={() => navigateToView?.("inventory", true)}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to add inventory" : undefined}
+              >
+                <Package className="h-5 w-5" />
+                <span className="text-sm">Add Inventory</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
+                onClick={() => navigateToView?.("orders", true)}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to create orders" : undefined}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                <span className="text-sm">New Order</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
+                onClick={() => navigateToView?.("purchase-orders", true)}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to create purchase orders" : undefined}
+              >
+                <ClipboardList className="h-5 w-5" />
+                <span className="text-sm">Create PO</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
+                onClick={() => navigateToView?.("shipments", true)}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to create shipments" : undefined}
+              >
+                <Truck className="h-5 w-5" />
+                <span className="text-sm">New Shipment</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
+                onClick={() => navigateToView?.("suppliers", true)}
+                disabled={!canModify}
+                title={!canModify ? "You don't have permission to add suppliers" : undefined}
+              >
+                <Users className="h-5 w-5" />
+                <span className="text-sm">Add Supplier</span>
+              </Button>
+            </div>
           </CardContent>
         </Card>
+      </section>
 
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("orders")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeOrders}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.deliveredOrders} delivered
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("shipments")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">In Transit</CardTitle>
-            <Truck className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inTransit}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.pendingShipments} pending
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={`cursor-pointer hover:bg-muted/50 transition-colors ${stats.lowStockCount > 0 ? 'border-orange-300 dark:border-orange-800' : ''}`} onClick={() => navigateToView?.("inventory")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${stats.lowStockCount > 0 ? 'text-orange-600' : 'text-muted-foreground'}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${stats.lowStockCount > 0 ? 'text-orange-600' : ''}`}>{stats.lowStockCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.criticalItems} critical
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("purchase-orders")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending POs</CardTitle>
-            <ClipboardList className="h-4 w-4 text-indigo-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingPOCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ₱{stats.pendingPOValue.toLocaleString(undefined, { minimumFractionDigits: 0 })} value
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            {canModify ? "Frequently used operations" : "Read-only mode - Contact an Admin to perform actions"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("inventory", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to add inventory" : undefined}
-            >
-              <Package className="h-5 w-5" />
-              <span className="text-sm">Add Inventory</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("orders", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create orders" : undefined}
-            >
-              <ShoppingCart className="h-5 w-5" />
-              <span className="text-sm">New Order</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("purchase-orders", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create purchase orders" : undefined}
-            >
-              <ClipboardList className="h-5 w-5" />
-              <span className="text-sm">Create PO</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("shipments", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create shipments" : undefined}
-            >
-              <Truck className="h-5 w-5" />
-              <span className="text-sm">New Shipment</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("suppliers", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to add suppliers" : undefined}
-            >
-              <Users className="h-5 w-5" />
-              <span className="text-sm">Add Supplier</span>
-            </Button>
+      {/* ==================== CRITICAL ALERTS ==================== */}
+      {(stats.lowStockCount > 0 || stats.overstockCount > 0) && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-1 w-1 rounded-full bg-orange-500"></div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Attention Required</h3>
+            <div className="flex-1 h-px bg-border"></div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Cash Flow Overview */}
+          <div className="space-y-3">
+            {stats.lowStockCount > 0 && (
+              <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertTitle className="text-orange-900 dark:text-orange-100">Low Stock Alert</AlertTitle>
+                <AlertDescription className="text-orange-800 dark:text-orange-200">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>
+                      {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
+                      {stats.totalRestockCost > 0 && (
+                        <span className="ml-1 font-medium">
+                          Estimated restock: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </span>
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-orange-700 dark:text-orange-300 underline-offset-4 hover:underline"
+                      onClick={() => navigateToView?.("inventory")}
+                    >
+                      View in Inventory →
+                    </Button>
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {stats.overstockCount > 0 && (
+              <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+                <Package className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-900 dark:text-blue-100">Overstock Alert</AlertTitle>
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>
+                      {stats.overstockCount} item{stats.overstockCount > 1 ? 's exceed' : ' exceeds'} target stock level.
+                      {stats.totalExcessValue > 0 && (
+                        <span className="ml-1 font-medium">
+                          Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </span>
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-blue-700 dark:text-blue-300 underline-offset-4 hover:underline"
+                      onClick={() => navigateToView?.("inventory")}
+                    >
+                      View in Inventory →
+                    </Button>
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ==================== CASH FLOW & FINANCIAL METRICS ==================== */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-1 w-1 rounded-full bg-emerald-500"></div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cash Flow & Financial Metrics</h3>
+          <div className="flex-1 h-px bg-border"></div>
+        </div>
+
+        {/* Cash Flow Overview */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("cash-bank")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -898,7 +945,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       </div>
 
       {/* Monthly Trends Chart - Full Width */}
-      <Card>
+      <Card className="mt-4">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -988,9 +1035,18 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </div>
         </CardContent>
       </Card>
+      </section>
 
-      {/* Charts Grid */}
-      <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
+      {/* ==================== ANALYTICS & INSIGHTS ==================== */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-1 w-1 rounded-full bg-purple-500"></div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Analytics & Insights</h3>
+          <div className="flex-1 h-px bg-border"></div>
+        </div>
+
+        {/* Charts Grid */}
+        <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
           <Card>
             <CardHeader>
               <CardTitle>Inventory by Category</CardTitle>
@@ -1050,10 +1106,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </Card>
         </div>
 
-      {/* Top Products & Inventory Health Row */}
-      <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
-        {/* Top Products by Stock Value */}
-        <Card>
+        {/* Top Products & Inventory Health Row */}
+        <div className={`grid gap-4 mt-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
+          {/* Top Products by Stock Value */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Star className="h-5 w-5 text-yellow-500" />
@@ -1180,10 +1236,20 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               </div>
             </div>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      </section>
 
-      {/* Low Stock Items List - Enhanced */}
+      {/* ==================== DETAILED INVENTORY STATUS ==================== */}
+      {(stats.lowStockItems.length > 0 || stats.overstockItems.length > 0) && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-1 w-1 rounded-full bg-orange-500"></div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Detailed Inventory Status</h3>
+            <div className="flex-1 h-px bg-border"></div>
+          </div>
+
+          {/* Low Stock Items List - Enhanced */}
       {stats.lowStockItems.length > 0 && (
         <Card className="border-orange-200 dark:border-orange-900">
           <CardHeader className="pb-3">
@@ -1433,6 +1499,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </div>
           </CardContent>
         </Card>
+      )}
+        </section>
       )}
     </div>
   );
