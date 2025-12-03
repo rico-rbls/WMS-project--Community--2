@@ -524,7 +524,7 @@ const DEFAULT_CATEGORIES: CategoryDefinition[] = [
     subcategories: ["Shirts", "Pants", "Shoes", "Accessories"],
   },
   {
-    name: "Food",
+    name: "Food & Beverages",
     subcategories: ["Beverages", "Snacks", "Canned Goods", "Fresh Produce"],
   },
 ];

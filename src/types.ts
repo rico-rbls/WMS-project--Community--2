@@ -1,4 +1,4 @@
-export type InventoryCategory = "Electronics" | "Furniture" | "Clothing" | "Food" | string;
+export type InventoryCategory = "Electronics" | "Furniture" | "Clothing" | "Food & Beverages" | string;
 
 // Category with subcategories structure
 export interface CategoryDefinition {

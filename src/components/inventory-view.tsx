@@ -61,7 +61,7 @@ import { EditableCell } from "./ui/editable-cell";
 const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
 
 // Default categories (fallback)
-const DEFAULT_CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food"];
+const DEFAULT_CATEGORIES: InventoryCategory[] = ["Electronics", "Furniture", "Clothing", "Food & Beverages"];
 
 // View modes for inventory display
 type ViewMode = "table" | "catalog";
@@ -97,7 +97,7 @@ const DEFAULT_CATEGORY_LOCATION_PREFIX: Record<string, string> = {
   Electronics: "E",
   Furniture: "F",
   Clothing: "C",
-  Food: "D", // D for Dry goods/Food storage
+  "Food & Beverages": "D", // D for Dry goods/Food storage
 };
 
 // Generate auto-location code based on category and existing items

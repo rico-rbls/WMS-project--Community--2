@@ -47,7 +47,7 @@ import { canWrite, isAdmin } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
 
 const SUPPLIER_STATUSES = ["Active", "Inactive"] as const;
-const SUPPLIER_CATEGORIES = ["Electronics", "Furniture", "Clothing", "Food", "Other"] as const;
+const SUPPLIER_CATEGORIES = ["Electronics", "Furniture", "Clothing", "Food & Beverages", "Other"] as const;
 
 interface SuppliersViewProps {
   initialOpenDialog?: boolean;

@@ -296,7 +296,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       Electronics: 0,
       Furniture: 0,
       Clothing: 0,
-      Food: 0,
+      "Food & Beverages": 0,
     };
 
     inventory.forEach(item => {
