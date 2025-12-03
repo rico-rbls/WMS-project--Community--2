@@ -420,7 +420,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* ==================== HEADER SECTION ==================== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -440,15 +440,15 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       </div>
 
       {/* ==================== KEY PERFORMANCE INDICATORS ==================== */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
           <div className="h-1 w-1 rounded-full bg-primary"></div>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key Performance Indicators</h3>
           <div className="flex-1 h-px bg-border"></div>
         </div>
 
         {/* Primary KPIs - Financial Overview */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Inventory Value</CardTitle>
@@ -516,7 +516,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </p>
           </CardContent>
         </Card>
-      </div>
+        </div>
 
         {/* Secondary Stats Grid */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
@@ -588,8 +588,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       </section>
 
       {/* ==================== QUICK ACTIONS ==================== */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
           <div className="h-1 w-1 rounded-full bg-primary"></div>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h3>
           <div className="flex-1 h-px bg-border"></div>
@@ -660,8 +660,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
       {/* ==================== CRITICAL ALERTS ==================== */}
       {(stats.lowStockCount > 0 || stats.overstockCount > 0) && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
             <div className="h-1 w-1 rounded-full bg-orange-500"></div>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Attention Required</h3>
             <div className="flex-1 h-px bg-border"></div>
@@ -724,15 +724,15 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       )}
 
       {/* ==================== CASH FLOW & FINANCIAL METRICS ==================== */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
           <div className="h-1 w-1 rounded-full bg-emerald-500"></div>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cash Flow & Financial Metrics</h3>
           <div className="flex-1 h-px bg-border"></div>
         </div>
 
         {/* Cash Flow Overview */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("cash-bank")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Total Receipts</CardTitle>
@@ -801,8 +801,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </Card>
       </div>
 
-      {/* Payment Mode Breakdown */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        {/* Payment Mode Breakdown */}
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         {/* Receipts by Payment Mode */}
         <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("cash-bank")}>
           <CardHeader className="pb-3">
@@ -942,10 +942,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
 
-      {/* Monthly Trends Chart - Full Width */}
-      <Card className="mt-4">
+        {/* Monthly Trends Chart - Full Width */}
+        <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -1034,12 +1034,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
       </section>
 
       {/* ==================== ANALYTICS & INSIGHTS ==================== */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
           <div className="h-1 w-1 rounded-full bg-purple-500"></div>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Analytics & Insights</h3>
           <div className="flex-1 h-px bg-border"></div>
@@ -1242,16 +1242,16 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
       {/* ==================== DETAILED INVENTORY STATUS ==================== */}
       {(stats.lowStockItems.length > 0 || stats.overstockItems.length > 0) && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
             <div className="h-1 w-1 rounded-full bg-orange-500"></div>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Detailed Inventory Status</h3>
             <div className="flex-1 h-px bg-border"></div>
           </div>
 
           {/* Low Stock Items List - Enhanced */}
-      {stats.lowStockItems.length > 0 && (
-        <Card className="border-orange-200 dark:border-orange-900">
+          {stats.lowStockItems.length > 0 && (
+          <Card className="border-orange-200 dark:border-orange-900">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -1393,12 +1393,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
+          </Card>
+          )}
 
-      {/* Overstock Items List */}
-      {stats.overstockItems.length > 0 && (
-        <Card className="border-blue-200 dark:border-blue-900">
+          {/* Overstock Items List */}
+          {stats.overstockItems.length > 0 && (
+          <Card className="border-blue-200 dark:border-blue-900">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -1498,8 +1498,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
+          </Card>
+          )}
         </section>
       )}
     </div>
