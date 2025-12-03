@@ -17,6 +17,7 @@ import {
 } from "@/services/api";
 import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus } from "@/types";
 import { useAuth } from "@/context/auth-context";
+import { getUserRole, hasPermission } from "@/lib/permissions";
 import { useBatchSelection } from "@/hooks/useBatchSelection";
 import { usePagination } from "@/hooks/usePagination";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -34,7 +35,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { BulkActionsToolbar } from "@/components/ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "@/components/ui/bulk-delete-dialog";
-import { SortableTableHead, SortDirection } from "@/components/ui/sortable-table-head";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import type { SortDirection } from "@/hooks/useTableSort";
 import {
   Plus,
   Search,
@@ -73,10 +75,13 @@ const formatCurrency = (amount: number) => {
 };
 
 export function SalesOrdersView() {
-  const { user, hasPermission } = useAuth();
-  const canCreate = hasPermission("create:sales-orders") || hasPermission("manage:all");
-  const canDelete = hasPermission("delete:sales-orders") || hasPermission("manage:all");
-  const canPermanentlyDelete = hasPermission("permanent-delete:sales-orders") || hasPermission("manage:all");
+  const { user } = useAuth();
+  const userRole = user ? getUserRole(user.id) : "Viewer";
+  // Use purchase_orders permissions as sales orders have similar access control
+  const canCreate = hasPermission(userRole, "purchase_orders:create");
+  const canEdit = hasPermission(userRole, "purchase_orders:update");
+  const canDelete = hasPermission(userRole, "purchase_orders:delete");
+  const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
 
   const [salesOrdersData, setSalesOrdersData] = useState<SalesOrder[] | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
@@ -130,8 +135,9 @@ export function SalesOrdersView() {
 
   const filteredData = useMemo(() => {
     return list.filter((so) => {
-      const matchesArchive = showArchived ? so.archived : !so.archived;
-      if (!matchesArchive) return false;
+      // Filter by archived status (treat undefined as false)
+      const isArchived = so.archived === true;
+      if (showArchived !== isArchived) return false;
 
       const matchesSearch =
         !debouncedSearch ||
@@ -200,11 +206,13 @@ export function SalesOrdersView() {
     };
   }, [list]);
 
-  const handleSort = (key: keyof SalesOrder) => {
+  const handleSort = (column: string) => {
+    const key = column as keyof SalesOrder;
     if (sortColumn === key) {
       if (sortDirection === "asc") {
         setSortDirection("desc");
       } else {
+        // Reset on third click
         setSortColumn(null);
         setSortDirection("asc");
       }

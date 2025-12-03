@@ -495,6 +495,7 @@ function migrateSalesOrders(salesOrdersData: SalesOrder[]): SalesOrder[] {
       receiptStatus: so.receiptStatus ?? "Unpaid",
       shippingStatus: so.shippingStatus ?? "Pending",
       createdDate: so.createdDate ?? soDate,
+      archived: so.archived ?? false,
     };
   });
 }
