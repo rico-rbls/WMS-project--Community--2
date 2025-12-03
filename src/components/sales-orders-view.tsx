@@ -51,6 +51,8 @@ import {
   Clock,
   TrendingUp,
   ShoppingCart,
+  Eye,
+  ArrowLeft,
 } from "lucide-react";
 
 const RECEIPT_STATUSES: ReceiptStatus[] = ["Unpaid", "Partially Paid", "Paid", "Overdue"];
@@ -96,6 +98,7 @@ export function SalesOrdersView() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof SalesOrder | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [detailViewSO, setDetailViewSO] = useState<SalesOrder | null>(null);
 
   const [form, setForm] = useState<SOFormState>({
     soDate: new Date().toISOString().split("T")[0],
@@ -225,6 +228,32 @@ export function SalesOrdersView() {
   const getSortDirection = (column: keyof SalesOrder): SortDirection => {
     if (sortColumn === column) return sortDirection;
     return null;
+  };
+
+  // Generate Detail ID for line items (SO-001-D001, SO-001-D002, etc.)
+  const generateDetailId = (soId: string, index: number): string => {
+    return `${soId}-D${String(index + 1).padStart(3, "0")}`;
+  };
+
+  // Get inventory item details for a line item
+  const getInventoryItemDetails = (inventoryItemId: string) => {
+    const item = inventoryData.find((inv) => inv.id === inventoryItemId);
+    return {
+      itemId: item?.id ?? inventoryItemId,
+      itemType: item?.brand ?? "-", // Using brand as item type
+      itemCategory: item?.category ?? "-",
+      itemSubcategory: item?.subcategory ?? "-",
+    };
+  };
+
+  // Open detail view for a specific sales order
+  const openDetailView = (so: SalesOrder) => {
+    setDetailViewSO(so);
+  };
+
+  // Close detail view and return to list
+  const closeDetailView = () => {
+    setDetailViewSO(null);
   };
 
   const getReceiptStatusBadge = (status: ReceiptStatus) => {
@@ -506,6 +535,150 @@ export function SalesOrdersView() {
     return (
       <div className="p-6">
         <TableLoadingSkeleton rows={8} />
+      </div>
+    );
+  }
+
+  // Detail View - shows line items table for a specific sales order
+  if (detailViewSO) {
+    return (
+      <div className="space-y-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={closeDetailView}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to List
+          </Button>
+          <div>
+            <h2 className="text-xl font-semibold">Sales Order Details - {detailViewSO.id}</h2>
+            <p className="text-sm text-muted-foreground">
+              {detailViewSO.customerName} • {detailViewSO.soDate ?? detailViewSO.createdDate}
+            </p>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Customer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="font-medium">{detailViewSO.customerName}</div>
+              <div className="text-sm text-muted-foreground">{detailViewSO.customerId}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Location</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="font-medium">{detailViewSO.customerCity || "-"}</div>
+              <div className="text-sm text-muted-foreground">{detailViewSO.customerCountry || "-"}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-bold text-emerald-600">{formatCurrency(detailViewSO.totalAmount ?? 0)}</div>
+              <div className="text-sm text-muted-foreground">{detailViewSO.items?.length ?? 0} line items</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-1">
+                {getReceiptStatusBadge(detailViewSO.receiptStatus)}
+                <Badge variant={detailViewSO.shippingStatus === "Delivered" ? "default" : "outline"} className="w-fit mt-1">
+                  {detailViewSO.shippingStatus ?? "Pending"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Line Items Detail Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Line Items</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Detailed breakdown of all items in this sales order
+            </p>
+          </CardHeader>
+          <CardContent>
+            {(!detailViewSO.items || detailViewSO.items.length === 0) ? (
+              <EmptyState
+                icon={ShoppingCart}
+                title="No line items"
+                description="This sales order has no line items"
+              />
+            ) : (
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>SO Date</TableHead>
+                      <TableHead>SO ID</TableHead>
+                      <TableHead>Detail ID</TableHead>
+                      <TableHead>Customer ID</TableHead>
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead>Country</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Invoice Num</TableHead>
+                      <TableHead>Item ID</TableHead>
+                      <TableHead>Item Type</TableHead>
+                      <TableHead>Item Category</TableHead>
+                      <TableHead>Item Subcategory</TableHead>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead className="text-right">QTY Sold</TableHead>
+                      <TableHead className="text-right">Unit Price</TableHead>
+                      <TableHead className="text-right">Total Sales Price</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailViewSO.items.map((item, index) => {
+                      const invDetails = getInventoryItemDetails(item.inventoryItemId);
+                      return (
+                        <TableRow key={index}>
+                          <TableCell className="whitespace-nowrap">{detailViewSO.soDate ?? detailViewSO.createdDate}</TableCell>
+                          <TableCell className="font-medium">{detailViewSO.id}</TableCell>
+                          <TableCell className="font-mono text-sm">{generateDetailId(detailViewSO.id, index)}</TableCell>
+                          <TableCell className="text-muted-foreground">{detailViewSO.customerId}</TableCell>
+                          <TableCell>{detailViewSO.customerName}</TableCell>
+                          <TableCell>{detailViewSO.customerCountry || "-"}</TableCell>
+                          <TableCell>{detailViewSO.customerCity || "-"}</TableCell>
+                          <TableCell>{detailViewSO.invoiceNumber || "-"}</TableCell>
+                          <TableCell className="font-mono text-sm">{invDetails.itemId}</TableCell>
+                          <TableCell>{invDetails.itemType}</TableCell>
+                          <TableCell>{invDetails.itemCategory}</TableCell>
+                          <TableCell>{invDetails.itemSubcategory}</TableCell>
+                          <TableCell>{item.itemName}</TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(item.totalPrice)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Summary Footer */}
+            {detailViewSO.items && detailViewSO.items.length > 0 && (
+              <div className="mt-4 pt-4 border-t flex justify-end">
+                <div className="text-right">
+                  <div className="text-sm text-muted-foreground">Grand Total</div>
+                  <div className="text-2xl font-bold text-emerald-600">{formatCurrency(detailViewSO.totalAmount ?? 0)}</div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -829,6 +1002,9 @@ export function SalesOrdersView() {
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => openDetailView(so)} title="View Details">
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             {showArchived ? (
                               <Button size="sm" variant="outline" onClick={() => handleRestore(so.id)} title="Restore">
                                 <ArchiveRestore className="h-4 w-4" />
