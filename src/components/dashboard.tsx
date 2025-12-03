@@ -307,28 +307,78 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     return Object.entries(statuses).map(([name, value]) => ({ name, value }));
   }, [orders]);
 
-  // Generate monthly trend data (simulated based on current data patterns)
+  // Generate monthly trend data based on actual transaction data
   const monthlyTrendData = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const currentMonth = new Date().getMonth();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
 
-    // Create realistic trending data based on current stats
-    const baseOrders = stats?.totalOrders || 10;
-    const baseRevenue = stats?.totalOrderValue || 50000;
+    // Initialize data for the last 6 months (including current month)
+    const monthsData: Record<string, { receipts: number; payments: number; orders: number; shipments: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(currentYear, currentDate.getMonth() - i, 1);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthsData[key] = { receipts: 0, payments: 0, orders: 0, shipments: 0 };
+    }
 
-    return months.map((month, index) => {
-      // Create progressive growth pattern
-      const growthFactor = 0.7 + (index * 0.1) + (Math.random() * 0.15);
-      const seasonalFactor = index === currentMonth ? 1 : (0.8 + Math.random() * 0.3);
+    // Aggregate Cash & Bank receipts by month
+    cashBankTransactions
+      .filter(trx => !trx.archived)
+      .forEach(trx => {
+        const date = new Date(trx.trxDate);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthsData[key] !== undefined) {
+          monthsData[key].receipts += trx.amountReceived;
+        }
+      });
 
+    // Aggregate Payments by month
+    paymentTransactions
+      .filter(trx => !trx.archived)
+      .forEach(trx => {
+        const date = new Date(trx.trxDate);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthsData[key] !== undefined) {
+          monthsData[key].payments += trx.amountPaid;
+        }
+      });
+
+    // Aggregate Sales Orders by order date
+    orders
+      .filter(order => !order.archived)
+      .forEach(order => {
+        const date = new Date(order.createdAt);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthsData[key] !== undefined) {
+          monthsData[key].orders += 1;
+        }
+      });
+
+    // Aggregate Shipments by shipment date
+    shipments
+      .filter(shipment => !shipment.archived)
+      .forEach(shipment => {
+        const date = new Date(shipment.createdAt);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthsData[key] !== undefined) {
+          monthsData[key].shipments += 1;
+        }
+      });
+
+    // Convert to array format for the chart
+    return Object.entries(monthsData).map(([key, data]) => {
+      const [year, monthNum] = key.split('-');
+      const monthIndex = parseInt(monthNum) - 1;
       return {
-        month,
-        orders: Math.round(baseOrders * growthFactor * seasonalFactor),
-        revenue: Math.round(baseRevenue * growthFactor * seasonalFactor),
-        shipments: Math.round((stats?.inTransit || 5) * growthFactor * seasonalFactor * 1.2),
+        month: monthNames[monthIndex],
+        receipts: Math.round(data.receipts),
+        payments: Math.round(data.payments),
+        netCashFlow: Math.round(data.receipts - data.payments),
+        orders: data.orders,
+        shipments: data.shipments,
       };
     });
-  }, [stats]);
+  }, [cashBankTransactions, paymentTransactions, orders, shipments]);
 
   // Category value data for enhanced pie chart
   const categoryValueData = useMemo(() => {
@@ -570,6 +620,70 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </Card>
       </div>
 
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>
+            {canModify ? "Frequently used operations" : "Read-only mode - Contact an Admin to perform actions"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("inventory", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to add inventory" : undefined}
+            >
+              <Package className="h-5 w-5" />
+              <span className="text-sm">Add Inventory</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("orders", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create orders" : undefined}
+            >
+              <ShoppingCart className="h-5 w-5" />
+              <span className="text-sm">New Order</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("purchase-orders", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create purchase orders" : undefined}
+            >
+              <ClipboardList className="h-5 w-5" />
+              <span className="text-sm">Create PO</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("shipments", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to create shipments" : undefined}
+            >
+              <Truck className="h-5 w-5" />
+              <span className="text-sm">New Shipment</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex-col gap-2"
+              onClick={() => navigateToView?.("suppliers", true)}
+              disabled={!canModify}
+              title={!canModify ? "You don't have permission to add suppliers" : undefined}
+            >
+              <Users className="h-5 w-5" />
+              <span className="text-sm">Add Supplier</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Cash Flow Overview */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("cash-bank")}>
@@ -783,70 +897,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            {canModify ? "Frequently used operations" : "Read-only mode - Contact an Admin to perform actions"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("inventory", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to add inventory" : undefined}
-            >
-              <Package className="h-5 w-5" />
-              <span className="text-sm">Add Inventory</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("orders", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create orders" : undefined}
-            >
-              <ShoppingCart className="h-5 w-5" />
-              <span className="text-sm">New Order</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("purchase-orders", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create purchase orders" : undefined}
-            >
-              <ClipboardList className="h-5 w-5" />
-              <span className="text-sm">Create PO</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("shipments", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to create shipments" : undefined}
-            >
-              <Truck className="h-5 w-5" />
-              <span className="text-sm">New Shipment</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex-col gap-2"
-              onClick={() => navigateToView?.("suppliers", true)}
-              disabled={!canModify}
-              title={!canModify ? "You don't have permission to add suppliers" : undefined}
-            >
-              <Users className="h-5 w-5" />
-              <span className="text-sm">Add Supplier</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Monthly Trends Chart - Full Width */}
       <Card>
         <CardHeader>
@@ -854,9 +904,9 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-primary" />
-                Monthly Performance Trends
+                Monthly Cash Flow & Activity Trends
               </CardTitle>
-              <CardDescription>Orders, revenue, and shipments over the past 6 months</CardDescription>
+              <CardDescription>Receipts, payments, orders, and shipments over the past 6 months</CardDescription>
             </div>
             <Badge variant="outline" className="hidden sm:flex">
               <Calendar className="h-3 w-3 mr-1" />
@@ -865,47 +915,77 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
+          <ResponsiveContainer width="100%" height={isMobile ? 280 : 350}>
             <AreaChart data={monthlyTrendData}>
               <defs>
-                <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="colorReceipts" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS.danger} stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor={CHART_COLORS.danger} stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorNetFlow" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={CHART_COLORS.primary} stopOpacity={0.3}/>
                   <stop offset="95%" stopColor={CHART_COLORS.primary} stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="month" className="text-xs" />
-              <YAxis className="text-xs" />
+              <YAxis
+                className="text-xs"
+                tickFormatter={(value) => value >= 1000 ? `₱${(value / 1000).toFixed(0)}k` : `₱${value}`}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--background))',
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px'
                 }}
+                formatter={(value: number, name: string) => [
+                  `₱${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  name
+                ]}
               />
               <Legend />
               <Area
                 type="monotone"
-                dataKey="orders"
-                stroke={CHART_COLORS.primary}
+                dataKey="receipts"
+                stroke={CHART_COLORS.success}
                 fillOpacity={1}
-                fill="url(#colorOrders)"
-                name="Orders"
+                fill="url(#colorReceipts)"
+                name="Receipts (Cash & Bank)"
               />
               <Area
                 type="monotone"
-                dataKey="shipments"
-                stroke={CHART_COLORS.purple}
-                fillOpacity={0.3}
-                fill={CHART_COLORS.purple}
-                name="Shipments"
+                dataKey="payments"
+                stroke={CHART_COLORS.danger}
+                fillOpacity={1}
+                fill="url(#colorPayments)"
+                name="Payments (Suppliers)"
+              />
+              <Area
+                type="monotone"
+                dataKey="netCashFlow"
+                stroke={CHART_COLORS.primary}
+                fillOpacity={0.5}
+                fill="url(#colorNetFlow)"
+                name="Net Cash Flow"
+                strokeDasharray="5 5"
               />
             </AreaChart>
           </ResponsiveContainer>
+          <div className="flex justify-center gap-6 mt-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" />
+              <span>Orders: {monthlyTrendData.reduce((sum, m) => sum + m.orders, 0)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Truck className="h-3.5 w-3.5" />
+              <span>Shipments: {monthlyTrendData.reduce((sum, m) => sum + m.shipments, 0)}</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
