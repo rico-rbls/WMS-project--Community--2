@@ -789,6 +789,12 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Purchase Orders</h1>
+        <p className="text-muted-foreground">Create and manage supplier orders, track approvals, and receive inventory</p>
+      </div>
+
       {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total POs */}

@@ -1090,6 +1090,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         className="hidden"
       />
 
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
+        <p className="text-muted-foreground">Track and manage warehouse stock levels, item locations, and product information</p>
+      </div>
+
       {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Items */}

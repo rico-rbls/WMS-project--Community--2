@@ -536,6 +536,12 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
+        <p className="text-muted-foreground">Manage supplier profiles, contact information, and purchasing relationships</p>
+      </div>
+
       {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Suppliers */}

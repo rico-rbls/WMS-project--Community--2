@@ -501,6 +501,12 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+        <p className="text-muted-foreground">Manage customer profiles, contact details, and sales relationships</p>
+      </div>
+
       {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Customers */}

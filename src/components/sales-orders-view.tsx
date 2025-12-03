@@ -685,6 +685,12 @@ export function SalesOrdersView() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Sales Orders</h1>
+        <p className="text-muted-foreground">Create and manage customer orders, track payments, and monitor delivery status</p>
+      </div>
+
       {/* Statistics Dashboard */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="relative overflow-hidden">
