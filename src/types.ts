@@ -375,3 +375,58 @@ export interface UpdateSalesOrderInput {
   shippingStatus?: ShippingStatus;
   totalReceived?: number;
 }
+
+// ============================================
+// CASH AND BANK TYPES
+// ============================================
+
+export type PaymentMode = "Cash" | "Bank Transfer" | "Credit Card" | "Check" | "Online Payment";
+
+export interface CashBankTransaction {
+  id: string; // TRX-001 format
+  trxDate: string; // ISO date
+  customerId: string;
+  customerName: string;
+  country: string;
+  city: string;
+  soId: string; // Related Sales Order ID
+  invoiceNumber: string;
+  paymentMode: PaymentMode;
+  amountReceived: number;
+  notes?: string;
+  createdAt: string; // ISO date
+  createdBy: string;
+  updatedAt?: string; // ISO date
+  // Archive fields
+  archived?: boolean;
+  archivedAt?: string; // ISO date
+}
+
+export interface CreateCashBankTransactionInput {
+  id?: string;
+  trxDate: string;
+  customerId: string;
+  customerName: string;
+  country?: string;
+  city?: string;
+  soId: string;
+  invoiceNumber?: string;
+  paymentMode: PaymentMode;
+  amountReceived: number;
+  notes?: string;
+  createdBy: string;
+}
+
+export interface UpdateCashBankTransactionInput {
+  id: string;
+  trxDate?: string;
+  customerId?: string;
+  customerName?: string;
+  country?: string;
+  city?: string;
+  soId?: string;
+  invoiceNumber?: string;
+  paymentMode?: PaymentMode;
+  amountReceived?: number;
+  notes?: string;
+}

@@ -29,7 +29,26 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Switch } from "./ui/switch";
-import { LayoutDashboard, Package, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, PanelLeft, PanelLeftClose, Settings, Bell, ChevronUp, Sun, Moon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Truck,
+  Warehouse,
+  ClipboardList,
+  Shield,
+  PanelLeft,
+  PanelLeftClose,
+  Settings,
+  Bell,
+  ChevronUp,
+  Sun,
+  Moon,
+  Receipt,
+  Factory,
+  UserCheck,
+  Landmark,
+} from "lucide-react";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
 import { useTheme } from "next-themes";
@@ -51,10 +70,11 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "inventory" as ViewType, label: "Inventory", icon: Package },
     { id: "orders" as ViewType, label: "Orders", icon: ShoppingCart },
     { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
-    { id: "sales-orders" as ViewType, label: "Sales Orders", icon: ShoppingCart },
+    { id: "sales-orders" as ViewType, label: "Sales Orders", icon: Receipt },
     { id: "shipments" as ViewType, label: "Shipments", icon: Truck },
-    { id: "suppliers" as ViewType, label: "Suppliers", icon: Users },
-    { id: "customers" as ViewType, label: "Customers", icon: Users },
+    { id: "suppliers" as ViewType, label: "Suppliers", icon: Factory },
+    { id: "customers" as ViewType, label: "Customers", icon: UserCheck },
+    { id: "cash-bank" as ViewType, label: "Cash and Bank", icon: Landmark },
   ];
 
   // Admin-only menu items

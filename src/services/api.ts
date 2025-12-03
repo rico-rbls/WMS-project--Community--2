@@ -22,6 +22,10 @@ import type {
   UpdateSalesOrderInput,
   ReceiptStatus,
   SOLineItem,
+  CashBankTransaction,
+  CreateCashBankTransactionInput,
+  UpdateCashBankTransactionInput,
+  PaymentMode,
 } from "../types";
 
 // ============================================================================
@@ -36,6 +40,7 @@ const STORAGE_KEYS = {
   SHIPMENTS: 'wms_shipments',
   PURCHASE_ORDERS: 'wms_purchase_orders',
   SALES_ORDERS: 'wms_sales_orders',
+  CASH_BANK: 'wms_cash_bank',
   CATEGORIES: 'wms_categories',
 } as const;
 
@@ -2317,4 +2322,228 @@ export async function deleteSubcategory(categoryName: string, subcategoryName: s
 
   saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
   return delay(updatedCategory);
+}
+
+// ============================================================================
+// Cash and Bank Transaction API
+// ============================================================================
+
+// Default mock data for Cash and Bank transactions
+const defaultCashBankTransactions: CashBankTransaction[] = [];
+
+// In-memory store - initialized from localStorage or defaults
+let cashBankTransactions: CashBankTransaction[] = loadFromLocalStorage<CashBankTransaction[]>(
+  STORAGE_KEYS.CASH_BANK,
+  defaultCashBankTransactions
+);
+
+// Migration: Ensure all transactions have the archived field
+cashBankTransactions = cashBankTransactions.map((trx) => ({
+  ...trx,
+  archived: trx.archived ?? false,
+}));
+saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+
+/**
+ * Generate the next TRX ID (TRX-001, TRX-002, etc.)
+ */
+function generateNextTrxId(): string {
+  const existingIds = cashBankTransactions.map((trx) => {
+    const match = trx.id.match(/^TRX-(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
+  });
+  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+  return `TRX-${String(maxId + 1).padStart(3, "0")}`;
+}
+
+/**
+ * Get all cash and bank transactions
+ */
+export async function getCashBankTransactions(): Promise<CashBankTransaction[]> {
+  return delay([...cashBankTransactions]);
+}
+
+/**
+ * Get a single cash and bank transaction by ID
+ */
+export async function getCashBankTransactionById(id: string): Promise<CashBankTransaction | undefined> {
+  const transaction = cashBankTransactions.find((trx) => trx.id === id);
+  return delay(transaction);
+}
+
+/**
+ * Create a new cash and bank transaction
+ */
+export async function createCashBankTransaction(
+  input: CreateCashBankTransactionInput
+): Promise<CashBankTransaction> {
+  const id = input.id || generateNextTrxId();
+  const now = new Date().toISOString();
+
+  const newTransaction: CashBankTransaction = {
+    id,
+    trxDate: input.trxDate,
+    customerId: input.customerId,
+    customerName: input.customerName,
+    country: input.country || "",
+    city: input.city || "",
+    soId: input.soId,
+    invoiceNumber: input.invoiceNumber || "",
+    paymentMode: input.paymentMode,
+    amountReceived: input.amountReceived,
+    notes: input.notes,
+    createdAt: now,
+    createdBy: input.createdBy,
+    archived: false,
+  };
+
+  cashBankTransactions = [...cashBankTransactions, newTransaction];
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(newTransaction);
+}
+
+/**
+ * Update an existing cash and bank transaction
+ */
+export async function updateCashBankTransaction(
+  input: UpdateCashBankTransactionInput
+): Promise<CashBankTransaction> {
+  const index = cashBankTransactions.findIndex((trx) => trx.id === input.id);
+  if (index === -1) {
+    throw new Error(`Cash/Bank transaction with ID ${input.id} not found`);
+  }
+
+  const existing = cashBankTransactions[index];
+  const updated: CashBankTransaction = {
+    ...existing,
+    trxDate: input.trxDate ?? existing.trxDate,
+    customerId: input.customerId ?? existing.customerId,
+    customerName: input.customerName ?? existing.customerName,
+    country: input.country ?? existing.country,
+    city: input.city ?? existing.city,
+    soId: input.soId ?? existing.soId,
+    invoiceNumber: input.invoiceNumber ?? existing.invoiceNumber,
+    paymentMode: input.paymentMode ?? existing.paymentMode,
+    amountReceived: input.amountReceived ?? existing.amountReceived,
+    notes: input.notes ?? existing.notes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  cashBankTransactions = [
+    ...cashBankTransactions.slice(0, index),
+    updated,
+    ...cashBankTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(updated);
+}
+
+/**
+ * Archive (soft delete) a cash and bank transaction
+ */
+export async function archiveCashBankTransaction(id: string): Promise<CashBankTransaction> {
+  const index = cashBankTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Cash/Bank transaction with ID ${id} not found`);
+  }
+
+  const updated: CashBankTransaction = {
+    ...cashBankTransactions[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+
+  cashBankTransactions = [
+    ...cashBankTransactions.slice(0, index),
+    updated,
+    ...cashBankTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(updated);
+}
+
+/**
+ * Restore an archived cash and bank transaction
+ */
+export async function restoreCashBankTransaction(id: string): Promise<CashBankTransaction> {
+  const index = cashBankTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Cash/Bank transaction with ID ${id} not found`);
+  }
+
+  const updated: CashBankTransaction = {
+    ...cashBankTransactions[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+
+  cashBankTransactions = [
+    ...cashBankTransactions.slice(0, index),
+    updated,
+    ...cashBankTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(updated);
+}
+
+/**
+ * Permanently delete a cash and bank transaction
+ */
+export async function deleteCashBankTransaction(id: string): Promise<void> {
+  const index = cashBankTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Cash/Bank transaction with ID ${id} not found`);
+  }
+
+  cashBankTransactions = cashBankTransactions.filter((trx) => trx.id !== id);
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(undefined);
+}
+
+/**
+ * Batch archive multiple cash and bank transactions
+ */
+export async function batchArchiveCashBankTransactions(ids: string[]): Promise<CashBankTransaction[]> {
+  const now = new Date().toISOString();
+  const archived: CashBankTransaction[] = [];
+
+  cashBankTransactions = cashBankTransactions.map((trx) => {
+    if (ids.includes(trx.id)) {
+      const updated = { ...trx, archived: true, archivedAt: now };
+      archived.push(updated);
+      return updated;
+    }
+    return trx;
+  });
+
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(archived);
+}
+
+/**
+ * Batch restore multiple cash and bank transactions
+ */
+export async function batchRestoreCashBankTransactions(ids: string[]): Promise<CashBankTransaction[]> {
+  const restored: CashBankTransaction[] = [];
+
+  cashBankTransactions = cashBankTransactions.map((trx) => {
+    if (ids.includes(trx.id)) {
+      const updated = { ...trx, archived: false, archivedAt: undefined };
+      restored.push(updated);
+      return updated;
+    }
+    return trx;
+  });
+
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(restored);
+}
+
+/**
+ * Batch permanently delete multiple cash and bank transactions
+ */
+export async function batchDeleteCashBankTransactions(ids: string[]): Promise<void> {
+  cashBankTransactions = cashBankTransactions.filter((trx) => !ids.includes(trx.id));
+  saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(undefined);
 }
