@@ -48,6 +48,7 @@ import {
   Factory,
   UserCheck,
   Landmark,
+  Wallet,
 } from "lucide-react";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
@@ -75,6 +76,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "suppliers" as ViewType, label: "Suppliers", icon: Factory },
     { id: "customers" as ViewType, label: "Customers", icon: UserCheck },
     { id: "cash-bank" as ViewType, label: "Cash and Bank", icon: Landmark },
+    { id: "payments" as ViewType, label: "Payments", icon: Wallet },
   ];
 
   // Admin-only menu items

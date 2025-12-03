@@ -13,6 +13,7 @@ const CustomersView = React.lazy(() => import("./components/customers-view").the
 const UserManagementView = React.lazy(() => import("./components/user-management-view").then(m => ({ default: m.UserManagementView })));
 const AdminProfileView = React.lazy(() => import("./components/admin-profile-view").then(m => ({ default: m.AdminProfileView })));
 const CashBankView = React.lazy(() => import("./components/cash-bank-view").then(m => ({ default: m.CashBankView })));
+const PaymentsView = React.lazy(() => import("./components/payments-view").then(m => ({ default: m.PaymentsView })));
 import { Toaster } from "./components/ui/sonner";
 import { ErrorBoundary } from "./components/error-boundary";
 import { LoginPage } from "./components/login-page";
@@ -21,10 +22,10 @@ import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
-export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "users" | "profile";
+export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "users", "profile"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -165,6 +166,8 @@ export default function App() {
         );
       case "cash-bank":
         return <CashBankView />;
+      case "payments":
+        return <PaymentsView />;
       case "users":
         return <UserManagementView />;
       case "profile":

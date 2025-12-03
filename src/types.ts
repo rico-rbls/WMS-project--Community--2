@@ -430,3 +430,56 @@ export interface UpdateCashBankTransactionInput {
   amountReceived?: number;
   notes?: string;
 }
+
+// ============================================
+// PAYMENTS (AGAINST PURCHASE ORDERS) TYPES
+// ============================================
+
+export interface PaymentTransaction {
+  id: string; // TRX-001 format
+  trxDate: string; // ISO date
+  supplierId: string;
+  supplierName: string;
+  country: string;
+  city: string;
+  poId: string; // Related Purchase Order ID
+  billNumber: string;
+  paymentMode: PaymentMode;
+  amountPaid: number;
+  notes?: string;
+  createdAt: string; // ISO date
+  createdBy: string;
+  updatedAt?: string; // ISO date
+  // Archive fields
+  archived?: boolean;
+  archivedAt?: string; // ISO date
+}
+
+export interface CreatePaymentTransactionInput {
+  id?: string;
+  trxDate: string;
+  supplierId: string;
+  supplierName: string;
+  country?: string;
+  city?: string;
+  poId: string;
+  billNumber?: string;
+  paymentMode: PaymentMode;
+  amountPaid: number;
+  notes?: string;
+  createdBy: string;
+}
+
+export interface UpdatePaymentTransactionInput {
+  id: string;
+  trxDate?: string;
+  supplierId?: string;
+  supplierName?: string;
+  country?: string;
+  city?: string;
+  poId?: string;
+  billNumber?: string;
+  paymentMode?: PaymentMode;
+  amountPaid?: number;
+  notes?: string;
+}

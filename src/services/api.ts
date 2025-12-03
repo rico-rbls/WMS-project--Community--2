@@ -26,6 +26,9 @@ import type {
   CreateCashBankTransactionInput,
   UpdateCashBankTransactionInput,
   PaymentMode,
+  PaymentTransaction,
+  CreatePaymentTransactionInput,
+  UpdatePaymentTransactionInput,
 } from "../types";
 
 // ============================================================================
@@ -41,6 +44,7 @@ const STORAGE_KEYS = {
   PURCHASE_ORDERS: 'wms_purchase_orders',
   SALES_ORDERS: 'wms_sales_orders',
   CASH_BANK: 'wms_cash_bank',
+  PAYMENTS: 'wms_payments',
   CATEGORIES: 'wms_categories',
 } as const;
 
@@ -2545,5 +2549,230 @@ export async function batchRestoreCashBankTransactions(ids: string[]): Promise<C
 export async function batchDeleteCashBankTransactions(ids: string[]): Promise<void> {
   cashBankTransactions = cashBankTransactions.filter((trx) => !ids.includes(trx.id));
   saveToLocalStorage(STORAGE_KEYS.CASH_BANK, cashBankTransactions);
+  return delay(undefined);
+}
+
+// ============================================================================
+// Payment Transactions API (Payments Against Purchase Orders)
+// ============================================================================
+
+// Default mock data for Payment transactions
+const defaultPaymentTransactions: PaymentTransaction[] = [];
+
+// In-memory store - initialized from localStorage or defaults
+let paymentTransactions: PaymentTransaction[] = loadFromLocalStorage<PaymentTransaction[]>(
+  STORAGE_KEYS.PAYMENTS,
+  defaultPaymentTransactions
+);
+
+// Migration: Ensure all transactions have the archived field
+paymentTransactions = paymentTransactions.map((trx) => ({
+  ...trx,
+  archived: trx.archived ?? false,
+}));
+saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+
+/**
+ * Generate the next Payment TRX ID (TRX-001, TRX-002, etc.)
+ * Uses a separate counter from Cash/Bank transactions
+ */
+function generateNextPaymentTrxId(): string {
+  const existingIds = paymentTransactions.map((trx) => {
+    const match = trx.id.match(/^TRX-(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
+  });
+  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+  return `TRX-${String(maxId + 1).padStart(3, "0")}`;
+}
+
+/**
+ * Get all payment transactions
+ */
+export async function getPaymentTransactions(): Promise<PaymentTransaction[]> {
+  return delay([...paymentTransactions]);
+}
+
+/**
+ * Get a single payment transaction by ID
+ */
+export async function getPaymentTransactionById(id: string): Promise<PaymentTransaction | undefined> {
+  const transaction = paymentTransactions.find((trx) => trx.id === id);
+  return delay(transaction);
+}
+
+/**
+ * Create a new payment transaction
+ */
+export async function createPaymentTransaction(
+  input: CreatePaymentTransactionInput
+): Promise<PaymentTransaction> {
+  const id = input.id || generateNextPaymentTrxId();
+  const now = new Date().toISOString();
+
+  const newTransaction: PaymentTransaction = {
+    id,
+    trxDate: input.trxDate,
+    supplierId: input.supplierId,
+    supplierName: input.supplierName,
+    country: input.country || "",
+    city: input.city || "",
+    poId: input.poId,
+    billNumber: input.billNumber || "",
+    paymentMode: input.paymentMode,
+    amountPaid: input.amountPaid,
+    notes: input.notes,
+    createdAt: now,
+    createdBy: input.createdBy,
+    archived: false,
+  };
+
+  paymentTransactions = [...paymentTransactions, newTransaction];
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(newTransaction);
+}
+
+/**
+ * Update an existing payment transaction
+ */
+export async function updatePaymentTransaction(
+  input: UpdatePaymentTransactionInput
+): Promise<PaymentTransaction> {
+  const index = paymentTransactions.findIndex((trx) => trx.id === input.id);
+  if (index === -1) {
+    throw new Error(`Payment transaction with ID ${input.id} not found`);
+  }
+
+  const existing = paymentTransactions[index];
+  const updated: PaymentTransaction = {
+    ...existing,
+    trxDate: input.trxDate ?? existing.trxDate,
+    supplierId: input.supplierId ?? existing.supplierId,
+    supplierName: input.supplierName ?? existing.supplierName,
+    country: input.country ?? existing.country,
+    city: input.city ?? existing.city,
+    poId: input.poId ?? existing.poId,
+    billNumber: input.billNumber ?? existing.billNumber,
+    paymentMode: input.paymentMode ?? existing.paymentMode,
+    amountPaid: input.amountPaid ?? existing.amountPaid,
+    notes: input.notes ?? existing.notes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  paymentTransactions = [
+    ...paymentTransactions.slice(0, index),
+    updated,
+    ...paymentTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(updated);
+}
+
+/**
+ * Archive (soft delete) a payment transaction
+ */
+export async function archivePaymentTransaction(id: string): Promise<PaymentTransaction> {
+  const index = paymentTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Payment transaction with ID ${id} not found`);
+  }
+
+  const updated: PaymentTransaction = {
+    ...paymentTransactions[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+
+  paymentTransactions = [
+    ...paymentTransactions.slice(0, index),
+    updated,
+    ...paymentTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(updated);
+}
+
+/**
+ * Restore an archived payment transaction
+ */
+export async function restorePaymentTransaction(id: string): Promise<PaymentTransaction> {
+  const index = paymentTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Payment transaction with ID ${id} not found`);
+  }
+
+  const updated: PaymentTransaction = {
+    ...paymentTransactions[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+
+  paymentTransactions = [
+    ...paymentTransactions.slice(0, index),
+    updated,
+    ...paymentTransactions.slice(index + 1),
+  ];
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(updated);
+}
+
+/**
+ * Permanently delete a payment transaction
+ */
+export async function deletePaymentTransaction(id: string): Promise<void> {
+  const index = paymentTransactions.findIndex((trx) => trx.id === id);
+  if (index === -1) {
+    throw new Error(`Payment transaction with ID ${id} not found`);
+  }
+
+  paymentTransactions = paymentTransactions.filter((trx) => trx.id !== id);
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(undefined);
+}
+
+/**
+ * Batch archive multiple payment transactions
+ */
+export async function batchArchivePaymentTransactions(ids: string[]): Promise<PaymentTransaction[]> {
+  const now = new Date().toISOString();
+  const archived: PaymentTransaction[] = [];
+
+  paymentTransactions = paymentTransactions.map((trx) => {
+    if (ids.includes(trx.id)) {
+      const updated = { ...trx, archived: true, archivedAt: now };
+      archived.push(updated);
+      return updated;
+    }
+    return trx;
+  });
+
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(archived);
+}
+
+/**
+ * Batch restore multiple payment transactions
+ */
+export async function batchRestorePaymentTransactions(ids: string[]): Promise<PaymentTransaction[]> {
+  const restored: PaymentTransaction[] = [];
+
+  paymentTransactions = paymentTransactions.map((trx) => {
+    if (ids.includes(trx.id)) {
+      const updated = { ...trx, archived: false, archivedAt: undefined };
+      restored.push(updated);
+      return updated;
+    }
+    return trx;
+  });
+
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
+  return delay(restored);
+}
+
+/**
+ * Batch permanently delete multiple payment transactions
+ */
+export async function batchDeletePaymentTransactions(ids: string[]): Promise<void> {
+  paymentTransactions = paymentTransactions.filter((trx) => !ids.includes(trx.id));
+  saveToLocalStorage(STORAGE_KEYS.PAYMENTS, paymentTransactions);
   return delay(undefined);
 }
