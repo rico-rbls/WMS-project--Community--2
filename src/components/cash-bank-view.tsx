@@ -167,7 +167,7 @@ export function CashBankView() {
   const { currentPage, totalPages, paginatedData, goToPage, itemsPerPage, totalItems } = usePagination(sortedData, 10);
 
   // Batch selection
-  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection(paginatedData.map((trx) => trx.id));
+  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection(paginatedData);
 
   // Statistics
   const trxStats = useMemo(() => {
@@ -677,8 +677,8 @@ export function CashBankView() {
           {/* Bulk Actions */}
           {hasSelection && (
             <BulkActionsToolbar
-              selectedCount={selectionCount}
-              onDeselectAll={deselectAll}
+              selectionCount={selectionCount}
+              onClearSelection={deselectAll}
               actions={
                 showArchived
                   ? [
@@ -697,17 +697,11 @@ export function CashBankView() {
             <TableLoadingSkeleton columns={10} rows={5} />
           ) : paginatedData.length === 0 ? (
             <EmptyState
-              icon={<Landmark className="h-12 w-12" />}
+              icon={Landmark}
               title={showArchived ? "No Archived Transactions" : "No Transactions Found"}
               description={showArchived ? "Archived transactions will appear here" : "Create your first transaction to get started"}
-              action={
-                !showArchived && canCreate ? (
-                  <Button onClick={() => setIsAddOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Transaction
-                  </Button>
-                ) : undefined
-              }
+              actionLabel={!showArchived && canCreate ? "New Transaction" : undefined}
+              onAction={!showArchived && canCreate ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
             <>
@@ -724,16 +718,16 @@ export function CashBankView() {
                           className="h-4 w-4 rounded border-gray-300"
                         />
                       </TableHead>
-                      <SortableTableHead column="trxDate" label="Trx Date" sortDirection={getSortDirection("trxDate")} onSort={handleSort} />
-                      <SortableTableHead column="id" label="Trx ID" sortDirection={getSortDirection("id")} onSort={handleSort} />
-                      <SortableTableHead column="customerId" label="Customer ID" sortDirection={getSortDirection("customerId")} onSort={handleSort} />
-                      <SortableTableHead column="customerName" label="Customer Name" sortDirection={getSortDirection("customerName")} onSort={handleSort} />
-                      <SortableTableHead column="country" label="Country" sortDirection={getSortDirection("country")} onSort={handleSort} />
-                      <SortableTableHead column="city" label="City" sortDirection={getSortDirection("city")} onSort={handleSort} />
-                      <SortableTableHead column="soId" label="SO ID" sortDirection={getSortDirection("soId")} onSort={handleSort} />
-                      <SortableTableHead column="invoiceNumber" label="Invoice Num" sortDirection={getSortDirection("invoiceNumber")} onSort={handleSort} />
-                      <SortableTableHead column="paymentMode" label="PMT Mode" sortDirection={getSortDirection("paymentMode")} onSort={handleSort} />
-                      <SortableTableHead column="amountReceived" label="Amount Received" sortDirection={getSortDirection("amountReceived")} onSort={handleSort} />
+                      <SortableTableHead sortKey="trxDate" currentSortKey={sortColumn} sortDirection={getSortDirection("trxDate")} onSort={handleSort}>Trx Date</SortableTableHead>
+                      <SortableTableHead sortKey="id" currentSortKey={sortColumn} sortDirection={getSortDirection("id")} onSort={handleSort}>Trx ID</SortableTableHead>
+                      <SortableTableHead sortKey="customerId" currentSortKey={sortColumn} sortDirection={getSortDirection("customerId")} onSort={handleSort}>Customer ID</SortableTableHead>
+                      <SortableTableHead sortKey="customerName" currentSortKey={sortColumn} sortDirection={getSortDirection("customerName")} onSort={handleSort}>Customer Name</SortableTableHead>
+                      <SortableTableHead sortKey="country" currentSortKey={sortColumn} sortDirection={getSortDirection("country")} onSort={handleSort}>Country</SortableTableHead>
+                      <SortableTableHead sortKey="city" currentSortKey={sortColumn} sortDirection={getSortDirection("city")} onSort={handleSort}>City</SortableTableHead>
+                      <SortableTableHead sortKey="soId" currentSortKey={sortColumn} sortDirection={getSortDirection("soId")} onSort={handleSort}>SO ID</SortableTableHead>
+                      <SortableTableHead sortKey="invoiceNumber" currentSortKey={sortColumn} sortDirection={getSortDirection("invoiceNumber")} onSort={handleSort}>Invoice Num</SortableTableHead>
+                      <SortableTableHead sortKey="paymentMode" currentSortKey={sortColumn} sortDirection={getSortDirection("paymentMode")} onSort={handleSort}>PMT Mode</SortableTableHead>
+                      <SortableTableHead sortKey="amountReceived" currentSortKey={sortColumn} sortDirection={getSortDirection("amountReceived")} onSort={handleSort}>Amount Received</SortableTableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -813,7 +807,6 @@ export function CashBankView() {
                 onPageChange={goToPage}
                 totalItems={totalItems}
                 itemsPerPage={itemsPerPage}
-                itemName="transactions"
               />
             </>
           )}
@@ -824,9 +817,9 @@ export function CashBankView() {
       <BulkDeleteDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
-        selectedCount={selectionCount}
+        itemCount={selectionCount}
         onConfirm={handleBulkDelete}
-        itemName="transactions"
+        itemType="transactions"
       />
     </div>
   );
