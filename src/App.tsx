@@ -6,6 +6,7 @@ const Dashboard = React.lazy(() => import("./components/dashboard").then(m => ({
 const InventoryView = React.lazy(() => import("./components/inventory-view").then(m => ({ default: m.InventoryView })));
 const OrdersView = React.lazy(() => import("./components/orders-view").then(m => ({ default: m.OrdersView })));
 const PurchaseOrdersView = React.lazy(() => import("./components/purchase-orders-view").then(m => ({ default: m.PurchaseOrdersView })));
+const SalesOrdersView = React.lazy(() => import("./components/sales-orders-view").then(m => ({ default: m.SalesOrdersView })));
 const ShipmentsView = React.lazy(() => import("./components/shipments-view").then(m => ({ default: m.ShipmentsView })));
 const SuppliersView = React.lazy(() => import("./components/suppliers-view").then(m => ({ default: m.SuppliersView })));
 const CustomersView = React.lazy(() => import("./components/customers-view").then(m => ({ default: m.CustomersView })));
@@ -19,10 +20,10 @@ import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
-export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers" | "customers" | "users" | "profile";
+export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "users" | "profile";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "shipments", "suppliers", "customers", "users", "profile"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "users", "profile"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -134,6 +135,8 @@ export default function App() {
             onDialogOpened={clearOpenAddDialog}
           />
         );
+      case "sales-orders":
+        return <SalesOrdersView />;
       case "shipments":
         return (
           <ShipmentsView

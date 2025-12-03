@@ -307,3 +307,71 @@ export interface UpdatePurchaseOrderInput {
   actualCost?: number;
   totalPaid?: number;
 }
+
+// Sales Order Types
+export type ReceiptStatus = "Unpaid" | "Partially Paid" | "Paid" | "Overdue";
+
+export interface SOLineItem {
+  inventoryItemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  quantityShipped?: number; // Track shipped quantities
+}
+
+export interface SalesOrder {
+  id: string; // Format: SO-001, SO-002, etc.
+  soDate: string; // Date when SO was created (ISO date)
+  customerId: string;
+  customerName: string;
+  customerCountry: string; // Customer's country (auto-populated)
+  customerCity: string; // Customer's city (auto-populated)
+  invoiceNumber: string; // Invoice/bill reference number
+  items: SOLineItem[];
+  totalAmount: number;
+  totalReceived: number; // Amount received from customer
+  soBalance: number; // Remaining balance (totalAmount - totalReceived)
+  receiptStatus: ReceiptStatus; // Payment/receipt status
+  shippingStatus: ShippingStatus; // Delivery/shipping status
+  createdBy: string;
+  createdDate: string; // ISO date
+  notes: string;
+  expectedDeliveryDate: string; // ISO date
+  // Archive fields
+  archived?: boolean; // Whether the SO is archived (soft-deleted)
+  archivedAt?: string; // ISO date when the SO was archived
+}
+
+export interface CreateSalesOrderInput {
+  id?: string;
+  soDate?: string;
+  customerId: string;
+  customerName: string;
+  customerCountry?: string;
+  customerCity?: string;
+  invoiceNumber?: string;
+  items: Omit<SOLineItem, 'quantityShipped'>[];
+  expectedDeliveryDate: string;
+  notes?: string;
+  createdBy: string;
+  totalReceived?: number;
+  receiptStatus?: ReceiptStatus;
+  shippingStatus?: ShippingStatus;
+}
+
+export interface UpdateSalesOrderInput {
+  id: string;
+  soDate?: string;
+  customerId?: string;
+  customerName?: string;
+  customerCountry?: string;
+  customerCity?: string;
+  invoiceNumber?: string;
+  items?: SOLineItem[];
+  expectedDeliveryDate?: string;
+  notes?: string;
+  receiptStatus?: ReceiptStatus;
+  shippingStatus?: ShippingStatus;
+  totalReceived?: number;
+}

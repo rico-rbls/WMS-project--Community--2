@@ -17,6 +17,11 @@ import type {
   UpdatePurchaseOrderInput,
   POStatus,
   POLineItem,
+  SalesOrder,
+  CreateSalesOrderInput,
+  UpdateSalesOrderInput,
+  ReceiptStatus,
+  SOLineItem,
 } from "../types";
 
 // ============================================================================
@@ -30,6 +35,7 @@ const STORAGE_KEYS = {
   ORDERS: 'wms_orders',
   SHIPMENTS: 'wms_shipments',
   PURCHASE_ORDERS: 'wms_purchase_orders',
+  SALES_ORDERS: 'wms_sales_orders',
   CATEGORIES: 'wms_categories',
 } as const;
 
@@ -254,6 +260,118 @@ const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
 ];
 
+const DEFAULT_SALES_ORDERS: SalesOrder[] = [
+  {
+    id: "SO-001",
+    soDate: "2025-10-05",
+    customerId: "CUS-001",
+    customerName: "Acme Corp",
+    customerCountry: "United States",
+    customerCity: "San Francisco",
+    invoiceNumber: "INV-2025-0501",
+    items: [
+      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 10, unitPrice: 1299.99, totalPrice: 12999.90, quantityShipped: 10 },
+      { inventoryItemId: "INV-007", itemName: "Keyboard Mechanical", quantity: 10, unitPrice: 169.99, totalPrice: 1699.90, quantityShipped: 10 },
+    ],
+    totalAmount: 14699.80,
+    totalReceived: 14699.80,
+    soBalance: 0,
+    receiptStatus: "Paid",
+    shippingStatus: "Delivered",
+    createdBy: "1",
+    createdDate: "2025-10-05",
+    notes: "Corporate bulk order - priority customer",
+    expectedDeliveryDate: "2025-10-12",
+  },
+  {
+    id: "SO-002",
+    soDate: "2025-10-18",
+    customerId: "CUS-003",
+    customerName: "Global Solutions",
+    customerCountry: "United Kingdom",
+    customerCity: "London",
+    invoiceNumber: "INV-2025-0502",
+    items: [
+      { inventoryItemId: "INV-006", itemName: "Monitor 27\"", quantity: 20, unitPrice: 449.99, totalPrice: 8999.80 },
+      { inventoryItemId: "INV-003", itemName: "Standing Desk", quantity: 15, unitPrice: 999.00, totalPrice: 14985.00 },
+    ],
+    totalAmount: 23984.80,
+    totalReceived: 12000.00,
+    soBalance: 11984.80,
+    receiptStatus: "Partially Paid",
+    shippingStatus: "In Transit",
+    createdBy: "1",
+    createdDate: "2025-10-18",
+    notes: "Office expansion project - Phase 1",
+    expectedDeliveryDate: "2025-11-01",
+  },
+  {
+    id: "SO-003",
+    soDate: "2025-10-25",
+    customerId: "CUS-002",
+    customerName: "TechStart Inc",
+    customerCountry: "United States",
+    customerCity: "Austin",
+    invoiceNumber: "INV-2025-0503",
+    items: [
+      { inventoryItemId: "INV-004", itemName: "Wireless Mouse", quantity: 25, unitPrice: 39.99, totalPrice: 999.75 },
+      { inventoryItemId: "INV-005", itemName: "USB-C Cable", quantity: 50, unitPrice: 19.99, totalPrice: 999.50 },
+    ],
+    totalAmount: 1999.25,
+    totalReceived: 0,
+    soBalance: 1999.25,
+    receiptStatus: "Unpaid",
+    shippingStatus: "Processing",
+    createdBy: "2",
+    createdDate: "2025-10-25",
+    notes: "Startup office setup",
+    expectedDeliveryDate: "2025-11-05",
+  },
+  {
+    id: "SO-004",
+    soDate: "2025-11-01",
+    customerId: "CUS-004",
+    customerName: "Beta Systems",
+    customerCountry: "Canada",
+    customerCity: "Toronto",
+    invoiceNumber: "INV-2025-0504",
+    items: [
+      { inventoryItemId: "INV-002", itemName: "Office Chair", quantity: 8, unitPrice: 699.00, totalPrice: 5592.00 },
+      { inventoryItemId: "INV-008", itemName: "Filing Cabinet", quantity: 4, unitPrice: 399.00, totalPrice: 1596.00 },
+    ],
+    totalAmount: 7188.00,
+    totalReceived: 7188.00,
+    soBalance: 0,
+    receiptStatus: "Paid",
+    shippingStatus: "Shipped",
+    createdBy: "1",
+    createdDate: "2025-11-01",
+    notes: "New office furniture order",
+    expectedDeliveryDate: "2025-11-15",
+  },
+  {
+    id: "SO-005",
+    soDate: "2025-09-15",
+    customerId: "CUS-003",
+    customerName: "Global Solutions",
+    customerCountry: "United Kingdom",
+    customerCity: "London",
+    invoiceNumber: "INV-2025-0495",
+    items: [
+      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 5, unitPrice: 1299.99, totalPrice: 6499.95 },
+    ],
+    totalAmount: 6499.95,
+    totalReceived: 3000.00,
+    soBalance: 3499.95,
+    receiptStatus: "Overdue",
+    shippingStatus: "Delivered",
+    createdBy: "1",
+    createdDate: "2025-09-15",
+    notes: "Payment reminder sent - overdue",
+    expectedDeliveryDate: "2025-09-25",
+  },
+];
+
 // ============================================================================
 // In-Memory Store (loaded from localStorage or defaults)
 // ============================================================================
@@ -357,6 +475,30 @@ function migrateCustomers(items: any[]): Customer[] {
   }));
 }
 
+// Migration function for sales orders to ensure all fields exist
+function migrateSalesOrders(salesOrdersData: SalesOrder[]): SalesOrder[] {
+  return salesOrdersData.map(so => {
+    const totalAmount = so.totalAmount ?? 0;
+    const totalReceived = so.totalReceived ?? 0;
+    const soDate = so.soDate ?? so.createdDate ?? new Date().toISOString().split('T')[0];
+
+    return {
+      ...so,
+      soDate,
+      customerCountry: so.customerCountry ?? "",
+      customerCity: so.customerCity ?? "",
+      invoiceNumber: so.invoiceNumber ?? "",
+      items: so.items ?? [],
+      totalAmount,
+      totalReceived,
+      soBalance: so.soBalance ?? (totalAmount - totalReceived),
+      receiptStatus: so.receiptStatus ?? "Unpaid",
+      shippingStatus: so.shippingStatus ?? "Pending",
+      createdDate: so.createdDate ?? soDate,
+    };
+  });
+}
+
 // Default categories with subcategories
 const DEFAULT_CATEGORIES: CategoryDefinition[] = [
   {
@@ -383,6 +525,7 @@ let customers: Customer[] = migrateCustomers(loadFromLocalStorage(STORAGE_KEYS.C
 let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
 let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
+let salesOrders: SalesOrder[] = migrateSalesOrders(loadFromLocalStorage(STORAGE_KEYS.SALES_ORDERS, DEFAULT_SALES_ORDERS));
 let categories: CategoryDefinition[] = loadFromLocalStorage(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
 
 // Save migrated data back to localStorage
@@ -391,6 +534,7 @@ saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
 saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
 saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
 saveToLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
 saveToLocalStorage(STORAGE_KEYS.CATEGORIES, categories);
 
 // ============================================================================
@@ -433,6 +577,14 @@ function generatePurchaseOrderId(): string {
     .reduce((a, b) => Math.max(a, b), 0);
   const next = maxNum + 1;
   return `PO-${String(next).padStart(3, "0")}`;
+}
+
+function generateSalesOrderId(): string {
+  const maxNum = salesOrders
+    .map((so) => Number(so.id.replace(/[^0-9]/g, "")) || 0)
+    .reduce((a, b) => Math.max(a, b), 0);
+  const next = maxNum + 1;
+  return `SO-${String(next).padStart(3, "0")}`;
 }
 
 function delay<T>(value: T, ms = 150): Promise<T> {
@@ -1834,6 +1986,256 @@ export async function getPurchaseOrderStats(): Promise<{
   });
 
   return delay(stats);
+}
+
+// ============================================================================
+// Sales Orders CRUD Operations
+// ============================================================================
+
+export async function getSalesOrders(): Promise<SalesOrder[]> {
+  return delay([...salesOrders]);
+}
+
+export async function getSalesOrder(id: string): Promise<SalesOrder | null> {
+  const so = salesOrders.find((s) => s.id === id);
+  return delay(so ?? null);
+}
+
+export async function createSalesOrder(input: CreateSalesOrderInput): Promise<SalesOrder> {
+  const id = input.id && input.id.trim() !== "" ? input.id : generateSalesOrderId();
+  if (salesOrders.some((so) => so.id === id)) {
+    throw new Error(`Sales Order with id ${id} already exists`);
+  }
+
+  const totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  const totalReceived = input.totalReceived ?? 0;
+  const soBalance = totalAmount - totalReceived;
+  const soDate = input.soDate ?? new Date().toISOString().split('T')[0];
+
+  // Determine receipt status based on payment
+  let receiptStatus: ReceiptStatus = input.receiptStatus ?? "Unpaid";
+  if (!input.receiptStatus) {
+    if (totalReceived >= totalAmount) {
+      receiptStatus = "Paid";
+    } else if (totalReceived > 0) {
+      receiptStatus = "Partially Paid";
+    }
+  }
+
+  const so: SalesOrder = {
+    id,
+    soDate,
+    customerId: input.customerId,
+    customerName: input.customerName,
+    customerCountry: input.customerCountry ?? "",
+    customerCity: input.customerCity ?? "",
+    invoiceNumber: input.invoiceNumber ?? "",
+    items: input.items.map(item => ({ ...item, quantityShipped: 0 })),
+    totalAmount,
+    totalReceived,
+    soBalance,
+    receiptStatus,
+    shippingStatus: input.shippingStatus ?? "Pending",
+    createdBy: input.createdBy,
+    createdDate: soDate,
+    notes: input.notes ?? "",
+    expectedDeliveryDate: input.expectedDeliveryDate,
+  };
+
+  salesOrders.push(so);
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(so);
+}
+
+export async function updateSalesOrder(input: UpdateSalesOrderInput): Promise<SalesOrder> {
+  const index = salesOrders.findIndex((so) => so.id === input.id);
+  if (index === -1) throw new Error("Sales Order not found");
+
+  const prev = salesOrders[index];
+  const next: SalesOrder = { ...prev, ...input } as SalesOrder;
+
+  // Recalculate totalAmount if items changed
+  if (input.items) {
+    next.totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  }
+
+  // Recalculate soBalance
+  next.soBalance = next.totalAmount - next.totalReceived;
+
+  salesOrders[index] = next;
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(next);
+}
+
+export async function deleteSalesOrder(id: string): Promise<void> {
+  const index = salesOrders.findIndex((so) => so.id === id);
+  if (index === -1) throw new Error("Sales Order not found");
+
+  salesOrders.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(undefined);
+}
+
+// ============================================================================
+// Sales Order Archive/Restore Operations
+// ============================================================================
+
+export async function archiveSalesOrder(id: string): Promise<SalesOrder> {
+  const index = salesOrders.findIndex((so) => so.id === id);
+  if (index === -1) throw new Error("Sales Order not found");
+
+  salesOrders[index] = {
+    ...salesOrders[index],
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(salesOrders[index]);
+}
+
+export async function restoreSalesOrder(id: string): Promise<SalesOrder> {
+  const index = salesOrders.findIndex((so) => so.id === id);
+  if (index === -1) throw new Error("Sales Order not found");
+
+  salesOrders[index] = {
+    ...salesOrders[index],
+    archived: false,
+    archivedAt: undefined,
+  };
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(salesOrders[index]);
+}
+
+export async function permanentlyDeleteSalesOrder(id: string): Promise<void> {
+  const index = salesOrders.findIndex((so) => so.id === id);
+  if (index === -1) throw new Error("Sales Order not found");
+
+  salesOrders.splice(index, 1);
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay(undefined);
+}
+
+// ============================================================================
+// Sales Order Bulk Operations
+// ============================================================================
+
+export async function bulkDeleteSalesOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = salesOrders.findIndex((so) => so.id === id);
+    if (index === -1) {
+      errors.push(`Sales Order ${id} not found`);
+      continue;
+    }
+
+    salesOrders.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkArchiveSalesOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = salesOrders.findIndex((so) => so.id === id);
+    if (index === -1) {
+      errors.push(`Sales Order ${id} not found`);
+      continue;
+    }
+
+    salesOrders[index] = {
+      ...salesOrders[index],
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkRestoreSalesOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = salesOrders.findIndex((so) => so.id === id);
+    if (index === -1) {
+      errors.push(`Sales Order ${id} not found`);
+      continue;
+    }
+
+    salesOrders[index] = {
+      ...salesOrders[index],
+      archived: false,
+      archivedAt: undefined,
+    };
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
+}
+
+export async function bulkPermanentlyDeleteSalesOrders(ids: string[]): Promise<BulkOperationResult> {
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const index = salesOrders.findIndex((so) => so.id === id);
+    if (index === -1) {
+      errors.push(`Sales Order ${id} not found`);
+      continue;
+    }
+
+    if (!salesOrders[index].archived) {
+      errors.push(`Sales Order ${id} must be archived before permanent deletion`);
+      continue;
+    }
+
+    salesOrders.splice(index, 1);
+    successCount++;
+  }
+
+  saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);
+
+  return delay({
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors,
+  });
 }
 
 // ============================================================================
