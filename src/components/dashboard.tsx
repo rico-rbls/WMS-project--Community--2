@@ -16,7 +16,7 @@ import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { Progress } from "./ui/progress";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6"];
 const CHART_COLORS = {
   primary: "#3b82f6",
   success: "#10b981",
@@ -24,6 +24,21 @@ const CHART_COLORS = {
   danger: "#ef4444",
   purple: "#8b5cf6",
   cyan: "#06b6d4",
+};
+
+// Currency formatting helper for Philippine Peso
+const formatCurrency = (value: number, decimals: number = 2): string => {
+  return `₱${value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  })}`;
+};
+
+// Compact currency format for charts (e.g., ₱125k)
+const formatCurrencyCompact = (value: number): string => {
+  if (value >= 1000000) return `₱${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `₱${(value / 1000).toFixed(0)}k`;
+  return `₱${value}`;
 };
 
 interface DashboardProps {
@@ -39,6 +54,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [cashBankTransactions, setCashBankTransactions] = useState<CashBankTransaction[]>([]);
   const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
+  const [additionalDataError, setAdditionalDataError] = useState<string | null>(null);
 
   // Fetch purchase orders, cash/bank transactions, and payment transactions
   useEffect(() => {
@@ -50,7 +66,11 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       setPurchaseOrders(pos);
       setCashBankTransactions(cashBank);
       setPaymentTransactions(payments);
-    }).catch(console.error);
+      setAdditionalDataError(null);
+    }).catch((error) => {
+      console.error('Failed to load additional dashboard data:', error);
+      setAdditionalDataError('Failed to load cash flow and purchase order data. Some metrics may be incomplete.');
+    });
   }, []);
 
   const handleRefresh = async (silent = false) => {
@@ -208,29 +228,41 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // Cash & Bank (Receipts) statistics
+    // Cash & Bank (Receipts) statistics - single pass aggregation
     const activeReceipts = cashBankTransactions.filter(trx => !trx.archived);
-    const totalReceipts = activeReceipts.reduce((sum, trx) => sum + trx.amountReceived, 0);
-    const receiptsByMode = {
-      cash: activeReceipts.filter(trx => trx.paymentMode === "Cash").reduce((sum, trx) => sum + trx.amountReceived, 0),
-      bankTransfer: activeReceipts.filter(trx => trx.paymentMode === "Bank Transfer").reduce((sum, trx) => sum + trx.amountReceived, 0),
-      creditCard: activeReceipts.filter(trx => trx.paymentMode === "Credit Card").reduce((sum, trx) => sum + trx.amountReceived, 0),
-      check: activeReceipts.filter(trx => trx.paymentMode === "Check").reduce((sum, trx) => sum + trx.amountReceived, 0),
-      online: activeReceipts.filter(trx => trx.paymentMode === "Online Payment").reduce((sum, trx) => sum + trx.amountReceived, 0),
-    };
-    const recentReceipts = activeReceipts.filter(trx => new Date(trx.createdAt) >= oneWeekAgo).length;
+    const receiptsAggregated = activeReceipts.reduce((acc, trx) => {
+      acc.total += trx.amountReceived;
+      if (new Date(trx.createdAt) >= oneWeekAgo) acc.recent++;
+      const mode = trx.paymentMode;
+      if (mode === "Cash") acc.byMode.cash += trx.amountReceived;
+      else if (mode === "Bank Transfer") acc.byMode.bankTransfer += trx.amountReceived;
+      else if (mode === "Credit Card") acc.byMode.creditCard += trx.amountReceived;
+      else if (mode === "Check") acc.byMode.check += trx.amountReceived;
+      else if (mode === "Online Payment") acc.byMode.online += trx.amountReceived;
+      return acc;
+    }, { total: 0, recent: 0, byMode: { cash: 0, bankTransfer: 0, creditCard: 0, check: 0, online: 0 } });
 
-    // Payments (Outgoing) statistics
+    const totalReceipts = receiptsAggregated.total;
+    const receiptsByMode = receiptsAggregated.byMode;
+    const recentReceipts = receiptsAggregated.recent;
+
+    // Payments (Outgoing) statistics - single pass aggregation
     const activePayments = paymentTransactions.filter(trx => !trx.archived);
-    const totalPayments = activePayments.reduce((sum, trx) => sum + trx.amountPaid, 0);
-    const paymentsByMode = {
-      cash: activePayments.filter(trx => trx.paymentMode === "Cash").reduce((sum, trx) => sum + trx.amountPaid, 0),
-      bankTransfer: activePayments.filter(trx => trx.paymentMode === "Bank Transfer").reduce((sum, trx) => sum + trx.amountPaid, 0),
-      creditCard: activePayments.filter(trx => trx.paymentMode === "Credit Card").reduce((sum, trx) => sum + trx.amountPaid, 0),
-      check: activePayments.filter(trx => trx.paymentMode === "Check").reduce((sum, trx) => sum + trx.amountPaid, 0),
-      online: activePayments.filter(trx => trx.paymentMode === "Online Payment").reduce((sum, trx) => sum + trx.amountPaid, 0),
-    };
-    const recentPayments = activePayments.filter(trx => new Date(trx.createdAt) >= oneWeekAgo).length;
+    const paymentsAggregated = activePayments.reduce((acc, trx) => {
+      acc.total += trx.amountPaid;
+      if (new Date(trx.createdAt) >= oneWeekAgo) acc.recent++;
+      const mode = trx.paymentMode;
+      if (mode === "Cash") acc.byMode.cash += trx.amountPaid;
+      else if (mode === "Bank Transfer") acc.byMode.bankTransfer += trx.amountPaid;
+      else if (mode === "Credit Card") acc.byMode.creditCard += trx.amountPaid;
+      else if (mode === "Check") acc.byMode.check += trx.amountPaid;
+      else if (mode === "Online Payment") acc.byMode.online += trx.amountPaid;
+      return acc;
+    }, { total: 0, recent: 0, byMode: { cash: 0, bankTransfer: 0, creditCard: 0, check: 0, online: 0 } });
+
+    const totalPayments = paymentsAggregated.total;
+    const paymentsByMode = paymentsAggregated.byMode;
+    const recentPayments = paymentsAggregated.recent;
 
     // Net cash flow
     const netCashFlow = totalReceipts - totalPayments;
@@ -240,23 +272,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     const outstandingPayables = purchaseOrders
       .filter(po => !po.archived && ["Ordered", "Partially Received", "Received"].includes(po.status))
       .reduce((sum, po) => sum + Math.max(0, po.totalAmount - (po.totalPaid || 0)), 0);
-
-    // Payment mode distribution for chart
-    const receiptModeData = [
-      { name: "Cash", value: receiptsByMode.cash },
-      { name: "Bank Transfer", value: receiptsByMode.bankTransfer },
-      { name: "Credit Card", value: receiptsByMode.creditCard },
-      { name: "Check", value: receiptsByMode.check },
-      { name: "Online", value: receiptsByMode.online },
-    ].filter(item => item.value > 0);
-
-    const paymentModeData = [
-      { name: "Cash", value: paymentsByMode.cash },
-      { name: "Bank Transfer", value: paymentsByMode.bankTransfer },
-      { name: "Credit Card", value: paymentsByMode.creditCard },
-      { name: "Check", value: paymentsByMode.check },
-      { name: "Online", value: paymentsByMode.online },
-    ].filter(item => item.value > 0);
 
     return {
       totalReceipts,
@@ -268,8 +283,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       recentReceipts,
       recentPayments,
       outstandingPayables,
-      receiptModeData,
-      paymentModeData,
       totalReceiptTransactions: activeReceipts.length,
       totalPaymentTransactions: activePayments.length,
     };
@@ -380,27 +393,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     });
   }, [cashBankTransactions, paymentTransactions, orders, shipments]);
 
-  // Category value data for enhanced pie chart
-  const categoryValueData = useMemo(() => {
-    if (!inventory) return [];
-
-    const categories: Record<InventoryCategory, { quantity: number; value: number }> = {
-      Electronics: { quantity: 0, value: 0 },
-      Furniture: { quantity: 0, value: 0 },
-      Clothing: { quantity: 0, value: 0 },
-      Food: { quantity: 0, value: 0 },
-    };
-
-    inventory.forEach(item => {
-      categories[item.category].quantity += item.quantity;
-      categories[item.category].value += item.quantity * (item.pricePerPiece || 0);
-    });
-
-    return Object.entries(categories)
-      .map(([name, data]) => ({ name, ...data }))
-      .filter(item => item.quantity > 0);
-  }, [inventory]);
-
   // Show loading skeleton
   if (isLoading.inventory || isLoading.orders || isLoading.shipments) {
     return <DashboardSkeleton />;
@@ -439,6 +431,25 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </Button>
       </div>
 
+      {/* Error Alert for Additional Data */}
+      {additionalDataError && (
+        <Alert variant="destructive" className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800 dark:text-amber-200">Data Loading Warning</AlertTitle>
+          <AlertDescription className="text-amber-700 dark:text-amber-300">
+            {additionalDataError}
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 h-auto ml-2 text-amber-800 dark:text-amber-200 underline"
+              onClick={() => handleRefresh(true)}
+            >
+              Try again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* ==================== KEY PERFORMANCE INDICATORS ==================== */}
       <section className="space-y-4">
         <div className="flex items-center gap-2">
@@ -456,7 +467,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-              ₱{stats.totalInventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(stats.totalInventoryValue)}
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
@@ -488,11 +499,11 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-              ₱{stats.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(stats.avgOrderValue)}
             </div>
             <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
               <ArrowUpRight className="h-3 w-3" />
-              Total: ₱{stats.totalOrderValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+              Total: {formatCurrency(stats.totalOrderValue, 0)}
             </p>
           </CardContent>
         </Card>
@@ -580,7 +591,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             <CardContent>
               <div className="text-2xl font-bold">{stats.pendingPOCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                ₱{stats.pendingPOValue.toLocaleString(undefined, { minimumFractionDigits: 0 })} value
+                {formatCurrency(stats.pendingPOValue, 0)} value
               </p>
             </CardContent>
           </Card>
@@ -678,7 +689,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                       {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
                       {stats.totalRestockCost > 0 && (
                         <span className="ml-1 font-medium">
-                          Estimated restock: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Estimated restock: {formatCurrency(stats.totalRestockCost)}
                         </span>
                       )}
                     </span>
@@ -704,7 +715,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                       {stats.overstockCount} item{stats.overstockCount > 1 ? 's exceed' : ' exceeds'} target stock level.
                       {stats.totalExcessValue > 0 && (
                         <span className="ml-1 font-medium">
-                          Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Excess value: {formatCurrency(stats.totalExcessValue)}
                         </span>
                       )}
                     </span>
@@ -740,7 +751,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-              ₱{cashFlowStats.totalReceipts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(cashFlowStats.totalReceipts)}
             </div>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
               <ArrowUpRight className="h-3 w-3" />
@@ -756,7 +767,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-rose-900 dark:text-rose-100">
-              ₱{cashFlowStats.totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(cashFlowStats.totalPayments)}
             </div>
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
               <ArrowDownRight className="h-3 w-3" />
@@ -776,7 +787,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${cashFlowStats.cashFlowPositive ? 'text-teal-900 dark:text-teal-100' : 'text-amber-900 dark:text-amber-100'}`}>
-              {cashFlowStats.cashFlowPositive ? '+' : ''}₱{cashFlowStats.netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {cashFlowStats.cashFlowPositive ? '+' : ''}{formatCurrency(cashFlowStats.netCashFlow)}
             </div>
             <p className={`text-xs mt-1 ${cashFlowStats.cashFlowPositive ? 'text-teal-600 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400'}`}>
               {cashFlowStats.cashFlowPositive ? 'Positive cash flow' : 'Negative cash flow'}
@@ -791,7 +802,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-              ₱{cashFlowStats.outstandingPayables.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(cashFlowStats.outstandingPayables)}
             </div>
             <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1">
               <Clock className="h-3 w-3" />
@@ -827,7 +838,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <Banknote className="h-4 w-4 text-green-600" />
                     <span className="text-sm">Cash</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.cash)}</span>
                 </div>
               )}
               {cashFlowStats.receiptsByMode.bankTransfer > 0 && (
@@ -836,7 +847,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <Landmark className="h-4 w-4 text-blue-600" />
                     <span className="text-sm">Bank Transfer</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.bankTransfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.bankTransfer)}</span>
                 </div>
               )}
               {cashFlowStats.receiptsByMode.creditCard > 0 && (
@@ -845,7 +856,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <CreditCard className="h-4 w-4 text-purple-600" />
                     <span className="text-sm">Credit Card</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.creditCard.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.creditCard)}</span>
                 </div>
               )}
               {cashFlowStats.receiptsByMode.check > 0 && (
@@ -854,7 +865,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <ClipboardCheck className="h-4 w-4 text-orange-600" />
                     <span className="text-sm">Check</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.check.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.check)}</span>
                 </div>
               )}
               {cashFlowStats.receiptsByMode.online > 0 && (
@@ -863,7 +874,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <DollarSign className="h-4 w-4 text-cyan-600" />
                     <span className="text-sm">Online Payment</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.receiptsByMode.online.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.online)}</span>
                 </div>
               )}
               {cashFlowStats.totalReceipts === 0 && (
@@ -897,7 +908,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <Banknote className="h-4 w-4 text-green-600" />
                     <span className="text-sm">Cash</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.cash)}</span>
                 </div>
               )}
               {cashFlowStats.paymentsByMode.bankTransfer > 0 && (
@@ -906,7 +917,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <Landmark className="h-4 w-4 text-blue-600" />
                     <span className="text-sm">Bank Transfer</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.bankTransfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.bankTransfer)}</span>
                 </div>
               )}
               {cashFlowStats.paymentsByMode.creditCard > 0 && (
@@ -915,7 +926,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <CreditCard className="h-4 w-4 text-purple-600" />
                     <span className="text-sm">Credit Card</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.creditCard.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.creditCard)}</span>
                 </div>
               )}
               {cashFlowStats.paymentsByMode.check > 0 && (
@@ -924,7 +935,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <ClipboardCheck className="h-4 w-4 text-orange-600" />
                     <span className="text-sm">Check</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.check.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.check)}</span>
                 </div>
               )}
               {cashFlowStats.paymentsByMode.online > 0 && (
@@ -933,7 +944,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     <DollarSign className="h-4 w-4 text-cyan-600" />
                     <span className="text-sm">Online Payment</span>
                   </div>
-                  <span className="font-medium">₱{cashFlowStats.paymentsByMode.online.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.online)}</span>
                 </div>
               )}
               {cashFlowStats.totalPayments === 0 && (
@@ -982,7 +993,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               <XAxis dataKey="month" className="text-xs" />
               <YAxis
                 className="text-xs"
-                tickFormatter={(value) => value >= 1000 ? `₱${(value / 1000).toFixed(0)}k` : `₱${value}`}
+                tickFormatter={formatCurrencyCompact}
               />
               <Tooltip
                 contentStyle={{
@@ -990,10 +1001,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string) => [
-                  `₱${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  name
-                ]}
+                formatter={(value: number, name: string) => [formatCurrency(value), name]}
               />
               <Legend />
               <Area
@@ -1120,7 +1128,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           <CardContent>
             <div className="space-y-4">
               {stats.topProducts.map((product, index) => (
-                <div key={index} className="flex items-center gap-4">
+                <div key={product.name} className="flex items-center gap-4">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                     {index + 1}
                   </div>
@@ -1134,7 +1142,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-semibold text-green-600 dark:text-green-400">
-                      ₱{product.value.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                      {formatCurrency(product.value, 0)}
                     </p>
                   </div>
                 </div>
@@ -1266,7 +1274,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   Items below reorder level requiring attention
                   {stats.totalRestockCost > 0 && (
                     <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
-                      • Est. restock cost: ₱{stats.totalRestockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      • Est. restock cost: {formatCurrency(stats.totalRestockCost)}
                     </span>
                   )}
                 </CardDescription>
@@ -1346,12 +1354,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                       </span>
                       {item.restockCost > 0 && (
                         <span>
-                          Est. cost: <span className="font-medium text-foreground">₱{item.restockCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          Est. cost: <span className="font-medium text-foreground">{formatCurrency(item.restockCost)}</span>
                         </span>
                       )}
                       {item.pricePerPiece > 0 && (
                         <span>
-                          Unit price: ₱{item.pricePerPiece.toFixed(2)}
+                          Unit price: {formatCurrency(item.pricePerPiece)}
                         </span>
                       )}
                     </div>
@@ -1413,7 +1421,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   Items exceeding target stock level
                   {stats.totalExcessValue > 0 && (
                     <span className="ml-2 font-medium text-blue-700 dark:text-blue-400">
-                      • Excess value: ₱{stats.totalExcessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      • Excess value: {formatCurrency(stats.totalExcessValue)}
                     </span>
                   )}
                 </CardDescription>
@@ -1469,7 +1477,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     {/* Excess Info */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span>Excess: <span className="font-medium text-blue-600">{item.excessQty} units</span></span>
-                      <span>Excess value: <span className="font-medium">₱{item.excessValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                      <span>Excess value: <span className="font-medium">{formatCurrency(item.excessValue)}</span></span>
                     </div>
                   </div>
                 );
