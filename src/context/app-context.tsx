@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import type { InventoryItem, Order, Shipment, Supplier } from "../types";
-import { getInventory, getOrders, getShipments, getSuppliers } from "../services/api";
+import { getOrders, getShipments, getSuppliers } from "../services/api";
+import { subscribeToInventory } from "../services/firebase-inventory-api";
 
 interface AppState {
   inventory: InventoryItem[] | null;
@@ -33,7 +34,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [shipments, setShipments] = useState<Shipment[] | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
-  
+
   const [isLoading, setIsLoading] = useState({
     inventory: true,
     orders: true,
@@ -41,28 +42,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     suppliers: true,
   });
 
-  // Initial data load
+  // Track if inventory subscription is set up
+  const inventoryUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Set up real-time Firebase subscription for inventory
   useEffect(() => {
-    loadAllData();
+    // Subscribe to inventory changes from Firebase
+    inventoryUnsubscribeRef.current = subscribeToInventory(
+      (items) => {
+        setInventory(items);
+        setIsLoading(prev => ({ ...prev, inventory: false }));
+      },
+      (error) => {
+        console.error("Firebase inventory subscription error:", error);
+        setIsLoading(prev => ({ ...prev, inventory: false }));
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (inventoryUnsubscribeRef.current) {
+        inventoryUnsubscribeRef.current();
+      }
+    };
   }, []);
 
-  async function loadAllData() {
+  // Initial data load for non-Firebase data
+  useEffect(() => {
+    loadOtherData();
+  }, []);
+
+  async function loadOtherData() {
     await Promise.all([
-      refreshInventory(),
       refreshOrders(),
       refreshShipments(),
       refreshSuppliers(),
     ]);
   }
 
+  // For Firebase inventory, refresh is a no-op since we use real-time subscription
+  // But we keep the function for compatibility
   async function refreshInventory() {
-    setIsLoading(prev => ({ ...prev, inventory: true }));
-    try {
-      const data = await getInventory();
-      setInventory(data);
-    } finally {
-      setIsLoading(prev => ({ ...prev, inventory: false }));
-    }
+    // No-op: Firebase real-time subscription handles updates automatically
+    // This function is kept for API compatibility
   }
 
   async function refreshOrders() {

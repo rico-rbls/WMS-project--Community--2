@@ -1,4 +1,4 @@
-import { LucideIcon, Plus, Search, FileX } from "lucide-react";
+import { LucideIcon, Plus, Search, SearchX, FileX } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "./utils";
 
@@ -157,7 +157,7 @@ export function NoResultsEmptyState({
   return (
     <EmptyState
       variant="search"
-      icon={Search}
+      icon={searchTerm ? SearchX : Search}
       title={searchTerm ? "No results found" : `No ${entityName} yet`}
       description={
         searchTerm

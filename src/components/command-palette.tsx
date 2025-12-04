@@ -4,7 +4,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { ScrollArea } from "./ui/scroll-area";
 import {
-  Search, Package, ShoppingCart, ClipboardList, Truck, Users,
+  Search, SearchX, Package, ShoppingCart, ClipboardList, Truck, Users,
   Clock, X, Loader2, HelpCircle
 } from "lucide-react";
 import { cn } from "./ui/utils";
@@ -480,7 +480,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: CommandPalett
           {/* No Results */}
           {showNoResults && (
             <div className="p-8 text-center">
-              <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+              <SearchX className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-muted-foreground">No results found for "{query}"</p>
               <p className="text-sm text-muted-foreground/70 mt-1">
                 Try different keywords or use filters like <code className="bg-muted px-1 rounded">status:active</code>

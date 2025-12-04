@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================================
+    // Helper Functions
+    // ============================================================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Get user document from users collection
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Check user role
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+    
+    // Check if user has minimum role level
+    // Role hierarchy: Owner > Admin > Operator > Viewer
+    function hasMinRole(minRole) {
+      let userRole = getUserData().role;
+      return isAuthenticated() && (
+        userRole == 'Owner' ||
+        (minRole == 'Admin' && userRole in ['Owner', 'Admin']) ||
+        (minRole == 'Operator' && userRole in ['Owner', 'Admin', 'Operator']) ||
+        (minRole == 'Viewer' && userRole in ['Owner', 'Admin', 'Operator', 'Viewer'])
+      );
+    }
+    
+    // Check if user is Owner or Admin
+    function isAdminOrOwner() {
+      return hasMinRole('Admin');
+    }
+    
+    // Check if user can write (Operator and above)
+    function canWrite() {
+      return hasMinRole('Operator');
+    }
+    
+    // Check if user can read (all authenticated users)
+    function canRead() {
+      return hasMinRole('Viewer');
+    }
+    
+    // ============================================================================
+    // Inventory Collection Rules
+    // ============================================================================
+    
+    match /inventory/{itemId} {
+      // Anyone authenticated can read inventory
+      allow read: if canRead();
+      
+      // Operators and above can create/update inventory
+      allow create, update: if canWrite();
+      
+      // Only Admins and Owners can delete inventory
+      allow delete: if isAdminOrOwner();
+    }
+    
+    // ============================================================================
+    // Users Collection Rules
+    // ============================================================================
+    
+    match /users/{userId} {
+      // Users can read their own profile
+      // Admins and Owners can read all profiles
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == userId || isAdminOrOwner());
+      
+      // Only Owners can create/update/delete users
+      allow create, update, delete: if hasRole('Owner');
+      
+      // Users can update their own profile (except role)
+      allow update: if isAuthenticated() && 
+        request.auth.uid == userId && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    }
+    
+    // ============================================================================
+    // Development/Testing Rules (REMOVE IN PRODUCTION)
+    // ============================================================================
+    
+    // Temporarily allow all operations for development
+    // IMPORTANT: Remove or comment out these rules before deploying to production!
+    match /inventory/{itemId} {
+      allow read, write: if true;
+    }
+    
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+  }
+}
+
