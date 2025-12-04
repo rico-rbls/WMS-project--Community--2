@@ -30,10 +30,25 @@ import type {
 // ============================================================================
 
 /**
- * Compute inventory status based on quantity and reorder flag
+ * Remove undefined values from an object (Firestore doesn't accept undefined)
  */
-function computeStatus(quantity: number, reorderRequired: boolean): InventoryItem["status"] {
+function removeUndefinedFields<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  }
+  return result as Partial<T>;
+}
+
+/**
+ * Compute inventory status based on quantity and reorder level/flag
+ */
+function computeStatus(quantity: number, reorderRequired: boolean, reorderLevel?: number): InventoryItem["status"] {
   if (quantity <= 0) return "Critical";
+  // Auto-set reorderRequired if quantity is at or below reorderLevel
+  if (reorderLevel !== undefined && quantity <= reorderLevel) return "Low Stock";
   if (reorderRequired) return "Low Stock";
   return "In Stock";
 }
@@ -88,13 +103,14 @@ export async function getInventory(): Promise<InventoryItem[]> {
       subcategory: data.subcategory,
       quantity: data.quantity || 0,
       location: data.location,
-      status: data.status || computeStatus(data.quantity || 0, data.reorderRequired || false),
+      status: data.status || computeStatus(data.quantity || 0, data.reorderRequired || false, data.reorderLevel),
       brand: data.brand || "",
       pricePerPiece: data.pricePerPiece || 0,
       supplierId: data.supplierId || "",
       quantityPurchased: data.quantityPurchased || 0,
       quantitySold: data.quantitySold || 0,
       reorderRequired: data.reorderRequired || false,
+      reorderLevel: data.reorderLevel,
       photoUrl: data.photoUrl,
       description: data.description,
       archived: data.archived || false,
@@ -126,13 +142,14 @@ export function subscribeToInventory(
           subcategory: data.subcategory,
           quantity: data.quantity || 0,
           location: data.location,
-          status: data.status || computeStatus(data.quantity || 0, data.reorderRequired || false),
+          status: data.status || computeStatus(data.quantity || 0, data.reorderRequired || false, data.reorderLevel),
           brand: data.brand || "",
           pricePerPiece: data.pricePerPiece || 0,
           supplierId: data.supplierId || "",
           quantityPurchased: data.quantityPurchased || 0,
           quantitySold: data.quantitySold || 0,
           reorderRequired: data.reorderRequired || false,
+          reorderLevel: data.reorderLevel,
           photoUrl: data.photoUrl,
           description: data.description,
           archived: data.archived || false,
@@ -156,7 +173,11 @@ export async function createInventoryItem(input: CreateInventoryItemInput): Prom
   const quantity = Math.max(0, Math.floor(input.quantity));
   const quantityPurchased = Math.max(0, Math.floor(input.quantityPurchased));
   const quantitySold = Math.max(0, Math.floor(input.quantitySold));
-  const status = computeStatus(quantity, input.reorderRequired);
+  const reorderLevel = input.reorderLevel !== undefined ? Math.max(0, Math.floor(input.reorderLevel)) : undefined;
+
+  // Auto-compute reorderRequired based on reorderLevel if defined
+  const reorderRequired = reorderLevel !== undefined && quantity <= reorderLevel ? true : input.reorderRequired;
+  const status = computeStatus(quantity, reorderRequired, reorderLevel);
 
   const item: InventoryItem = {
     id,
@@ -171,7 +192,8 @@ export async function createInventoryItem(input: CreateInventoryItemInput): Prom
     supplierId: input.supplierId.trim(),
     quantityPurchased,
     quantitySold,
-    reorderRequired: input.reorderRequired,
+    reorderRequired,
+    reorderLevel,
     photoUrl: input.photoUrl,
     description: input.description,
   };
@@ -182,7 +204,9 @@ export async function createInventoryItem(input: CreateInventoryItemInput): Prom
     throw new Error(`Item with id ${id} already exists`);
   }
 
-  await setDoc(doc(db, COLLECTIONS.INVENTORY, id), item);
+  // Remove undefined fields before writing to Firestore
+  const cleanedItem = removeUndefinedFields(item as Record<string, unknown>);
+  await setDoc(doc(db, COLLECTIONS.INVENTORY, id), cleanedItem);
   return item;
 }
 
@@ -205,7 +229,15 @@ export async function updateInventoryItem(input: UpdateInventoryItemInput): Prom
   const quantitySold = input.quantitySold !== undefined
     ? Math.max(0, Math.floor(input.quantitySold))
     : prev.quantitySold;
-  const reorderRequired = input.reorderRequired !== undefined ? input.reorderRequired : prev.reorderRequired;
+  const reorderLevel = input.reorderLevel !== undefined
+    ? Math.max(0, Math.floor(input.reorderLevel))
+    : prev.reorderLevel;
+
+  // Auto-compute reorderRequired based on reorderLevel if defined
+  let reorderRequired = input.reorderRequired !== undefined ? input.reorderRequired : prev.reorderRequired;
+  if (reorderLevel !== undefined && quantity <= reorderLevel) {
+    reorderRequired = true;
+  }
 
   const updated: InventoryItem = {
     ...prev,
@@ -214,10 +246,13 @@ export async function updateInventoryItem(input: UpdateInventoryItemInput): Prom
     quantityPurchased,
     quantitySold,
     reorderRequired,
-    status: computeStatus(quantity, reorderRequired),
+    reorderLevel,
+    status: computeStatus(quantity, reorderRequired, reorderLevel),
   };
 
-  await updateDoc(docRef, updated as Record<string, unknown>);
+  // Remove undefined fields before writing to Firestore
+  const cleanedUpdate = removeUndefinedFields(updated as Record<string, unknown>);
+  await updateDoc(docRef, cleanedUpdate);
   return updated;
 }
 
@@ -390,4 +425,43 @@ export async function bulkDeleteInventoryItems(ids: string[]): Promise<BulkOpera
  */
 export async function bulkPermanentlyDeleteInventoryItems(ids: string[]): Promise<BulkOperationResult> {
   return bulkDeleteInventoryItems(ids);
+}
+
+/**
+ * Update multiple inventory items at once with the same changes
+ */
+export async function bulkUpdateInventoryItems(
+  ids: string[],
+  updates: Partial<Omit<InventoryItem, "id" | "status">>
+): Promise<BulkOperationResult> {
+  const batch = writeBatch(db);
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const docRef = doc(db, COLLECTIONS.INVENTORY, id);
+    const existingDoc = await getDoc(docRef);
+
+    if (!existingDoc.exists()) {
+      errors.push(`Item ${id} not found`);
+      continue;
+    }
+
+    const prev = existingDoc.data() as InventoryItem;
+    const quantity = updates.quantity !== undefined ? Math.max(0, Math.floor(updates.quantity)) : prev.quantity;
+    const reorderRequired = updates.reorderRequired !== undefined ? updates.reorderRequired : prev.reorderRequired;
+    const status = computeStatus(quantity, reorderRequired);
+
+    batch.update(docRef, { ...updates, status });
+    successCount++;
+  }
+
+  await batch.commit();
+
+  return {
+    success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  };
 }

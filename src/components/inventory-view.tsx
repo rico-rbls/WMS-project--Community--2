@@ -35,7 +35,20 @@ import {
 } from "./ui/dropdown-menu";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { createInventoryItem, deleteInventoryItem, updateInventoryItem, bulkDeleteInventoryItems, bulkUpdateInventoryItems, createSupplier, archiveInventoryItem, restoreInventoryItem, permanentlyDeleteInventoryItem, bulkArchiveInventoryItems, bulkRestoreInventoryItems, bulkPermanentlyDeleteInventoryItems, getCategories, addCategory, addSubcategory } from "../services/api";
+import { createSupplier, getCategories, addCategory, addSubcategory } from "../services/api";
+import {
+  createInventoryItem,
+  deleteInventoryItem,
+  updateInventoryItem,
+  archiveInventoryItem,
+  restoreInventoryItem,
+  permanentlyDeleteInventoryItem,
+  bulkArchiveInventoryItems,
+  bulkRestoreInventoryItems,
+  bulkDeleteInventoryItems,
+  bulkPermanentlyDeleteInventoryItems,
+  bulkUpdateInventoryItems,
+} from "../services/firebase-inventory-api";
 import type { InventoryCategory, InventoryItem, Supplier, CategoryDefinition } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
@@ -170,6 +183,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     quantityPurchased: "" as string | number,
     quantitySold: "" as string | number,
     reorderRequired: false,
+    reorderLevel: undefined as string | number | undefined,
     photoUrl: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -460,6 +474,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       quantityPurchased: "",
       quantitySold: "",
       reorderRequired: false,
+      reorderLevel: undefined,
       photoUrl: "",
     });
     setFieldErrors({});
@@ -578,6 +593,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         quantityPurchased: Number(form.quantityPurchased) || 0,
         quantitySold: Number(form.quantitySold) || 0,
         reorderRequired: form.reorderRequired,
+        reorderLevel: form.reorderLevel !== undefined && form.reorderLevel !== "" ? Number(form.reorderLevel) : undefined,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory([created, ...(inventory ?? [])]);
@@ -613,6 +629,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         quantityPurchased: Number(form.quantityPurchased) || 0,
         quantitySold: Number(form.quantitySold) || 0,
         reorderRequired: form.reorderRequired,
+        reorderLevel: form.reorderLevel !== undefined && form.reorderLevel !== "" ? Number(form.reorderLevel) : undefined,
         photoUrl: form.photoUrl || undefined,
       });
       setInventory((inventory ?? []).map((i) => (i.id === updated.id ? updated : i)));
@@ -1516,7 +1533,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     {/* Stock Management Section */}
                     <div className="space-y-4 border-t pt-4">
                       <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="quantityPurchased">Quantity Purchased</Label>
                           <Input
@@ -1524,13 +1541,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             type="number"
                             placeholder="0"
                             value={form.quantityPurchased}
-                            onChange={(e) => {
-                              setForm({ ...form, quantityPurchased: e.target.value });
-                              clearFieldError("quantityPurchased");
-                            }}
-                            className={fieldErrors.quantityPurchased ? "border-red-500" : ""}
+                            disabled
+                            className="bg-muted cursor-not-allowed"
+                            title="This field is calculated from purchase orders"
                           />
-                          {fieldErrors.quantityPurchased && <p className="text-sm text-red-500">{fieldErrors.quantityPurchased}</p>}
+                          <p className="text-xs text-muted-foreground">Auto-calculated from purchase orders</p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="quantitySold">Quantity Sold</Label>
@@ -1539,13 +1554,26 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             type="number"
                             placeholder="0"
                             value={form.quantitySold}
-                            onChange={(e) => {
-                              setForm({ ...form, quantitySold: e.target.value });
-                              clearFieldError("quantitySold");
-                            }}
-                            className={fieldErrors.quantitySold ? "border-red-500" : ""}
+                            disabled
+                            className="bg-muted cursor-not-allowed"
+                            title="This field is calculated from sales orders"
                           />
-                          {fieldErrors.quantitySold && <p className="text-sm text-red-500">{fieldErrors.quantitySold}</p>}
+                          <p className="text-xs text-muted-foreground">Auto-calculated from sales orders</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reorderLevel">Reorder Level</Label>
+                          <Input
+                            id="reorderLevel"
+                            type="number"
+                            placeholder="e.g., 10"
+                            min="0"
+                            value={form.reorderLevel ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setForm({ ...form, reorderLevel: val === "" ? undefined : val });
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">Auto-triggers reorder when quantity falls below this level</p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="reorderRequired">Reorder Required</Label>
@@ -1975,6 +2003,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                   quantityPurchased: item.quantityPurchased ?? 0,
                                   quantitySold: item.quantitySold ?? 0,
                                   reorderRequired: item.reorderRequired ?? false,
+                                  reorderLevel: item.reorderLevel,
                                   photoUrl: item.photoUrl || "",
                                 });
                               }}
@@ -2229,30 +2258,20 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             </span>
                           </TableCell>
                         )}
-                        {/* Optional: Quantity Purchased */}
+                        {/* Optional: Quantity Purchased (read-only, calculated from purchase orders) */}
                         {isColumnVisible("quantityPurchased") && (
                           <TableCell>
-                            <EditableCell
-                              value={item.quantityPurchased ?? 0}
-                              type="number"
-                              min={0}
-                              step={1}
-                              onSave={(v) => handleInlineUpdate(item.id, "quantityPurchased", v)}
-                              disabled={!canModify}
-                            />
+                            <span className="text-sm text-muted-foreground" title="Auto-calculated from purchase orders">
+                              {item.quantityPurchased ?? 0}
+                            </span>
                           </TableCell>
                         )}
-                        {/* Optional: Quantity Sold */}
+                        {/* Optional: Quantity Sold (read-only, calculated from sales orders) */}
                         {isColumnVisible("quantitySold") && (
                           <TableCell>
-                            <EditableCell
-                              value={item.quantitySold ?? 0}
-                              type="number"
-                              min={0}
-                              step={1}
-                              onSave={(v) => handleInlineUpdate(item.id, "quantitySold", v)}
-                              disabled={!canModify}
-                            />
+                            <span className="text-sm text-muted-foreground" title="Auto-calculated from sales orders">
+                              {item.quantitySold ?? 0}
+                            </span>
                           </TableCell>
                         )}
                         {/* Optional: Remaining Quantity */}
@@ -2369,6 +2388,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                               quantityPurchased: item.quantityPurchased ?? 0,
                               quantitySold: item.quantitySold ?? 0,
                               reorderRequired: item.reorderRequired ?? false,
+                              reorderLevel: item.reorderLevel,
                               photoUrl: item.photoUrl || "",
                             });
                           }}>
@@ -2567,14 +2587,21 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 {/* Stock Management Section */}
                                 <div className="space-y-4 border-t pt-4">
                                   <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-quantityPurchased">Quantity Purchased</Label>
-                                      <Input id="edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} onChange={(e) => setForm({ ...form, quantityPurchased: e.target.value })} />
+                                      <Input id="edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} disabled className="bg-muted cursor-not-allowed" title="This field is calculated from purchase orders" />
+                                      <p className="text-xs text-muted-foreground">Auto-calculated from purchase orders</p>
                                     </div>
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-quantitySold">Quantity Sold</Label>
-                                      <Input id="edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
+                                      <Input id="edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} disabled className="bg-muted cursor-not-allowed" title="This field is calculated from sales orders" />
+                                      <p className="text-xs text-muted-foreground">Auto-calculated from sales orders</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor="edit-reorderLevel">Reorder Level</Label>
+                                      <Input id="edit-reorderLevel" type="number" placeholder="e.g., 10" min="0" value={form.reorderLevel ?? ""} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value === "" ? undefined : e.target.value })} />
+                                      <p className="text-xs text-muted-foreground">Auto-triggers reorder when quantity falls below this level</p>
                                     </div>
                                     <div className="space-y-2">
                                       <Label htmlFor="edit-reorderRequired">Reorder Required</Label>
@@ -2927,6 +2954,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       quantityPurchased: item.quantityPurchased ?? 0,
                       quantitySold: item.quantitySold ?? 0,
                       reorderRequired: item.reorderRequired ?? false,
+                      reorderLevel: item.reorderLevel,
                       photoUrl: item.photoUrl || "",
                     });
                     setIsEditOpen(item.id);
@@ -3154,14 +3182,21 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               {/* Stock Management Section */}
               <div className="space-y-4 border-t pt-4">
                 <h4 className="text-sm font-medium text-muted-foreground">Stock Management</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="catalog-edit-quantityPurchased">Quantity Purchased</Label>
-                    <Input id="catalog-edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} onChange={(e) => setForm({ ...form, quantityPurchased: e.target.value })} />
+                    <Input id="catalog-edit-quantityPurchased" type="number" placeholder="0" value={form.quantityPurchased} disabled className="bg-muted cursor-not-allowed" title="This field is calculated from purchase orders" />
+                    <p className="text-xs text-muted-foreground">Auto-calculated from purchase orders</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="catalog-edit-quantitySold">Quantity Sold</Label>
-                    <Input id="catalog-edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
+                    <Input id="catalog-edit-quantitySold" type="number" placeholder="0" value={form.quantitySold} disabled className="bg-muted cursor-not-allowed" title="This field is calculated from sales orders" />
+                    <p className="text-xs text-muted-foreground">Auto-calculated from sales orders</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="catalog-edit-reorderLevel">Reorder Level</Label>
+                    <Input id="catalog-edit-reorderLevel" type="number" placeholder="e.g., 10" min="0" value={form.reorderLevel ?? ""} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value === "" ? undefined : e.target.value })} />
+                    <p className="text-xs text-muted-foreground">Auto-triggers reorder when quantity falls below this level</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="catalog-edit-reorderRequired">Reorder Required</Label>

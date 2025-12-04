@@ -21,6 +21,7 @@ export interface InventoryItem {
   quantityPurchased: number; // Total quantity purchased/received
   quantitySold: number; // Total quantity sold/shipped
   reorderRequired: boolean; // Whether this item needs to be reordered
+  reorderLevel?: number; // Quantity threshold for auto-reorder (when quantity <= reorderLevel, set reorderRequired to true)
   photoUrl?: string; // Optional product photo URL
   description?: string; // Optional product description
   // Archive fields
@@ -41,6 +42,7 @@ export interface CreateInventoryItemInput {
   quantityPurchased: number;
   quantitySold: number;
   reorderRequired: boolean;
+  reorderLevel?: number; // Optional reorder threshold
   photoUrl?: string;
   description?: string;
 }
@@ -58,6 +60,7 @@ export interface UpdateInventoryItemInput {
   quantityPurchased?: number;
   quantitySold?: number;
   reorderRequired?: boolean;
+  reorderLevel?: number;
   photoUrl?: string;
   description?: string;
 }
