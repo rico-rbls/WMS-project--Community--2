@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, Download, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -703,7 +703,43 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     }
   }, [setInventory]);
 
-  // Excel import handler
+  // Download CSV template for inventory import
+  const handleDownloadTemplate = useCallback(() => {
+    // CSV header row matching the expected import order
+    const headers = ["Photo", "Name", "Brand", "Category", "Sub Category", "Quantity", "Price", "Supplier", "Description"];
+
+    // Example data row to show format
+    const exampleRow = [
+      "https://example.com/photo.jpg",
+      "Sample Product",
+      "Brand Name",
+      "Electronics",
+      "Accessories",
+      "100",
+      "1500.00",
+      "SUP-001",
+      "Product description here"
+    ];
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(","),
+      exampleRow.join(",")
+    ].join("\n");
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "inventory_import_template.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    toast.success("Template downloaded! Fill in the data and import.");
+  }, []);
+
+  // Excel/CSV import handler
+  // Expected column order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Description
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -723,19 +759,22 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         jsonData.forEach((row: any, index) => {
           const rowNum = index + 2; // Excel rows start at 1, plus header
 
-          // Map Excel columns to inventory fields (case-insensitive)
+          // Map Excel/CSV columns to inventory fields (case-insensitive)
+          // Expected order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Description
+          const photoUrl = row.Photo || row.photo || row.PHOTO || row["Photo URL"] || row.photoUrl || "";
           const name = row.Name || row.name || row.NAME;
-          const category = row.Category || row.category || row.CATEGORY;
-          const quantity = Number(row.Quantity || row.quantity || row.QUANTITY || 0);
-          const location = row.Location || row.location || row.LOCATION || "";
           const brand = row.Brand || row.brand || row.BRAND || "Unknown";
-          const pricePerPiece = Number(row["Price Per Piece"] || row.pricePerPiece || row.Price || row.price || 0);
-          const supplierId = row["Supplier ID"] || row.supplierId || row.SupplierId || "";
-          const quantityPurchased = Number(row["Quantity Purchased"] || row.quantityPurchased || 0);
-          const quantitySold = Number(row["Quantity Sold"] || row.quantitySold || 0);
-          const reorderRequiredRaw = row["Reorder Required"] || row.reorderRequired || "false";
-          const reorderRequired = reorderRequiredRaw === true || reorderRequiredRaw === "true" || reorderRequiredRaw === "yes" || reorderRequiredRaw === "Yes";
-          const photoUrl = row["Photo URL"] || row.photoUrl || row.PhotoUrl || "";
+          const category = row.Category || row.category || row.CATEGORY;
+          const subcategory = row["Sub Category"] || row.Subcategory || row.subcategory || row["SubCategory"] || row.SUBCATEGORY || "";
+          const quantity = Number(row.Quantity || row.quantity || row.QUANTITY || 0);
+          const pricePerPiece = Number(row.Price || row.price || row.PRICE || row["Price Per Piece"] || row.pricePerPiece || 0);
+          const supplier = row.Supplier || row.supplier || row.SUPPLIER || row["Supplier ID"] || row.supplierId || "";
+          const description = row.Description || row.description || row.DESCRIPTION || "";
+
+          // Auto-populate quantityPurchased = quantity (imported items are assumed to be already purchased)
+          // quantitySold remains 0 for newly imported items
+          const quantityPurchased = quantity;
+          const quantitySold = 0;
 
           // Validate required fields
           if (!name) {
@@ -754,18 +793,25 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             return;
           }
 
+          if (pricePerPiece < 0) {
+            errors.push(`Row ${rowNum}: Price cannot be negative`);
+            return;
+          }
+
           validItems.push({
             name,
             category: category as InventoryCategory,
+            subcategory: subcategory || undefined,
             quantity,
-            location,
+            location: "", // Location is set manually or left empty
             brand,
             pricePerPiece,
-            supplierId,
+            supplierId: supplier,
             quantityPurchased,
             quantitySold,
-            reorderRequired,
+            reorderRequired: false,
             photoUrl: photoUrl || undefined,
+            description: description || undefined,
           });
         });
 
@@ -791,18 +837,22 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     try {
       const createdItems: InventoryItem[] = [];
       for (const item of importData) {
+        // quantityPurchased is already set to quantity in handleFileSelect
+        // quantitySold is already set to 0 in handleFileSelect
         const created = await createInventoryItem({
           name: item.name!,
           category: item.category!,
+          subcategory: item.subcategory,
           quantity: item.quantity ?? 0,
           location: item.location ?? "",
           brand: item.brand ?? "Unknown",
           pricePerPiece: item.pricePerPiece ?? 0,
           supplierId: item.supplierId ?? "",
-          quantityPurchased: item.quantityPurchased ?? 0,
+          quantityPurchased: item.quantityPurchased ?? item.quantity ?? 0, // Default to quantity if not set
           quantitySold: item.quantitySold ?? 0,
           reorderRequired: item.reorderRequired ?? false,
           photoUrl: item.photoUrl,
+          description: item.description,
         });
         createdItems.push(created);
       }
@@ -1263,7 +1313,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               <CardDescription>Manage your warehouse inventory items and stock levels</CardDescription>
             </div>
             <div className="flex gap-2">
-              {/* Import from Excel Button */}
+              {/* Download Template Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                title="Download CSV template for importing inventory"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Template
+              </Button>
+
+              {/* Import from Excel/CSV Button */}
               <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
@@ -2693,7 +2754,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
       {/* Import Preview Dialog */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-5xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
@@ -2701,6 +2762,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             </DialogTitle>
             <DialogDescription>
               Review the data before importing. {importData.length} items will be added.
+              <br />
+              <span className="text-xs text-muted-foreground">
+                Note: Quantity Purchased is automatically set to match Quantity for imported items.
+              </span>
             </DialogDescription>
           </DialogHeader>
 
@@ -2724,23 +2789,35 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">Photo</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Price</TableHead>
                   <TableHead>Brand</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Sub Category</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead>Supplier</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {importData.map((item, index) => (
                   <TableRow key={index}>
+                    <TableCell>
+                      {item.photoUrl ? (
+                        <img src={item.photoUrl} alt="" className="h-8 w-8 object-cover rounded" />
+                      ) : (
+                        <div className="h-8 w-8 bg-muted rounded flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.category}</TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell>₱{(item.pricePerPiece ?? 0).toFixed(2)}</TableCell>
                     <TableCell>{item.brand || "Unknown"}</TableCell>
-                    <TableCell>{item.location || "N/A"}</TableCell>
+                    <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.subcategory || "-"}</TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-right">₱{(item.pricePerPiece ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>{item.supplierId || "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

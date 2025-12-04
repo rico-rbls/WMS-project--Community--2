@@ -24,12 +24,14 @@ import {
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCQNrEeIPczFi_CnxuBUcpiuddAf3BAc_0",
-  authDomain: "warehouse-management-sys-65aa1.firebaseapp.com",
-  projectId: "warehouse-management-sys-65aa1",
-  storageBucket: "warehouse-management-sys-65aa1.firebasestorage.app",
-  messagingSenderId: "976861616922",
-  appId: "1:976861616922:web:1ff327921558a528a1eaa3"
+  apiKey: "AIzaSyAtQmAaUFEuyJmeOq3M3ZIkI3a1gna_Do8",
+  authDomain: "nosql-demo-e5885.firebaseapp.com",
+  databaseURL: "https://nosql-demo-e5885-default-rtdb.firebaseio.com",
+  projectId: "nosql-demo-e5885",
+  storageBucket: "nosql-demo-e5885.firebasestorage.app",
+  messagingSenderId: "377685820338",
+  appId: "1:377685820338:web:12a7618478c1cdeda79aab",
+  measurementId: "G-EWRZ4F64R6"
 };
 
 // Initialize Firebase App
