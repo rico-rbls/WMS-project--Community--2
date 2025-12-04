@@ -47,7 +47,9 @@ import {
   DollarSign,
   CreditCard,
   Banknote,
+  Printer,
 } from "lucide-react";
+import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 
 const PAYMENT_MODES: PaymentMode[] = ["Cash", "Bank Transfer", "Credit Card", "Check", "Online Payment"];
 
@@ -75,6 +77,8 @@ export function PaymentsView() {
   const canEdit = hasPermission(userRole, "purchase_orders:update");
   const canDelete = hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
+
+  const { printReceipt } = usePrintReceipt();
 
   const [transactionsData, setTransactionsData] = useState<PaymentTransaction[] | null>(null);
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[]>([]);
@@ -437,6 +441,32 @@ export function PaymentsView() {
     toast.success("Transactions exported to CSV");
   };
 
+  // Handle printing payment voucher
+  const handlePrintVoucher = (trx: PaymentTransaction) => {
+    const receiptData: ReceiptData = {
+      type: "payment-voucher",
+      documentNumber: trx.id,
+      documentDate: trx.trxDate,
+      partyType: "Supplier",
+      partyName: trx.supplierName,
+      partyCity: trx.city,
+      partyCountry: trx.country,
+      referenceNumber: trx.poId,
+      referenceLabel: "Purchase Order",
+      items: [{
+        description: `Payment for Bill ${trx.billNumber}`,
+        quantity: 1,
+        unitPrice: trx.amountPaid,
+        total: trx.amountPaid,
+      }],
+      totalAmount: trx.amountPaid,
+      paymentMode: trx.paymentMode,
+      notes: trx.notes,
+      createdBy: trx.createdBy,
+    };
+    printReceipt(receiptData);
+  };
+
   // Form dialog content
   const renderFormContent = () => (
     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -788,6 +818,9 @@ export function PaymentsView() {
                                     <Archive className="h-4 w-4" />
                                   </Button>
                                 )}
+                                <Button size="sm" variant="outline" onClick={() => handlePrintVoucher(trx)} title="Print Voucher">
+                                  <Printer className="h-4 w-4" />
+                                </Button>
                               </>
                             )}
                           </div>

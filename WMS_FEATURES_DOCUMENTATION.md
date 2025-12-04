@@ -670,6 +670,45 @@ Pending → Processing → Shipped → In Transit → Out for Delivery → Deliv
 
 **Business Benefit:** Enables external reporting and data backup.
 
+### Print/Export Receipts
+
+**What it does:** Generate professional printable documents for transactions and orders.
+
+**Available Print Documents:**
+
+| Module | Document Type | Description |
+|--------|--------------|-------------|
+| **Sales Orders** | Sales Invoice | Print customer invoices with line items and totals |
+| **Cash & Bank** | Payment Receipt | Print receipt vouchers for money received from customers |
+| **Payments** | Payment Voucher | Print disbursement vouchers for payments to suppliers |
+| **Purchase Orders** | Purchase Order | Print PO documents to send to suppliers |
+
+**Document Features:**
+- ✅ Professional company header
+- ✅ Document number and date
+- ✅ Customer/Supplier information with location
+- ✅ Reference numbers (Invoice #, Bill #, SO #, PO #)
+- ✅ Line items table with quantities and prices
+- ✅ Total amount, amount paid, and balance due
+- ✅ Payment method display
+- ✅ Status indicators
+- ✅ Notes section
+- ✅ Signature lines (Prepared By / Received By)
+- ✅ Print timestamp footer
+
+**How to Use:**
+1. Navigate to the relevant module (Sales Orders, Cash & Bank, Payments, or Purchase Orders)
+2. Click the **Print** button (🖨️ icon) on any record
+3. A print preview window opens with the formatted document
+4. Use browser print dialog (Ctrl+P / Cmd+P) to print or save as PDF
+
+**Philippine Business Standards:**
+- Currency formatted as Philippine Peso (₱)
+- Date format: Month Day, Year (e.g., December 3, 2025)
+- Professional layout suitable for official business documents
+
+**Business Benefit:** Create professional documentation for customers, suppliers, and record-keeping without additional software.
+
 ### Responsive Design
 
 **What it does:** The system works on any device – desktop, tablet, or mobile.
@@ -703,13 +742,14 @@ Pending → Processing → Shipped → In Transit → Out for Delivery → Deliv
 | **Inventory** | Know exactly what you have and where |
 | **Orders** | Never miss a customer order |
 | **Purchase Orders** | Control spending with approval workflow |
-| **Sales Orders** | Track customer orders completely |
+| **Sales Orders** | Track customer orders completely + Print invoices |
 | **Shipments** | Keep customers informed about deliveries |
 | **Suppliers** | Manage vendor relationships effectively |
 | **Customers** | Build stronger customer relationships |
-| **Cash & Bank** | Track all incoming money |
-| **Payments** | Control outgoing payments |
+| **Cash & Bank** | Track all incoming money + Print receipts |
+| **Payments** | Control outgoing payments + Print vouchers |
 | **User Management** | Secure access with proper controls |
+| **Print/Export** | Professional document generation for all transactions |
 
 ---
 
@@ -725,6 +765,6 @@ Pending → Processing → Shipped → In Transit → Out for Delivery → Deliv
 
 *Warehouse Management System for Inventory and Supply Chain Coordination*
 
-*Documentation Version: 1.0*
-*Last Updated: December 2024*
+*Documentation Version: 1.1*
+*Last Updated: December 3, 2025*
 

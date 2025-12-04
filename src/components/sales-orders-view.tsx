@@ -53,7 +53,9 @@ import {
   ShoppingCart,
   Eye,
   ArrowLeft,
+  Printer,
 } from "lucide-react";
+import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 
 const RECEIPT_STATUSES: ReceiptStatus[] = ["Unpaid", "Partially Paid", "Paid", "Overdue"];
 const SHIPPING_STATUSES: ShippingStatus[] = ["Pending", "Processing", "Shipped", "In Transit", "Out for Delivery", "Delivered", "Failed", "Returned"];
@@ -84,6 +86,8 @@ export function SalesOrdersView() {
   const canEdit = hasPermission(userRole, "purchase_orders:update");
   const canDelete = hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
+
+  const { printReceipt } = usePrintReceipt();
 
   const [salesOrdersData, setSalesOrdersData] = useState<SalesOrder[] | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
@@ -531,6 +535,35 @@ export function SalesOrdersView() {
 
   const totalAmount = useMemo(() => form.items.reduce((sum, item) => sum + item.totalPrice, 0), [form.items]);
 
+  // Handle printing sales order receipt
+  const handlePrintSalesOrder = (so: SalesOrder) => {
+    const receiptData: ReceiptData = {
+      type: "sales-order",
+      documentNumber: so.id,
+      documentDate: so.soDate ?? so.createdDate,
+      partyType: "Customer",
+      partyName: so.customerName,
+      partyCity: so.customerCity,
+      partyCountry: so.customerCountry,
+      referenceNumber: so.invoiceNumber,
+      referenceLabel: "Invoice No.",
+      items: so.items?.map(item => ({
+        description: item.itemName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.totalPrice,
+      })) || [],
+      totalAmount: so.totalAmount ?? 0,
+      amountPaid: so.totalReceived ?? 0,
+      balance: so.soBalance ?? (so.totalAmount - so.totalReceived) ?? 0,
+      status: `${so.receiptStatus} / ${so.shippingStatus}`,
+      expectedDeliveryDate: so.expectedDeliveryDate,
+      notes: so.notes,
+      createdBy: so.createdBy,
+    };
+    printReceipt(receiptData);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -544,17 +577,23 @@ export function SalesOrdersView() {
     return (
       <div className="space-y-6">
         {/* Header with Back Button */}
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={closeDetailView}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to List
-          </Button>
-          <div>
-            <h2 className="text-xl font-semibold">Sales Order Details - {detailViewSO.id}</h2>
-            <p className="text-sm text-muted-foreground">
-              {detailViewSO.customerName} • {detailViewSO.soDate ?? detailViewSO.createdDate}
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" onClick={closeDetailView}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to List
+            </Button>
+            <div>
+              <h2 className="text-xl font-semibold">Sales Order Details - {detailViewSO.id}</h2>
+              <p className="text-sm text-muted-foreground">
+                {detailViewSO.customerName} • {detailViewSO.soDate ?? detailViewSO.createdDate}
+              </p>
+            </div>
           </div>
+          <Button variant="outline" size="sm" onClick={() => handlePrintSalesOrder(detailViewSO)}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print Invoice
+          </Button>
         </div>
 
         {/* Summary Cards */}

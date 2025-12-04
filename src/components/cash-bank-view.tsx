@@ -49,7 +49,9 @@ import {
   CreditCard,
   TrendingUp,
   Banknote,
+  Printer,
 } from "lucide-react";
+import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 
 const PAYMENT_MODES: PaymentMode[] = ["Cash", "Bank Transfer", "Credit Card", "Check", "Online Payment"];
 
@@ -77,6 +79,8 @@ export function CashBankView() {
   const canEdit = hasPermission(userRole, "purchase_orders:update");
   const canDelete = hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
+
+  const { printReceipt } = usePrintReceipt();
 
   const [transactionsData, setTransactionsData] = useState<CashBankTransaction[] | null>(null);
   const [salesOrdersData, setSalesOrdersData] = useState<SalesOrder[]>([]);
@@ -439,6 +443,32 @@ export function CashBankView() {
     toast.success("Transactions exported to CSV");
   };
 
+  // Handle printing cash receipt
+  const handlePrintReceipt = (trx: CashBankTransaction) => {
+    const receiptData: ReceiptData = {
+      type: "cash-receipt",
+      documentNumber: trx.id,
+      documentDate: trx.trxDate,
+      partyType: "Customer",
+      partyName: trx.customerName,
+      partyCity: trx.city,
+      partyCountry: trx.country,
+      referenceNumber: trx.soId,
+      referenceLabel: "Sales Order",
+      items: [{
+        description: `Payment for Invoice ${trx.invoiceNumber}`,
+        quantity: 1,
+        unitPrice: trx.amountReceived,
+        total: trx.amountReceived,
+      }],
+      totalAmount: trx.amountReceived,
+      paymentMode: trx.paymentMode,
+      notes: trx.notes,
+      createdBy: trx.createdBy,
+    };
+    printReceipt(receiptData);
+  };
+
   // Form dialog content
   const renderFormContent = () => (
     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -790,6 +820,9 @@ export function CashBankView() {
                                     <Archive className="h-4 w-4" />
                                   </Button>
                                 )}
+                                <Button size="sm" variant="outline" onClick={() => handlePrintReceipt(trx)} title="Print Receipt">
+                                  <Printer className="h-4 w-4" />
+                                </Button>
                               </>
                             )}
                           </div>

@@ -22,7 +22,8 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Search, ShoppingBag, Trash2, Check, X, Package, Send, Download, DollarSign, Clock, TrendingUp, CheckCircle, FileText, Filter, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Search, ShoppingBag, Trash2, Check, X, Package, Send, Download, DollarSign, Clock, TrendingUp, CheckCircle, FileText, Filter, Archive, ArchiveRestore, Printer } from "lucide-react";
+import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 import { cn } from "./ui/utils";
 import { toast } from "sonner";
 import {
@@ -86,6 +87,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const canReceive = hasPermission(userRole, "purchase_orders:receive");
   const canDelete = hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = hasPermission(userRole, "purchase_orders:permanent_delete");
+
+  const { printReceipt } = usePrintReceipt();
 
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -779,6 +782,37 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const totalAmount = useMemo(() => form.items.reduce((sum, item) => sum + item.totalPrice, 0), [form.items]);
 
+  // Handle printing purchase order
+  const handlePrintPurchaseOrder = (po: PurchaseOrder) => {
+    const receiptData: ReceiptData = {
+      type: "purchase-order",
+      documentNumber: po.id,
+      documentDate: po.poDate ?? po.createdDate,
+      partyType: "Supplier",
+      partyName: po.supplierName,
+      partyCity: po.supplierCity,
+      partyCountry: po.supplierCountry,
+      referenceNumber: po.billNumber,
+      referenceLabel: "Bill No.",
+      items: (po.items ?? []).map(item => ({
+        description: item.itemName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.totalPrice,
+      })),
+      totalAmount: po.totalAmount ?? 0,
+      amountPaid: po.totalPaid ?? 0,
+      balance: po.poBalance ?? (po.totalAmount - (po.totalPaid ?? 0)) ?? 0,
+      status: `${po.status} / ${po.shippingStatus ?? "Pending"}`,
+      expectedDeliveryDate: po.expectedDeliveryDate,
+      notes: po.notes,
+      approvedBy: po.approvedBy,
+      approvedDate: po.approvedDate,
+      createdBy: po.createdBy,
+    };
+    printReceipt(receiptData);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -1376,6 +1410,9 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                             <X className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button size="sm" variant="outline" onClick={() => handlePrintPurchaseOrder(po)} title="Print PO">
+                          <Printer className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1631,6 +1668,12 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                         )
                       )}
                       <div className="flex gap-2 ml-auto">
+                        {po && (
+                          <Button variant="outline" onClick={() => handlePrintPurchaseOrder(po)}>
+                            <Printer className="h-4 w-4 mr-2" />
+                            Print PO
+                          </Button>
+                        )}
                         <Button variant="outline" onClick={() => { setIsEditOpen(null); resetForm(); }}>Close</Button>
                         {canEdit && !po?.archived && <Button onClick={() => handleUpdate(isEditOpen)}>Save Changes</Button>}
                       </div>
