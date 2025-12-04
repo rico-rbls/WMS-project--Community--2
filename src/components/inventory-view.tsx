@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, Download, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -703,41 +703,6 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     }
   }, [setInventory]);
 
-  // Download CSV template for inventory import
-  const handleDownloadTemplate = useCallback(() => {
-    // CSV header row matching the expected import order
-    const headers = ["Photo", "Name", "Brand", "Category", "Sub Category", "Quantity", "Price", "Supplier", "Description"];
-
-    // Example data row to show format
-    const exampleRow = [
-      "https://example.com/photo.jpg",
-      "Sample Product",
-      "Brand Name",
-      "Electronics",
-      "Accessories",
-      "100",
-      "1500.00",
-      "SUP-001",
-      "Product description here"
-    ];
-
-    // Create CSV content
-    const csvContent = [
-      headers.join(","),
-      exampleRow.join(",")
-    ].join("\n");
-
-    // Create and trigger download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "inventory_import_template.csv";
-    link.click();
-    URL.revokeObjectURL(link.href);
-
-    toast.success("Template downloaded! Fill in the data and import.");
-  }, []);
-
   // Excel/CSV import handler
   // Expected column order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Description
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1313,17 +1278,6 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               <CardDescription>Manage your warehouse inventory items and stock levels</CardDescription>
             </div>
             <div className="flex gap-2">
-              {/* Download Template Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDownloadTemplate}
-                title="Download CSV template for importing inventory"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Template
-              </Button>
-
               {/* Import from Excel/CSV Button */}
               <Button
                 variant="outline"
