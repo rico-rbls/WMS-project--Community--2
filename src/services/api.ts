@@ -10,7 +10,6 @@ import type {
   Customer,
   CreateCustomerInput,
   UpdateCustomerInput,
-  Order,
   Shipment,
   PurchaseOrder,
   CreatePurchaseOrderInput,
@@ -39,7 +38,6 @@ const STORAGE_KEYS = {
   INVENTORY: 'wms_inventory',
   SUPPLIERS: 'wms_suppliers',
   CUSTOMERS: 'wms_customers',
-  ORDERS: 'wms_orders',
   SHIPMENTS: 'wms_shipments',
   PURCHASE_ORDERS: 'wms_purchase_orders',
   SALES_ORDERS: 'wms_sales_orders',
@@ -124,23 +122,13 @@ const DEFAULT_CUSTOMERS: Customer[] = [
   { id: "CUS-005", name: "Metro Supplies", contact: "Eva Brown", email: "eva@metrosupplies.com", phone: "+1 (555) 555-6666", category: "Retail", status: "Inactive", country: "United States", city: "New York", address: "321 Fifth Avenue", purchases: 15000, payments: 15000, balance: 0 },
 ];
 
-const DEFAULT_ORDERS: Order[] = [
-  { id: "ORD-1234", customer: "Acme Corp", items: 15, total: "₱2,450", status: "Processing", date: "2025-10-15" },
-  { id: "ORD-1235", customer: "TechStart Inc", items: 8, total: "₱1,200", status: "Shipped", date: "2025-10-14" },
-  { id: "ORD-1236", customer: "Global Solutions", items: 23, total: "₱3,890", status: "Delivered", date: "2025-10-13" },
-  { id: "ORD-1237", customer: "Beta Systems", items: 12, total: "₱1,750", status: "Processing", date: "2025-10-15" },
-  { id: "ORD-1238", customer: "Metro Supplies", items: 6, total: "₱890", status: "Pending", date: "2025-10-16" },
-  { id: "ORD-1239", customer: "Urban Retail", items: 19, total: "₱2,100", status: "Shipped", date: "2025-10-14" },
-  { id: "ORD-1240", customer: "Summit Trading", items: 10, total: "₱1,560", status: "Processing", date: "2025-10-15" },
-];
-
 const DEFAULT_SHIPMENTS: Shipment[] = [
-  { id: "SHIP-5678", orderId: "ORD-1234", destination: "New York, NY", carrier: "FedEx", status: "In Transit", eta: "Oct 18, 2025" },
-  { id: "SHIP-5679", orderId: "ORD-1235", destination: "Los Angeles, CA", carrier: "UPS", status: "Delivered", eta: "Oct 14, 2025" },
-  { id: "SHIP-5680", orderId: "ORD-1236", destination: "Chicago, IL", carrier: "DHL", status: "In Transit", eta: "Oct 19, 2025" },
-  { id: "SHIP-5681", orderId: "ORD-1237", destination: "Houston, TX", carrier: "FedEx", status: "Processing", eta: "Oct 20, 2025" },
-  { id: "SHIP-5682", orderId: "ORD-1238", destination: "Phoenix, AZ", carrier: "USPS", status: "Pending", eta: "Oct 21, 2025" },
-  { id: "SHIP-5683", orderId: "ORD-1239", destination: "Philadelphia, PA", carrier: "UPS", status: "In Transit", eta: "Oct 17, 2025" },
+  { id: "SHIP-5678", salesOrderId: "SO-001", destination: "New York, NY", carrier: "FedEx", status: "In Transit", eta: "Oct 18, 2025" },
+  { id: "SHIP-5679", salesOrderId: "SO-002", destination: "Los Angeles, CA", carrier: "UPS", status: "Delivered", eta: "Oct 14, 2025" },
+  { id: "SHIP-5680", salesOrderId: "SO-003", destination: "Chicago, IL", carrier: "DHL", status: "In Transit", eta: "Oct 19, 2025" },
+  { id: "SHIP-5681", salesOrderId: "SO-004", destination: "Houston, TX", carrier: "FedEx", status: "Processing", eta: "Oct 20, 2025" },
+  { id: "SHIP-5682", salesOrderId: "SO-005", destination: "Phoenix, AZ", carrier: "USPS", status: "Pending", eta: "Oct 21, 2025" },
+  { id: "SHIP-5683", salesOrderId: "SO-006", destination: "Philadelphia, PA", carrier: "UPS", status: "In Transit", eta: "Oct 17, 2025" },
 ];
 
 const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
@@ -420,20 +408,6 @@ function migrateInventoryItems(items: any[]): InventoryItem[] {
   });
 }
 
-// Migrate orders from USD ($) to PHP (₱)
-function migrateOrdersCurrency(orders: Order[]): Order[] {
-  return orders.map(order => {
-    // If total contains $, replace with ₱
-    if (order.total && order.total.includes('$')) {
-      return {
-        ...order,
-        total: order.total.replace(/\$/g, '₱')
-      };
-    }
-    return order;
-  });
-}
-
 // Migration function for purchase orders to ensure all fields exist
 function migratePurchaseOrders(purchaseOrdersData: PurchaseOrder[]): PurchaseOrder[] {
   return purchaseOrdersData.map(po => {
@@ -532,14 +506,12 @@ const DEFAULT_CATEGORIES: CategoryDefinition[] = [
 let inventory: InventoryItem[] = migrateInventoryItems(loadFromLocalStorage(STORAGE_KEYS.INVENTORY, DEFAULT_INVENTORY));
 let suppliers: Supplier[] = migrateSuppliers(loadFromLocalStorage(STORAGE_KEYS.SUPPLIERS, DEFAULT_SUPPLIERS));
 let customers: Customer[] = migrateCustomers(loadFromLocalStorage(STORAGE_KEYS.CUSTOMERS, DEFAULT_CUSTOMERS));
-let orders: Order[] = migrateOrdersCurrency(loadFromLocalStorage(STORAGE_KEYS.ORDERS, DEFAULT_ORDERS));
 let shipments: Shipment[] = loadFromLocalStorage(STORAGE_KEYS.SHIPMENTS, DEFAULT_SHIPMENTS);
 let purchaseOrders: PurchaseOrder[] = migratePurchaseOrders(loadFromLocalStorage(STORAGE_KEYS.PURCHASE_ORDERS, DEFAULT_PURCHASE_ORDERS));
 let salesOrders: SalesOrder[] = migrateSalesOrders(loadFromLocalStorage(STORAGE_KEYS.SALES_ORDERS, DEFAULT_SALES_ORDERS));
 let categories: CategoryDefinition[] = loadFromLocalStorage(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
 
 // Save migrated data back to localStorage
-saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
 saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
 saveToLocalStorage(STORAGE_KEYS.SUPPLIERS, suppliers);
 saveToLocalStorage(STORAGE_KEYS.CUSTOMERS, customers);
@@ -1194,51 +1166,9 @@ export async function bulkUpdateCustomerStatus(ids: string[], status: "Active" |
   });
 }
 
-// Orders and Shipments (read-only for now)
-export async function getOrders(): Promise<Order[]> {
-  return delay([...orders]);
-}
-
+// Shipments API
 export async function getShipments(): Promise<Shipment[]> {
   return delay([...shipments]);
-}
-
-export async function createOrder(input: Omit<Order, "id"> & { id?: string }): Promise<Order> {
-  const id = input.id && input.id.trim() !== "" ? input.id : (() => {
-    const maxNum = orders.map((o) => Number(o.id.replace(/[^0-9]/g, "")) || 0).reduce((a, b) => Math.max(a, b), 0);
-    const next = maxNum + 1;
-    return `ORD-${String(next).padStart(4, "0")}`;
-  })();
-  if (orders.some((o) => o.id === id)) throw new Error(`Order with id ${id} already exists`);
-  const order: Order = { id, ...input } as Order;
-
-  orders = [order, ...orders];
-  saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
-
-  return delay(order);
-}
-
-export async function updateOrder(input: Partial<Omit<Order, "id">> & { id: string }): Promise<Order> {
-  const index = orders.findIndex((o) => o.id === input.id);
-  if (index === -1) throw new Error("Order not found");
-  const prev = orders[index];
-  const next: Order = { ...prev, ...input } as Order;
-
-  orders[index] = next;
-  saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
-
-  return delay(next);
-}
-
-export async function deleteOrder(id: string): Promise<void> {
-  const index = orders.findIndex((o) => o.id === id);
-  if (index === -1) throw new Error("Order not found");
-  const deletedOrder = orders[index];
-
-  orders.splice(index, 1);
-  saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
-
-  await delay(undefined);
 }
 
 export async function createShipment(input: Omit<Shipment, "id"> & { id?: string }): Promise<Shipment> {
@@ -1343,58 +1273,6 @@ export async function bulkUpdateInventoryItems(
   }
 
   saveToLocalStorage(STORAGE_KEYS.INVENTORY, inventory);
-
-  return delay({
-    success: errors.length === 0,
-    successCount,
-    failedCount: errors.length,
-    errors,
-  });
-}
-
-// Orders Bulk Operations
-export async function bulkDeleteOrders(ids: string[]): Promise<BulkOperationResult> {
-  const errors: string[] = [];
-  let successCount = 0;
-
-  for (const id of ids) {
-    const index = orders.findIndex((o) => o.id === id);
-    if (index === -1) {
-      errors.push(`Order ${id} not found`);
-    } else {
-      orders.splice(index, 1);
-      successCount++;
-    }
-  }
-
-  saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
-
-  return delay({
-    success: errors.length === 0,
-    successCount,
-    failedCount: errors.length,
-    errors,
-  });
-}
-
-export async function bulkUpdateOrderStatus(
-  ids: string[],
-  status: Order["status"]
-): Promise<BulkOperationResult> {
-  const errors: string[] = [];
-  let successCount = 0;
-
-  for (const id of ids) {
-    const index = orders.findIndex((o) => o.id === id);
-    if (index === -1) {
-      errors.push(`Order ${id} not found`);
-    } else {
-      orders[index] = { ...orders[index], status };
-      successCount++;
-    }
-  }
-
-  saveToLocalStorage(STORAGE_KEYS.ORDERS, orders);
 
   return delay({
     success: errors.length === 0,

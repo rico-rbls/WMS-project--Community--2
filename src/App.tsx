@@ -4,7 +4,6 @@ import { AppSidebar } from "./components/app-sidebar";
 import React from "react";
 const Dashboard = React.lazy(() => import("./components/dashboard").then(m => ({ default: m.Dashboard })));
 const InventoryView = React.lazy(() => import("./components/inventory-view").then(m => ({ default: m.InventoryView })));
-const OrdersView = React.lazy(() => import("./components/orders-view").then(m => ({ default: m.OrdersView })));
 const PurchaseOrdersView = React.lazy(() => import("./components/purchase-orders-view").then(m => ({ default: m.PurchaseOrdersView })));
 const SalesOrdersView = React.lazy(() => import("./components/sales-orders-view").then(m => ({ default: m.SalesOrdersView })));
 const ShipmentsView = React.lazy(() => import("./components/shipments-view").then(m => ({ default: m.ShipmentsView })));
@@ -22,10 +21,10 @@ import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
-export type ViewType = "dashboard" | "inventory" | "orders" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile";
+export type ViewType = "dashboard" | "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "orders", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -121,13 +120,6 @@ export default function App() {
             onDialogOpened={clearOpenAddDialog}
             initialItemId={selectedItemId}
             onItemDialogOpened={clearSelectedItemId}
-          />
-        );
-      case "orders":
-        return (
-          <OrdersView
-            initialOpenDialog={openAddDialog === "orders"}
-            onDialogOpened={clearOpenAddDialog}
           />
         );
       case "purchase-orders":

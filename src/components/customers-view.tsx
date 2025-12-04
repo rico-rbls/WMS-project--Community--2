@@ -27,8 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
-import { createCustomer, deleteCustomer, getCustomers, updateCustomer, bulkDeleteCustomers, bulkUpdateCustomerStatus, getOrders, archiveCustomer, restoreCustomer, permanentlyDeleteCustomer, bulkArchiveCustomers, bulkRestoreCustomers, bulkPermanentlyDeleteCustomers } from "../services/api";
-import type { Customer, Order } from "../types";
+import { createCustomer, deleteCustomer, getCustomers, updateCustomer, bulkDeleteCustomers, bulkUpdateCustomerStatus, archiveCustomer, restoreCustomer, permanentlyDeleteCustomer, bulkArchiveCustomers, bulkRestoreCustomers, bulkPermanentlyDeleteCustomers } from "../services/api";
+import type { Customer } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -68,7 +68,6 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [customersData, setCustomersData] = useState<Customer[] | null>(null);
-  const [ordersData, setOrdersData] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
@@ -94,12 +93,8 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const [customers, orders] = await Promise.all([
-        getCustomers(),
-        getOrders(),
-      ]);
+      const customers = await getCustomers();
       setCustomersData(customers);
-      setOrdersData(orders);
       setIsLoading(false);
     })();
   }, []);

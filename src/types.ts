@@ -167,21 +167,9 @@ export interface UpdateCustomerInput {
   status?: "Active" | "Inactive";
 }
 
-export interface Order {
-  id: string;
-  customer: string;
-  items: number;
-  total: string; // keep formatted for now
-  status: "Pending" | "Processing" | "Shipped" | "Delivered";
-  date: string; // ISO or display string
-  // Archive fields
-  archived?: boolean; // Whether the order is archived (soft-deleted)
-  archivedAt?: string; // ISO date when the order was archived
-}
-
 export interface Shipment {
   id: string;
-  orderId: string;
+  salesOrderId: string; // Links to Sales Order
   destination: string;
   carrier: string;
   status: "Pending" | "Processing" | "In Transit" | "Delivered";
@@ -192,7 +180,7 @@ export interface Shipment {
 }
 
 // Favorites & Bookmarks Types
-export type EntityType = "inventory" | "orders" | "purchase-orders" | "shipments" | "suppliers";
+export type EntityType = "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers";
 
 export interface FavoriteItem {
   id: string;

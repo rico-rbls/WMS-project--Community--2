@@ -1,16 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
-import type { InventoryItem, Order, Shipment, Supplier } from "../types";
-import { getOrders, getShipments, getSuppliers } from "../services/api";
+import type { InventoryItem, Shipment, Supplier } from "../types";
+import { getShipments, getSuppliers } from "../services/api";
 import { subscribeToInventory } from "../services/firebase-inventory-api";
 
 interface AppState {
   inventory: InventoryItem[] | null;
-  orders: Order[] | null;
   shipments: Shipment[] | null;
   suppliers: Supplier[] | null;
   isLoading: {
     inventory: boolean;
-    orders: boolean;
     shipments: boolean;
     suppliers: boolean;
   };
@@ -18,11 +16,9 @@ interface AppState {
 
 interface AppContextType extends AppState {
   setInventory: (inventory: InventoryItem[] | null) => void;
-  setOrders: (orders: Order[] | null) => void;
   setShipments: (shipments: Shipment[] | null) => void;
   setSuppliers: (suppliers: Supplier[] | null) => void;
   refreshInventory: () => Promise<void>;
-  refreshOrders: () => Promise<void>;
   refreshShipments: () => Promise<void>;
   refreshSuppliers: () => Promise<void>;
 }
@@ -31,13 +27,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[] | null>(null);
-  const [orders, setOrders] = useState<Order[] | null>(null);
   const [shipments, setShipments] = useState<Shipment[] | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
 
   const [isLoading, setIsLoading] = useState({
     inventory: true,
-    orders: true,
     shipments: true,
     suppliers: true,
   });
@@ -74,7 +68,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function loadOtherData() {
     await Promise.all([
-      refreshOrders(),
       refreshShipments(),
       refreshSuppliers(),
     ]);
@@ -85,16 +78,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function refreshInventory() {
     // No-op: Firebase real-time subscription handles updates automatically
     // This function is kept for API compatibility
-  }
-
-  async function refreshOrders() {
-    setIsLoading(prev => ({ ...prev, orders: true }));
-    try {
-      const data = await getOrders();
-      setOrders(data);
-    } finally {
-      setIsLoading(prev => ({ ...prev, orders: false }));
-    }
   }
 
   async function refreshShipments() {
@@ -119,16 +102,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextType = {
     inventory,
-    orders,
     shipments,
     suppliers,
     isLoading,
     setInventory,
-    setOrders,
     setShipments,
     setSuppliers,
     refreshInventory,
-    refreshOrders,
     refreshShipments,
     refreshSuppliers,
   };
@@ -148,11 +128,6 @@ export function useAppContext() {
 export function useInventory() {
   const { inventory, isLoading, setInventory, refreshInventory } = useAppContext();
   return { inventory, isLoading: isLoading.inventory, setInventory, refreshInventory };
-}
-
-export function useOrders() {
-  const { orders, isLoading, setOrders, refreshOrders } = useAppContext();
-  return { orders, isLoading: isLoading.orders, setOrders, refreshOrders };
 }
 
 export function useShipments() {

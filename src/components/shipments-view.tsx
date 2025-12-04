@@ -58,7 +58,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "",
-    orderId: "",
+    salesOrderId: "",
     destination: "",
     carrier: "",
     status: "Pending" as Shipment["status"],
@@ -193,7 +193,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
         const searchLower = debouncedSearchTerm.toLowerCase();
         const matchesSearch =
           shipment.id.toLowerCase().includes(searchLower) ||
-          shipment.orderId.toLowerCase().includes(searchLower) ||
+          shipment.salesOrderId.toLowerCase().includes(searchLower) ||
           shipment.destination.toLowerCase().includes(searchLower) ||
           shipment.carrier.toLowerCase().includes(searchLower);
 
@@ -293,7 +293,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   function resetForm() {
     setForm({
       id: "",
-      orderId: "",
+      salesOrderId: "",
       destination: "",
       carrier: "",
       status: "Pending",
@@ -315,7 +315,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   }
 
   function validateForm() {
-    if (!form.orderId.trim()) return "Order ID is required";
+    if (!form.salesOrderId.trim()) return "Sales Order ID is required";
     if (!form.destination.trim()) return "Destination is required";
     if (!form.carrier.trim()) return "Carrier is required";
     if (!form.eta.trim()) return "ETA is required";
@@ -329,7 +329,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       return;
     }
     try {
-      const created = await createShipment({ orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      const created = await createShipment({ salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
       setShipmentsData((prev) => [created, ...(prev ?? [])]);
       setIsAddOpen(false);
       resetForm();
@@ -350,7 +350,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       return;
     }
     try {
-      const updated = await updateShipment({ id: form.id, orderId: form.orderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      const updated = await updateShipment({ id: form.id, salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
       setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
       setIsEditOpen(null);
       toast.success("Shipment updated successfully");
@@ -627,12 +627,12 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="orderId">Order ID *</Label>
+                        <Label htmlFor="salesOrderId">Sales Order ID *</Label>
                         <Input
-                          id="orderId"
-                          placeholder="ORD-0001"
-                          value={form.orderId}
-                          onChange={(e) => setForm({ ...form, orderId: e.target.value })}
+                          id="salesOrderId"
+                          placeholder="SO-001"
+                          value={form.salesOrderId}
+                          onChange={(e) => setForm({ ...form, salesOrderId: e.target.value })}
                         />
                       </div>
                       <div className="grid gap-2">
@@ -886,12 +886,12 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                       Shipment ID
                     </SortableTableHead>
                     <SortableTableHead
-                      sortKey="orderId"
+                      sortKey="salesOrderId"
                       currentSortKey={sortConfig.key as string | null}
-                      sortDirection={getSortDirection("orderId")}
+                      sortDirection={getSortDirection("salesOrderId")}
                       onSort={(key) => requestSort(key as keyof Shipment)}
                     >
-                      Order ID
+                      Sales Order ID
                     </SortableTableHead>
                     <SortableTableHead
                       sortKey="destination"
@@ -951,9 +951,9 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                         </TableCell>
                         <TableCell>
                           <EditableCell
-                            value={shipment.orderId}
+                            value={shipment.salesOrderId}
                             type="text"
-                            onSave={(v) => handleInlineUpdate(shipment.id, "orderId", v)}
+                            onSave={(v) => handleInlineUpdate(shipment.id, "salesOrderId", v)}
                             disabled={!canModify}
                           />
                         </TableCell>
@@ -1011,11 +1011,11 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                                 <div className="grid gap-4 py-4">
                                   <div className="grid grid-cols-2 gap-4">
                                     <div className="grid gap-2">
-                                      <Label htmlFor="edit-orderId">Order ID *</Label>
+                                      <Label htmlFor="edit-salesOrderId">Sales Order ID *</Label>
                                       <Input
-                                        id="edit-orderId"
-                                        value={form.orderId}
-                                        onChange={(e) => setForm({ ...form, orderId: e.target.value })}
+                                        id="edit-salesOrderId"
+                                        value={form.salesOrderId}
+                                        onChange={(e) => setForm({ ...form, salesOrderId: e.target.value })}
                                       />
                                     </div>
                                     <div className="grid gap-2">
