@@ -9,9 +9,9 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toast } from "sonner";
-import type { InventoryCategory, PurchaseOrder, CashBankTransaction, PaymentTransaction } from "../types";
+import type { InventoryCategory, PurchaseOrder, CashBankTransaction, PaymentTransaction, SalesOrder } from "../types";
 import type { ViewType } from "../App";
-import { getPurchaseOrders, getCashBankTransactions, getPaymentTransactions } from "../services/api";
+import { getPurchaseOrders, getCashBankTransactions, getPaymentTransactions, getSalesOrders } from "../services/api";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { Progress } from "./ui/progress";
@@ -46,30 +46,36 @@ interface DashboardProps {
 }
 
 export function Dashboard({ navigateToView }: DashboardProps) {
-  const { inventory, orders, shipments, suppliers, isLoading, refreshInventory, refreshOrders, refreshShipments, refreshSuppliers } = useAppContext();
+  const { inventory, shipments, suppliers, isLoading, refreshInventory, refreshShipments, refreshSuppliers } = useAppContext();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
   const isMobile = useIsMobile();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [cashBankTransactions, setCashBankTransactions] = useState<CashBankTransaction[]>([]);
   const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
   const [additionalDataError, setAdditionalDataError] = useState<string | null>(null);
+  const [salesOrdersLoading, setSalesOrdersLoading] = useState(true);
 
-  // Fetch purchase orders, cash/bank transactions, and payment transactions
+  // Fetch purchase orders, sales orders, cash/bank transactions, and payment transactions
   useEffect(() => {
     Promise.all([
       getPurchaseOrders(),
+      getSalesOrders(),
       getCashBankTransactions(),
       getPaymentTransactions(),
-    ]).then(([pos, cashBank, payments]) => {
+    ]).then(([pos, sos, cashBank, payments]) => {
       setPurchaseOrders(pos);
+      setSalesOrders(sos);
       setCashBankTransactions(cashBank);
       setPaymentTransactions(payments);
       setAdditionalDataError(null);
+      setSalesOrdersLoading(false);
     }).catch((error) => {
       console.error('Failed to load additional dashboard data:', error);
-      setAdditionalDataError('Failed to load cash flow and purchase order data. Some metrics may be incomplete.');
+      setAdditionalDataError('Failed to load dashboard data. Some metrics may be incomplete.');
+      setSalesOrdersLoading(false);
     });
   }, []);
 
@@ -78,10 +84,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     try {
       await Promise.all([
         refreshInventory(),
-        refreshOrders(),
         refreshShipments(),
         refreshSuppliers(),
         getPurchaseOrders().then(setPurchaseOrders),
+        getSalesOrders().then(setSalesOrders),
         getCashBankTransactions().then(setCashBankTransactions),
         getPaymentTransactions().then(setPaymentTransactions),
       ]);
@@ -97,10 +103,11 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
   // Calculate real-time stats
   const stats = useMemo(() => {
-    if (!inventory || !orders || !shipments) return null;
+    if (!inventory || !shipments) return null;
 
     const totalItems = inventory.reduce((sum, item) => sum + item.quantity, 0);
-    const activeOrders = orders.filter(o => o.status !== "Delivered").length;
+    // Count active sales orders (not fully delivered)
+    const activeOrders = salesOrders.filter(so => !so.archived && so.shippingStatus !== "Delivered").length;
     const inTransit = shipments.filter(s => s.status === "In Transit").length;
     const lowStockItems = inventory.filter(i => i.status === "Low Stock" || i.status === "Critical");
 
@@ -136,16 +143,14 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     // NEW: Financial KPIs
     const totalInventoryValue = inventory.reduce((sum, item) => sum + (item.quantity * (item.pricePerPiece || 0)), 0);
 
-    // Order fulfillment rate (delivered / total)
-    const deliveredOrders = orders.filter(o => o.status === "Delivered").length;
-    const fulfillmentRate = orders.length > 0 ? Math.round((deliveredOrders / orders.length) * 100) : 0;
+    // Sales Order fulfillment rate (delivered / total)
+    const activeSalesOrders = salesOrders.filter(so => !so.archived);
+    const deliveredOrders = activeSalesOrders.filter(so => so.shippingStatus === "Delivered").length;
+    const fulfillmentRate = activeSalesOrders.length > 0 ? Math.round((deliveredOrders / activeSalesOrders.length) * 100) : 0;
 
-    // Average order value
-    const totalOrderValue = orders.reduce((sum, order) => {
-      const value = parseFloat(order.total.replace(/[₱,]/g, '')) || 0;
-      return sum + value;
-    }, 0);
-    const avgOrderValue = orders.length > 0 ? totalOrderValue / orders.length : 0;
+    // Average order value from Sales Orders
+    const totalOrderValue = activeSalesOrders.reduce((sum, so) => sum + so.totalAmount, 0);
+    const avgOrderValue = activeSalesOrders.length > 0 ? totalOrderValue / activeSalesOrders.length : 0;
 
     // Warehouse capacity (based on maintainStockAt as capacity indicator)
     const currentStock = inventory.reduce((sum, item) => sum + item.quantity, 0);
@@ -199,7 +204,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       lowStockCount: lowStockItems.length,
       lowStockItems: enhancedLowStockItems,
       totalRestockCost,
-      totalOrders: orders.length,
+      totalOrders: activeSalesOrders.length,
       deliveredOrders,
       pendingShipments: shipments.filter(s => s.status === "Pending").length,
       activeSuppliers: suppliers?.filter(s => s.status === "Active").length || 0,
@@ -221,7 +226,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       overstockItems: enhancedOverstockItems,
       totalExcessValue,
     };
-  }, [inventory, orders, shipments, suppliers, purchaseOrders]);
+  }, [inventory, shipments, suppliers, purchaseOrders, salesOrders]);
 
   // Calculate Cash Flow Statistics
   const cashFlowStats = useMemo(() => {
@@ -308,17 +313,18 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       .filter(item => item.value > 0);
   }, [inventory]);
 
-  // Calculate order status distribution
+  // Calculate sales order status distribution (by shipping status)
   const orderStatusData = useMemo(() => {
-    if (!orders) return [];
+    const activeSalesOrders = salesOrders.filter(so => !so.archived);
+    if (activeSalesOrders.length === 0) return [];
 
-    const statuses = orders.reduce((acc, order) => {
-      acc[order.status] = (acc[order.status] || 0) + 1;
+    const statuses = activeSalesOrders.reduce((acc, so) => {
+      acc[so.shippingStatus] = (acc[so.shippingStatus] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     return Object.entries(statuses).map(([name, value]) => ({ name, value }));
-  }, [orders]);
+  }, [salesOrders]);
 
   // Generate monthly trend data based on actual transaction data
   const monthlyTrendData = useMemo(() => {
@@ -357,10 +363,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       });
 
     // Aggregate Sales Orders by order date
-    (orders || [])
-      .filter(order => !order.archived)
-      .forEach(order => {
-        const date = new Date(order.createdAt);
+    (salesOrders || [])
+      .filter(so => !so.archived)
+      .forEach(so => {
+        const date = new Date(so.soDate || so.createdDate);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthsData[key] !== undefined) {
           monthsData[key].orders += 1;
@@ -391,15 +397,15 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         shipments: data.shipments,
       };
     });
-  }, [cashBankTransactions, paymentTransactions, orders, shipments]);
+  }, [cashBankTransactions, paymentTransactions, salesOrders, shipments]);
 
   // Show loading skeleton
-  if (isLoading.inventory || isLoading.orders || isLoading.shipments) {
+  if (isLoading.inventory || isLoading.shipments || salesOrdersLoading) {
     return <DashboardSkeleton />;
   }
 
   // Show error state
-  if (!inventory || !orders || !shipments || !stats) {
+  if (!inventory || !shipments || !stats) {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
@@ -544,9 +550,9 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("orders")}>
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("sales-orders")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active Sales Orders</CardTitle>
               <ShoppingCart className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
@@ -627,12 +633,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               <Button
                 variant="outline"
                 className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"
-                onClick={() => navigateToView?.("orders", true)}
+                onClick={() => navigateToView?.("sales-orders", true)}
                 disabled={!canModify}
-                title={!canModify ? "You don't have permission to create orders" : undefined}
+                title={!canModify ? "You don't have permission to create sales orders" : undefined}
               >
                 <ShoppingCart className="h-5 w-5" />
-                <span className="text-sm">New Order</span>
+                <span className="text-sm">New Sales Order</span>
               </Button>
               <Button
                 variant="outline"
@@ -1091,8 +1097,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Order Status Distribution</CardTitle>
-              <CardDescription>Current order pipeline</CardDescription>
+              <CardTitle>Sales Order Status Distribution</CardTitle>
+              <CardDescription>Current sales order pipeline</CardDescription>
             </CardHeader>
             <CardContent>
               {orderStatusData.length > 0 ? (
