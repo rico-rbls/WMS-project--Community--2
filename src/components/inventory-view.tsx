@@ -103,7 +103,7 @@ const OPTIONAL_COLUMNS: { key: OptionalColumn; label: string }[] = [
 
 // Default visible columns
 const DEFAULT_VISIBLE_COLUMNS: OptionalColumn[] = [
-  "category", "subcategory", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece"
+  "category", "subcategory", "quantityPurchased", "quantitySold", "quantity", "reorderRequired", "pricePerPiece", "supplier", "location"
 ];
 
 // Default category prefixes for auto-generating location codes
