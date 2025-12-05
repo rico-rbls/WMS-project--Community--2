@@ -192,7 +192,8 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     let result = list;
 
     // Filter by archived status
-    result = result.filter((po) => po.archived === showArchived);
+    // Handle undefined archived field (treat as not archived)
+    result = result.filter((po) => (po.archived === true) === showArchived);
 
     // Search filter
     if (debouncedSearchTerm) {

@@ -158,7 +158,9 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const filteredCustomers = useMemo(() => {
     return list.filter(customer => {
       // Filter by archived status
-      if (customer.archived !== showArchived) {
+      // Handle undefined archived field (treat as not archived)
+      const isArchived = customer.archived === true;
+      if (isArchived !== showArchived) {
         return false;
       }
 

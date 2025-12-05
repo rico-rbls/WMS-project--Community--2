@@ -196,7 +196,9 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   const filteredSuppliers = useMemo(() => {
     return list.filter(supplier => {
       // Filter by archived status
-      if (supplier.archived !== showArchived) {
+      // Handle undefined archived field (treat as not archived)
+      const isArchived = supplier.archived === true;
+      if (isArchived !== showArchived) {
         return false;
       }
 
