@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ArrowUpRight, ArrowDownRight, ClipboardList, ShoppingBag, ExternalLink, DollarSign, Activity, Target, BarChart3, TrendingDown, Gauge, Star, Calendar, RefreshCw, Landmark, Wallet, CreditCard, Banknote } from "lucide-react";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart, Legend } from "recharts";
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, Truck, Users, Clock, CheckCircle2, XCircle, Inbox, Boxes, ClipboardCheck, ClipboardList, ShoppingBag, ExternalLink, Activity, Target, Gauge, RefreshCw } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAppContext } from "../context/app-context";
 import { useIsMobile } from "./ui/use-mobile";
 import { Button } from "./ui/button";
@@ -9,37 +9,14 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toast } from "sonner";
-import type { InventoryCategory, PurchaseOrder, CashBankTransaction, PaymentTransaction, SalesOrder } from "../types";
+import type { InventoryCategory, PurchaseOrder, SalesOrder } from "../types";
 import type { ViewType } from "../App";
-import { getPurchaseOrders, getCashBankTransactions, getPaymentTransactions, getSalesOrders } from "../services/api";
+import { getPurchaseOrders, getSalesOrders } from "../services/api";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { Progress } from "./ui/progress";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6"];
-const CHART_COLORS = {
-  primary: "#3b82f6",
-  success: "#10b981",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  purple: "#8b5cf6",
-  cyan: "#06b6d4",
-};
-
-// Currency formatting helper for Philippine Peso
-const formatCurrency = (value: number, decimals: number = 2): string => {
-  return `₱${value.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  })}`;
-};
-
-// Compact currency format for charts (e.g., ₱125k)
-const formatCurrencyCompact = (value: number): string => {
-  if (value >= 1000000) return `₱${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `₱${(value / 1000).toFixed(0)}k`;
-  return `₱${value}`;
-};
 
 interface DashboardProps {
   navigateToView?: (view: ViewType, openDialog?: boolean) => void;
@@ -53,23 +30,17 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-  const [cashBankTransactions, setCashBankTransactions] = useState<CashBankTransaction[]>([]);
-  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
   const [additionalDataError, setAdditionalDataError] = useState<string | null>(null);
   const [salesOrdersLoading, setSalesOrdersLoading] = useState(true);
 
-  // Fetch purchase orders, sales orders, cash/bank transactions, and payment transactions
+  // Fetch purchase orders and sales orders
   useEffect(() => {
     Promise.all([
       getPurchaseOrders(),
       getSalesOrders(),
-      getCashBankTransactions(),
-      getPaymentTransactions(),
-    ]).then(([pos, sos, cashBank, payments]) => {
+    ]).then(([pos, sos]) => {
       setPurchaseOrders(pos);
       setSalesOrders(sos);
-      setCashBankTransactions(cashBank);
-      setPaymentTransactions(payments);
       setAdditionalDataError(null);
       setSalesOrdersLoading(false);
     }).catch((error) => {
@@ -88,8 +59,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         refreshSuppliers(),
         getPurchaseOrders().then(setPurchaseOrders),
         getSalesOrders().then(setSalesOrders),
-        getCashBankTransactions().then(setCashBankTransactions),
-        getPaymentTransactions().then(setPaymentTransactions),
       ]);
       if (!silent) {
         toast.success("Dashboard refreshed");
@@ -116,14 +85,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       const supplier = suppliers?.find(s => s.id === item.supplierId);
       const recommendedQty = Math.max(0, (item.maintainStockAt || item.reorderLevel * 2) - item.quantity);
       const stockPercentage = item.reorderLevel > 0 ? Math.round((item.quantity / item.reorderLevel) * 100) : 0;
-      const restockCost = recommendedQty * (item.pricePerPiece || 0);
 
       return {
         ...item,
         supplierName: supplier?.name || "Unknown Supplier",
         recommendedQty,
         stockPercentage,
-        restockCost,
         urgencyScore: item.status === "Critical" ? 2 : 1,
       };
     }).sort((a, b) => {
@@ -131,26 +98,15 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       return a.stockPercentage - b.stockPercentage;
     });
 
-    // Calculate total restock cost
-    const totalRestockCost = enhancedLowStockItems.reduce((sum, item) => sum + item.restockCost, 0);
-
     // PO stats
     const pendingPOs = purchaseOrders.filter(po =>
       ["Pending Approval", "Approved", "Ordered"].includes(po.status)
     );
-    const pendingPOValue = pendingPOs.reduce((sum, po) => sum + po.totalAmount, 0);
-
-    // NEW: Financial KPIs
-    const totalInventoryValue = inventory.reduce((sum, item) => sum + (item.quantity * (item.pricePerPiece || 0)), 0);
 
     // Sales Order fulfillment rate (delivered / total)
     const activeSalesOrders = salesOrders.filter(so => !so.archived);
     const deliveredOrders = activeSalesOrders.filter(so => so.shippingStatus === "Delivered").length;
     const fulfillmentRate = activeSalesOrders.length > 0 ? Math.round((deliveredOrders / activeSalesOrders.length) * 100) : 0;
-
-    // Average order value from Sales Orders
-    const totalOrderValue = activeSalesOrders.reduce((sum, so) => sum + so.totalAmount, 0);
-    const avgOrderValue = activeSalesOrders.length > 0 ? totalOrderValue / activeSalesOrders.length : 0;
 
     // Warehouse capacity (based on maintainStockAt as capacity indicator)
     const currentStock = inventory.reduce((sum, item) => sum + item.quantity, 0);
@@ -168,30 +124,14 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       const supplier = suppliers?.find(s => s.id === item.supplierId);
       const excessQty = Math.max(0, item.quantity - (item.maintainStockAt || item.reorderLevel * 2));
       const overstockPercentage = item.maintainStockAt > 0 ? Math.round((item.quantity / item.maintainStockAt) * 100) : 0;
-      const excessValue = excessQty * (item.pricePerPiece || 0);
 
       return {
         ...item,
         supplierName: supplier?.name || "Unknown Supplier",
         excessQty,
         overstockPercentage,
-        excessValue,
       };
     }).sort((a, b) => b.overstockPercentage - a.overstockPercentage);
-
-    // Calculate total excess value
-    const totalExcessValue = enhancedOverstockItems.reduce((sum, item) => sum + item.excessValue, 0);
-
-    // Top products by quantity
-    const topProducts = [...inventory]
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5)
-      .map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        value: item.quantity * (item.pricePerPiece || 0),
-        category: item.category,
-      }));
 
     // Supplier performance (based on PO completion)
     const completedPOs = purchaseOrders.filter(po => po.status === "Received").length;
@@ -203,95 +143,22 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       inTransit,
       lowStockCount: lowStockItems.length,
       lowStockItems: enhancedLowStockItems,
-      totalRestockCost,
       totalOrders: activeSalesOrders.length,
       deliveredOrders,
       pendingShipments: shipments.filter(s => s.status === "Pending").length,
       activeSuppliers: suppliers?.filter(s => s.status === "Active").length || 0,
       pendingPOCount: pendingPOs.length,
-      pendingPOValue,
-      // New KPIs
-      totalInventoryValue,
       fulfillmentRate,
-      avgOrderValue,
       capacityUtilization,
       healthScore,
       criticalItems,
       inStockItems,
-      topProducts,
       supplierPerformance,
-      totalOrderValue,
       // Overstock KPIs
       overstockCount: overstockItems.length,
       overstockItems: enhancedOverstockItems,
-      totalExcessValue,
     };
   }, [inventory, shipments, suppliers, purchaseOrders, salesOrders]);
-
-  // Calculate Cash Flow Statistics
-  const cashFlowStats = useMemo(() => {
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    // Cash & Bank (Receipts) statistics - single pass aggregation
-    const activeReceipts = cashBankTransactions.filter(trx => !trx.archived);
-    const receiptsAggregated = activeReceipts.reduce((acc, trx) => {
-      acc.total += trx.amountReceived;
-      if (new Date(trx.createdAt) >= oneWeekAgo) acc.recent++;
-      const mode = trx.paymentMode;
-      if (mode === "Cash") acc.byMode.cash += trx.amountReceived;
-      else if (mode === "Bank Transfer") acc.byMode.bankTransfer += trx.amountReceived;
-      else if (mode === "Credit Card") acc.byMode.creditCard += trx.amountReceived;
-      else if (mode === "Check") acc.byMode.check += trx.amountReceived;
-      else if (mode === "Online Payment") acc.byMode.online += trx.amountReceived;
-      return acc;
-    }, { total: 0, recent: 0, byMode: { cash: 0, bankTransfer: 0, creditCard: 0, check: 0, online: 0 } });
-
-    const totalReceipts = receiptsAggregated.total;
-    const receiptsByMode = receiptsAggregated.byMode;
-    const recentReceipts = receiptsAggregated.recent;
-
-    // Payments (Outgoing) statistics - single pass aggregation
-    const activePayments = paymentTransactions.filter(trx => !trx.archived);
-    const paymentsAggregated = activePayments.reduce((acc, trx) => {
-      acc.total += trx.amountPaid;
-      if (new Date(trx.createdAt) >= oneWeekAgo) acc.recent++;
-      const mode = trx.paymentMode;
-      if (mode === "Cash") acc.byMode.cash += trx.amountPaid;
-      else if (mode === "Bank Transfer") acc.byMode.bankTransfer += trx.amountPaid;
-      else if (mode === "Credit Card") acc.byMode.creditCard += trx.amountPaid;
-      else if (mode === "Check") acc.byMode.check += trx.amountPaid;
-      else if (mode === "Online Payment") acc.byMode.online += trx.amountPaid;
-      return acc;
-    }, { total: 0, recent: 0, byMode: { cash: 0, bankTransfer: 0, creditCard: 0, check: 0, online: 0 } });
-
-    const totalPayments = paymentsAggregated.total;
-    const paymentsByMode = paymentsAggregated.byMode;
-    const recentPayments = paymentsAggregated.recent;
-
-    // Net cash flow
-    const netCashFlow = totalReceipts - totalPayments;
-    const cashFlowPositive = netCashFlow >= 0;
-
-    // Outstanding payables (unpaid PO amounts)
-    const outstandingPayables = purchaseOrders
-      .filter(po => !po.archived && ["Ordered", "Partially Received", "Received"].includes(po.status))
-      .reduce((sum, po) => sum + Math.max(0, po.totalAmount - (po.totalPaid || 0)), 0);
-
-    return {
-      totalReceipts,
-      totalPayments,
-      netCashFlow,
-      cashFlowPositive,
-      receiptsByMode,
-      paymentsByMode,
-      recentReceipts,
-      recentPayments,
-      outstandingPayables,
-      totalReceiptTransactions: activeReceipts.length,
-      totalPaymentTransactions: activePayments.length,
-    };
-  }, [cashBankTransactions, paymentTransactions, purchaseOrders]);
 
   // Calculate category distribution
   const categoryData = useMemo(() => {
@@ -325,79 +192,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
     return Object.entries(statuses).map(([name, value]) => ({ name, value }));
   }, [salesOrders]);
-
-  // Generate monthly trend data based on actual transaction data
-  const monthlyTrendData = useMemo(() => {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-
-    // Initialize data for the last 6 months (including current month)
-    const monthsData: Record<string, { receipts: number; payments: number; orders: number; shipments: number }> = {};
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(currentYear, currentDate.getMonth() - i, 1);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      monthsData[key] = { receipts: 0, payments: 0, orders: 0, shipments: 0 };
-    }
-
-    // Aggregate Cash & Bank receipts by month
-    (cashBankTransactions || [])
-      .filter(trx => !trx.archived)
-      .forEach(trx => {
-        const date = new Date(trx.trxDate);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthsData[key] !== undefined) {
-          monthsData[key].receipts += trx.amountReceived;
-        }
-      });
-
-    // Aggregate Payments by month
-    (paymentTransactions || [])
-      .filter(trx => !trx.archived)
-      .forEach(trx => {
-        const date = new Date(trx.trxDate);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthsData[key] !== undefined) {
-          monthsData[key].payments += trx.amountPaid;
-        }
-      });
-
-    // Aggregate Sales Orders by order date
-    (salesOrders || [])
-      .filter(so => !so.archived)
-      .forEach(so => {
-        const date = new Date(so.soDate || so.createdDate);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthsData[key] !== undefined) {
-          monthsData[key].orders += 1;
-        }
-      });
-
-    // Aggregate Shipments by shipment date
-    (shipments || [])
-      .filter(shipment => !shipment.archived)
-      .forEach(shipment => {
-        const date = new Date(shipment.createdAt);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthsData[key] !== undefined) {
-          monthsData[key].shipments += 1;
-        }
-      });
-
-    // Convert to array format for the chart
-    return Object.entries(monthsData).map(([key, data]) => {
-      const [year, monthNum] = key.split('-');
-      const monthIndex = parseInt(monthNum) - 1;
-      return {
-        month: monthNames[monthIndex],
-        receipts: Math.round(data.receipts),
-        payments: Math.round(data.payments),
-        netCashFlow: Math.round(data.receipts - data.payments),
-        orders: data.orders,
-        shipments: data.shipments,
-      };
-    });
-  }, [cashBankTransactions, paymentTransactions, salesOrders, shipments]);
 
   // Show loading skeleton
   if (isLoading.inventory || isLoading.shipments || salesOrdersLoading) {
@@ -464,16 +258,16 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           <div className="flex-1 h-px bg-border"></div>
         </div>
 
-        {/* Primary KPIs - Financial Overview */}
+        {/* Primary KPIs - Operational Overview */}
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Inventory Value</CardTitle>
-            <DollarSign className="h-5 w-5 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Inventory</CardTitle>
+            <Package className="h-5 w-5 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-              {formatCurrency(stats.totalInventoryValue)}
+              {stats.totalItems.toLocaleString()}
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
@@ -500,16 +294,16 @@ export function Dashboard({ navigateToView }: DashboardProps) {
 
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Average Order Value</CardTitle>
-            <BarChart3 className="h-5 w-5 text-purple-600" />
+            <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Inventory Health</CardTitle>
+            <Activity className="h-5 w-5 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-              {formatCurrency(stats.avgOrderValue)}
+            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{stats.healthScore}%</div>
+            <div className="mt-2">
+              <Progress value={stats.healthScore} className="h-2" indicatorClassName="bg-purple-600" />
             </div>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
-              <ArrowUpRight className="h-3 w-3" />
-              Total: {formatCurrency(stats.totalOrderValue, 0)}
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              {stats.inStockItems} of {inventory.length} items in stock
             </p>
           </CardContent>
         </Card>
@@ -597,7 +391,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             <CardContent>
               <div className="text-2xl font-bold">{stats.pendingPOCount}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatCurrency(stats.pendingPOValue, 0)} value
+                Awaiting processing
               </p>
             </CardContent>
           </Card>
@@ -693,11 +487,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span>
                       {stats.lowStockCount} item{stats.lowStockCount > 1 ? 's are' : ' is'} below reorder level.
-                      {stats.totalRestockCost > 0 && (
-                        <span className="ml-1 font-medium">
-                          Estimated restock: {formatCurrency(stats.totalRestockCost)}
-                        </span>
-                      )}
                     </span>
                     <Button
                       variant="link"
@@ -719,11 +508,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span>
                       {stats.overstockCount} item{stats.overstockCount > 1 ? 's exceed' : ' exceeds'} target stock level.
-                      {stats.totalExcessValue > 0 && (
-                        <span className="ml-1 font-medium">
-                          Excess value: {formatCurrency(stats.totalExcessValue)}
-                        </span>
-                      )}
                     </span>
                     <Button
                       variant="link"
@@ -739,317 +523,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </div>
         </section>
       )}
-
-      {/* ==================== CASH FLOW & FINANCIAL METRICS ==================== */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-1 rounded-full bg-emerald-500"></div>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cash Flow & Financial Metrics</h3>
-          <div className="flex-1 h-px bg-border"></div>
-        </div>
-
-        {/* Cash Flow Overview */}
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("cash-bank")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Total Receipts</CardTitle>
-            <Landmark className="h-5 w-5 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-              {formatCurrency(cashFlowStats.totalReceipts)}
-            </div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-              <ArrowUpRight className="h-3 w-3" />
-              {cashFlowStats.totalReceiptTransactions} transactions • {cashFlowStats.recentReceipts} this week
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border-rose-200 dark:border-rose-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("payments")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-300">Total Payments</CardTitle>
-            <Wallet className="h-5 w-5 text-rose-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-rose-900 dark:text-rose-100">
-              {formatCurrency(cashFlowStats.totalPayments)}
-            </div>
-            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
-              <ArrowDownRight className="h-3 w-3" />
-              {cashFlowStats.totalPaymentTransactions} transactions • {cashFlowStats.recentPayments} this week
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={`bg-gradient-to-br ${cashFlowStats.cashFlowPositive ? 'from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 border-teal-200 dark:border-teal-800' : 'from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800'}`}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className={`text-sm font-medium ${cashFlowStats.cashFlowPositive ? 'text-teal-700 dark:text-teal-300' : 'text-amber-700 dark:text-amber-300'}`}>Net Cash Flow</CardTitle>
-            {cashFlowStats.cashFlowPositive ? (
-              <TrendingUp className="h-5 w-5 text-teal-600" />
-            ) : (
-              <TrendingDown className="h-5 w-5 text-amber-600" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${cashFlowStats.cashFlowPositive ? 'text-teal-900 dark:text-teal-100' : 'text-amber-900 dark:text-amber-100'}`}>
-              {cashFlowStats.cashFlowPositive ? '+' : ''}{formatCurrency(cashFlowStats.netCashFlow)}
-            </div>
-            <p className={`text-xs mt-1 ${cashFlowStats.cashFlowPositive ? 'text-teal-600 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400'}`}>
-              {cashFlowStats.cashFlowPositive ? 'Positive cash flow' : 'Negative cash flow'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToView?.("purchase-orders")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Outstanding Payables</CardTitle>
-            <CreditCard className="h-5 w-5 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-              {formatCurrency(cashFlowStats.outstandingPayables)}
-            </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              From pending purchase orders
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-        {/* Payment Mode Breakdown */}
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-        {/* Receipts by Payment Mode */}
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("cash-bank")}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-emerald-600" />
-                  Receipts by Payment Mode
-                </CardTitle>
-                <CardDescription>Cash & Bank collection breakdown</CardDescription>
-              </div>
-              <Badge variant="outline" className="text-emerald-600 border-emerald-300">
-                {cashFlowStats.totalReceiptTransactions} trx
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {cashFlowStats.receiptsByMode.cash > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Banknote className="h-4 w-4 text-green-600" />
-                    <span className="text-sm">Cash</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.cash)}</span>
-                </div>
-              )}
-              {cashFlowStats.receiptsByMode.bankTransfer > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Landmark className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm">Bank Transfer</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.bankTransfer)}</span>
-                </div>
-              )}
-              {cashFlowStats.receiptsByMode.creditCard > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm">Credit Card</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.creditCard)}</span>
-                </div>
-              )}
-              {cashFlowStats.receiptsByMode.check > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm">Check</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.check)}</span>
-                </div>
-              )}
-              {cashFlowStats.receiptsByMode.online > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-cyan-600" />
-                    <span className="text-sm">Online Payment</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.receiptsByMode.online)}</span>
-                </div>
-              )}
-              {cashFlowStats.totalReceipts === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No receipts recorded yet</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payments by Payment Mode */}
-        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("payments")}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-rose-600" />
-                  Payments by Payment Mode
-                </CardTitle>
-                <CardDescription>Supplier payment breakdown</CardDescription>
-              </div>
-              <Badge variant="outline" className="text-rose-600 border-rose-300">
-                {cashFlowStats.totalPaymentTransactions} trx
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {cashFlowStats.paymentsByMode.cash > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Banknote className="h-4 w-4 text-green-600" />
-                    <span className="text-sm">Cash</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.cash)}</span>
-                </div>
-              )}
-              {cashFlowStats.paymentsByMode.bankTransfer > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Landmark className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm">Bank Transfer</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.bankTransfer)}</span>
-                </div>
-              )}
-              {cashFlowStats.paymentsByMode.creditCard > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm">Credit Card</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.creditCard)}</span>
-                </div>
-              )}
-              {cashFlowStats.paymentsByMode.check > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm">Check</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.check)}</span>
-                </div>
-              )}
-              {cashFlowStats.paymentsByMode.online > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-cyan-600" />
-                    <span className="text-sm">Online Payment</span>
-                  </div>
-                  <span className="font-medium">{formatCurrency(cashFlowStats.paymentsByMode.online)}</span>
-                </div>
-              )}
-              {cashFlowStats.totalPayments === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No payments recorded yet</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        </div>
-
-        {/* Monthly Trends Chart - Full Width */}
-        <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary" />
-                Monthly Cash Flow & Activity Trends
-              </CardTitle>
-              <CardDescription>Receipts, payments, orders, and shipments over the past 6 months</CardDescription>
-            </div>
-            <Badge variant="outline" className="hidden sm:flex">
-              <Calendar className="h-3 w-3 mr-1" />
-              Last 6 Months
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={isMobile ? 280 : 350}>
-            <AreaChart data={monthlyTrendData}>
-              <defs>
-                <linearGradient id="colorReceipts" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CHART_COLORS.danger} stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor={CHART_COLORS.danger} stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorNetFlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={CHART_COLORS.primary} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={CHART_COLORS.primary} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" />
-              <YAxis
-                className="text-xs"
-                tickFormatter={formatCurrencyCompact}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--background))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: number, name: string) => [formatCurrency(value), name]}
-              />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="receipts"
-                stroke={CHART_COLORS.success}
-                fillOpacity={1}
-                fill="url(#colorReceipts)"
-                name="Receipts (Cash & Bank)"
-              />
-              <Area
-                type="monotone"
-                dataKey="payments"
-                stroke={CHART_COLORS.danger}
-                fillOpacity={1}
-                fill="url(#colorPayments)"
-                name="Payments (Suppliers)"
-              />
-              <Area
-                type="monotone"
-                dataKey="netCashFlow"
-                stroke={CHART_COLORS.primary}
-                fillOpacity={0.5}
-                fill="url(#colorNetFlow)"
-                name="Net Cash Flow"
-                strokeDasharray="5 5"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-          <div className="flex justify-center gap-6 mt-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <Package className="h-3.5 w-3.5" />
-              <span>Orders: {monthlyTrendData.reduce((sum, m) => sum + m.orders, 0)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Truck className="h-3.5 w-3.5" />
-              <span>Shipments: {monthlyTrendData.reduce((sum, m) => sum + m.shipments, 0)}</span>
-            </div>
-          </div>
-        </CardContent>
-        </Card>
-      </section>
 
       {/* ==================== ANALYTICS & INSIGHTS ==================== */}
       <section className="space-y-4">
@@ -1120,48 +593,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </Card>
         </div>
 
-        {/* Top Products & Inventory Health Row */}
+        {/* Inventory Health Row */}
         <div className={`grid gap-4 mt-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
-          {/* Top Products by Stock Value */}
-          <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-500" />
-              Top Products by Value
-            </CardTitle>
-            <CardDescription>Highest value items in inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stats.topProducts.map((product, index) => (
-                <div key={product.name} className="flex items-center gap-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{product.name}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{product.quantity.toLocaleString()} units</span>
-                      <span>•</span>
-                      <Badge variant="secondary" className="text-xs">{product.category}</Badge>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold text-green-600 dark:text-green-400">
-                      {formatCurrency(product.value, 0)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {stats.topProducts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No products available
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Inventory Health Overview */}
         <Card>
           <CardHeader>
@@ -1278,11 +711,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                 </CardTitle>
                 <CardDescription className="mt-1">
                   Items below reorder level requiring attention
-                  {stats.totalRestockCost > 0 && (
-                    <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
-                      • Est. restock cost: {formatCurrency(stats.totalRestockCost)}
-                    </span>
-                  )}
                 </CardDescription>
               </div>
               <Button
@@ -1358,16 +786,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                       <span>
                         Recommended order: <span className="font-medium text-foreground">{item.recommendedQty} units</span>
                       </span>
-                      {item.restockCost > 0 && (
-                        <span>
-                          Est. cost: <span className="font-medium text-foreground">{formatCurrency(item.restockCost)}</span>
-                        </span>
-                      )}
-                      {item.pricePerPiece > 0 && (
-                        <span>
-                          Unit price: {formatCurrency(item.pricePerPiece)}
-                        </span>
-                      )}
                     </div>
                   </div>
                 );
@@ -1425,11 +843,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                 </CardTitle>
                 <CardDescription className="mt-1">
                   Items exceeding target stock level
-                  {stats.totalExcessValue > 0 && (
-                    <span className="ml-2 font-medium text-blue-700 dark:text-blue-400">
-                      • Excess value: {formatCurrency(stats.totalExcessValue)}
-                    </span>
-                  )}
                 </CardDescription>
               </div>
             </div>
@@ -1483,7 +896,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                     {/* Excess Info */}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span>Excess: <span className="font-medium text-blue-600">{item.excessQty} units</span></span>
-                      <span>Excess value: <span className="font-medium">{formatCurrency(item.excessValue)}</span></span>
                     </div>
                   </div>
                 );

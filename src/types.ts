@@ -321,14 +321,15 @@ export interface SalesOrder {
   invoiceNumber: string; // Invoice/bill reference number
   items: SOLineItem[];
   totalAmount: number;
-  totalReceived: number; // Amount received from customer
+  totalReceived: number; // Amount received from customer (admin-only field)
+  amountPaid: number; // Amount paid by customer (customer-editable field)
   soBalance: number; // Remaining balance (totalAmount - totalReceived)
   receiptStatus: ReceiptStatus; // Payment/receipt status
   shippingStatus: ShippingStatus; // Delivery/shipping status
   createdBy: string;
   createdDate: string; // ISO date
   notes: string;
-  expectedDeliveryDate: string; // ISO date
+  expectedDeliveryDate: string; // ISO date (admin-only field)
   // Archive fields
   archived?: boolean; // Whether the SO is archived (soft-deleted)
   archivedAt?: string; // ISO date when the SO was archived
@@ -343,10 +344,11 @@ export interface CreateSalesOrderInput {
   customerCity?: string;
   invoiceNumber?: string;
   items: Omit<SOLineItem, 'quantityShipped'>[];
-  expectedDeliveryDate: string;
+  expectedDeliveryDate?: string; // Optional for customers (admin sets this)
   notes?: string;
   createdBy: string;
   totalReceived?: number;
+  amountPaid?: number; // Amount paid by customer
   receiptStatus?: ReceiptStatus;
   shippingStatus?: ShippingStatus;
 }
@@ -365,6 +367,7 @@ export interface UpdateSalesOrderInput {
   receiptStatus?: ReceiptStatus;
   shippingStatus?: ShippingStatus;
   totalReceived?: number;
+  amountPaid?: number; // Amount paid by customer
 }
 
 // ============================================

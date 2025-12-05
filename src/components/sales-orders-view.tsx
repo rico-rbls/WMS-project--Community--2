@@ -59,6 +59,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
+import { CustomerOrderForm } from "@/components/customer-order-form";
 
 const RECEIPT_STATUSES: ReceiptStatus[] = ["Unpaid", "Partially Paid", "Paid", "Overdue"];
 const SHIPPING_STATUSES: ShippingStatus[] = ["Pending", "Processing", "Shipped", "In Transit", "Out for Delivery", "Delivered", "Failed", "Returned"];
@@ -74,6 +75,7 @@ interface SOFormState {
   expectedDeliveryDate: string;
   notes: string;
   totalReceived: number;
+  amountPaid: number;
   shippingStatus: ShippingStatus;
 }
 
@@ -109,6 +111,7 @@ export function SalesOrdersView() {
   const [sortColumn, setSortColumn] = useState<keyof SalesOrder | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [detailViewSO, setDetailViewSO] = useState<SalesOrder | null>(null);
+  const [showCustomerOrderForm, setShowCustomerOrderForm] = useState(false);
 
   const [form, setForm] = useState<SOFormState>({
     soDate: new Date().toISOString().split("T")[0],
@@ -121,6 +124,7 @@ export function SalesOrdersView() {
     expectedDeliveryDate: "",
     notes: "",
     totalReceived: 0,
+    amountPaid: 0,
     shippingStatus: "Pending",
   });
 
@@ -143,6 +147,29 @@ export function SalesOrdersView() {
     };
     loadData();
   }, []);
+
+  // Auto-select customer for customer users when Add dialog opens
+  useEffect(() => {
+    if (isAddOpen && isCustomer && user?.email && customersData.length > 0) {
+      // Find customer record matching the logged-in user's email
+      const matchingCustomer = customersData.find(c => c.email === user.email);
+      if (matchingCustomer) {
+        setForm(prev => ({
+          ...prev,
+          customerId: matchingCustomer.id,
+          customerName: matchingCustomer.name,
+          customerCountry: matchingCustomer.country ?? "",
+          customerCity: matchingCustomer.city ?? "",
+        }));
+      } else {
+        // If no matching customer, use user's display name
+        setForm(prev => ({
+          ...prev,
+          customerName: user.displayName || user.email || "Customer",
+        }));
+      }
+    }
+  }, [isAddOpen, isCustomer, user?.email, user?.displayName, customersData]);
 
   const list = salesOrdersData ?? [];
 
@@ -296,10 +323,13 @@ export function SalesOrdersView() {
   };
 
   const resetForm = () => {
+    // For customers, auto-fill their name from the logged-in user
+    const customerName = isCustomer && user?.displayName ? user.displayName : "";
+
     setForm({
       soDate: new Date().toISOString().split("T")[0],
       customerId: "",
-      customerName: "",
+      customerName,
       customerCountry: "",
       customerCity: "",
       invoiceNumber: "",
@@ -307,6 +337,7 @@ export function SalesOrdersView() {
       expectedDeliveryDate: "",
       notes: "",
       totalReceived: 0,
+      amountPaid: 0,
       shippingStatus: "Pending",
     });
   };
@@ -362,7 +393,9 @@ export function SalesOrdersView() {
   };
 
   const handleCreate = async () => {
-    if (!form.customerId || form.items.length === 0 || !form.expectedDeliveryDate) {
+    // Customers don't need to provide expectedDeliveryDate (admin-only field)
+    const needsDeliveryDate = !isCustomer && !form.expectedDeliveryDate;
+    if (!form.customerId || form.items.length === 0 || needsDeliveryDate) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -375,10 +408,11 @@ export function SalesOrdersView() {
         customerCity: form.customerCity,
         invoiceNumber: form.invoiceNumber,
         items: form.items.map((item) => ({ ...item, quantityShipped: 0 })),
-        expectedDeliveryDate: form.expectedDeliveryDate,
+        expectedDeliveryDate: form.expectedDeliveryDate || undefined, // Optional for customers
         notes: form.notes,
         createdBy: user?.email ?? user?.id ?? "unknown",
-        totalReceived: form.totalReceived,
+        totalReceived: isCustomer ? 0 : form.totalReceived, // Customers can't set totalReceived
+        amountPaid: form.amountPaid, // Customer-editable field
       });
       setSalesOrdersData((prev) => [newSO, ...(prev ?? [])]);
       toast.success(`Sales Order ${newSO.id} created successfully`);
@@ -404,13 +438,58 @@ export function SalesOrdersView() {
     }
   };
 
+  // Handler for customer order form (e-commerce style)
+  const handleCustomerOrderSubmit = async (orderData: {
+    items: { inventoryItemId: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[];
+    notes: string;
+    amountPaid: number;
+    customerName: string;
+    customerId: string;
+    customerCountry: string;
+    customerCity: string;
+  }): Promise<SalesOrder> => {
+    const newSO = await createSalesOrder({
+      soDate: new Date().toISOString().split("T")[0],
+      customerId: orderData.customerId,
+      customerName: orderData.customerName,
+      customerCountry: orderData.customerCountry,
+      customerCity: orderData.customerCity,
+      invoiceNumber: "", // Auto-generated or left empty
+      items: orderData.items.map((item) => ({ ...item, quantityShipped: 0 })),
+      expectedDeliveryDate: undefined, // Admin sets this later
+      notes: orderData.notes,
+      createdBy: user?.email ?? user?.id ?? "unknown",
+      totalReceived: 0,
+      amountPaid: orderData.amountPaid,
+    });
+    setSalesOrdersData((prev) => [newSO, ...(prev ?? [])]);
+
+    // Create notification for Owner/Admin
+    if (user?.email) {
+      const totalAmount = orderData.items.reduce((sum, item) => sum + item.totalPrice, 0);
+      await createNotification({
+        type: "new_sales_order",
+        title: "New Customer Order",
+        message: `${user.displayName || user.email} placed order ${newSO.id} - ${formatCurrency(totalAmount)}`,
+        salesOrderId: newSO.id,
+        customerName: orderData.customerName,
+        createdBy: user.email,
+        targetRoles: ["Owner", "Admin"],
+      });
+    }
+
+    return newSO;
+  };
+
   const handleUpdate = async (id: string) => {
-    if (!form.customerId || form.items.length === 0 || !form.expectedDeliveryDate) {
+    // Customers don't need to provide expectedDeliveryDate (admin-only field)
+    const needsDeliveryDate = !isCustomer && !form.expectedDeliveryDate;
+    if (!form.customerId || form.items.length === 0 || needsDeliveryDate) {
       toast.error("Please fill in all required fields");
       return;
     }
     try {
-      // Get existing order to preserve quantityShipped values
+      // Get existing order to preserve quantityShipped values and admin-only fields for customers
       const existingOrder = list.find((so) => so.id === id);
       const existingItemsMap = new Map(
         existingOrder?.items?.map((item) => [item.inventoryItemId, item.quantityShipped ?? 0]) ?? []
@@ -429,10 +508,12 @@ export function SalesOrdersView() {
           // Preserve existing quantityShipped or default to 0 for new items
           quantityShipped: existingItemsMap.get(item.inventoryItemId) ?? 0,
         })),
-        expectedDeliveryDate: form.expectedDeliveryDate,
+        // For customers, preserve existing admin-only fields
+        expectedDeliveryDate: isCustomer ? existingOrder?.expectedDeliveryDate : form.expectedDeliveryDate,
         notes: form.notes,
-        totalReceived: form.totalReceived,
-        shippingStatus: form.shippingStatus,
+        totalReceived: isCustomer ? existingOrder?.totalReceived : form.totalReceived, // Admin-only
+        amountPaid: form.amountPaid, // Customer-editable
+        shippingStatus: isCustomer ? existingOrder?.shippingStatus : form.shippingStatus, // Admin-only
       });
       setSalesOrdersData((prev) => prev?.map((so) => (so.id === id ? updated : so)) ?? []);
       toast.success(`Sales Order ${id} updated successfully`);
@@ -541,6 +622,7 @@ export function SalesOrdersView() {
       expectedDeliveryDate: so.expectedDeliveryDate ?? "",
       notes: so.notes ?? "",
       totalReceived: so.totalReceived ?? 0,
+      amountPaid: so.amountPaid ?? 0,
       shippingStatus: so.shippingStatus ?? "Pending",
     });
     setIsEditOpen(so.id);
@@ -771,6 +853,155 @@ export function SalesOrdersView() {
     );
   }
 
+  // Customer Order Form View (e-commerce style)
+  if (isCustomer && showCustomerOrderForm) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Place New Order</h1>
+            <p className="text-muted-foreground">Browse products and add them to your cart</p>
+          </div>
+        </div>
+        <CustomerOrderForm
+          inventoryData={inventoryData}
+          customersData={customersData}
+          onSubmitOrder={handleCustomerOrderSubmit}
+          onCancel={() => setShowCustomerOrderForm(false)}
+        />
+      </div>
+    );
+  }
+
+  // Customer simplified view
+  if (isCustomer) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">My Orders</h1>
+            <p className="text-muted-foreground">View and track your orders</p>
+          </div>
+          <Button onClick={() => setShowCustomerOrderForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Place New Order
+          </Button>
+        </div>
+
+        {/* Simple Stats for Customers */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{filteredData.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-amber-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">
+                {filteredData.filter(so => so.shippingStatus === "Pending" || so.shippingStatus === "Processing").length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {filteredData.filter(so => so.shippingStatus === "Delivered").length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Orders Table - Simplified for Customers */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Order History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filteredData.length === 0 ? (
+              <EmptyState
+                icon={ShoppingCart}
+                title="No orders yet"
+                description="Place your first order to get started"
+                action={
+                  <Button onClick={() => setShowCustomerOrderForm(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Place New Order
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedData.map((so) => (
+                      <TableRow key={so.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetailView(so)}>
+                        <TableCell className="font-medium font-mono">{so.id}</TableCell>
+                        <TableCell>{so.soDate ?? so.createdDate}</TableCell>
+                        <TableCell>
+                          <span className="text-muted-foreground">
+                            {so.items.length} item{so.items.length !== 1 ? "s" : ""}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(so.totalAmount)}</TableCell>
+                        <TableCell className="text-right text-green-600">{formatCurrency(so.amountPaid ?? 0)}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              so.shippingStatus === "Delivered" ? "default" :
+                              so.shippingStatus === "Shipped" || so.shippingStatus === "In Transit" ? "secondary" :
+                              so.shippingStatus === "Failed" || so.shippingStatus === "Returned" ? "destructive" :
+                              "outline"
+                            }
+                          >
+                            {so.shippingStatus ?? "Pending"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {filteredData.length > 0 && (
+              <div className="mt-4">
+                <PaginationControls
+                  totalItems={filteredData.length}
+                  pageSize={pageSize}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -865,14 +1096,23 @@ export function SalesOrdersView() {
                           </div>
                           <div className="space-y-2">
                             <Label>Customer *</Label>
-                            <Select value={form.customerId} onValueChange={handleCustomerChange}>
-                              <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                              <SelectContent>
-                                {customersData.filter((c) => c.status === "Active").map((c) => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {isCustomer ? (
+                              // For customers, auto-fill their name and make it read-only
+                              <Input
+                                value={user?.displayName || user?.email || "Customer"}
+                                disabled
+                                className="bg-muted"
+                              />
+                            ) : (
+                              <Select value={form.customerId} onValueChange={handleCustomerChange}>
+                                <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                                <SelectContent>
+                                  {customersData.filter((c) => c.status === "Active").map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                           <div className="space-y-2">
                             <Label>Customer ID</Label>
@@ -893,14 +1133,24 @@ export function SalesOrdersView() {
                             <Input value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} placeholder="INV-2025-0001" />
                           </div>
                         </div>
+                        {/* Admin-only fields */}
+                        {!isCustomer && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Expected Delivery Date *</Label>
+                              <Input type="date" value={form.expectedDeliveryDate} onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Total Received (₱)</Label>
+                              <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
+                            </div>
+                          </div>
+                        )}
+                        {/* Amount Paid - Customer editable field */}
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Expected Delivery Date *</Label>
-                            <Input type="date" value={form.expectedDeliveryDate} onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Total Received (₱)</Label>
-                            <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
+                            <Label>Amount Paid (₱)</Label>
+                            <Input type="number" min="0" step="0.01" value={form.amountPaid} onChange={(e) => setForm((prev) => ({ ...prev, amountPaid: parseFloat(e.target.value) || 0 }))} placeholder="Enter amount paid" />
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -1164,18 +1414,27 @@ export function SalesOrdersView() {
                             <div className="grid grid-cols-3 gap-4">
                               <div className="space-y-2">
                                 <Label>SO Date</Label>
-                                <Input type="date" value={form.soDate} onChange={(e) => setForm((prev) => ({ ...prev, soDate: e.target.value }))} />
+                                <Input type="date" value={form.soDate} onChange={(e) => setForm((prev) => ({ ...prev, soDate: e.target.value }))} disabled={isCustomer} className={isCustomer ? "bg-muted" : ""} />
                               </div>
                               <div className="space-y-2">
                                 <Label>Customer</Label>
-                                <Select value={form.customerId} onValueChange={handleCustomerChange}>
-                                  <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                                  <SelectContent>
-                                    {customersData.map((c) => (
-                                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                {isCustomer ? (
+                                  // For customers, show their name as read-only
+                                  <Input
+                                    value={form.customerName || user?.displayName || user?.email || "Customer"}
+                                    disabled
+                                    className="bg-muted"
+                                  />
+                                ) : (
+                                  <Select value={form.customerId} onValueChange={handleCustomerChange}>
+                                    <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                                    <SelectContent>
+                                      {customersData.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                               </div>
                               <div className="space-y-2">
                                 <Label>Customer ID</Label>
@@ -1193,28 +1452,38 @@ export function SalesOrdersView() {
                               </div>
                               <div className="space-y-2">
                                 <Label>Invoice #</Label>
-                                <Input value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} />
+                                <Input value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} disabled={isCustomer} className={isCustomer ? "bg-muted" : ""} />
                               </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="space-y-2">
-                                <Label>Expected Delivery Date</Label>
-                                <Input type="date" value={form.expectedDeliveryDate} onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))} />
+                            {/* Admin-only fields */}
+                            {!isCustomer && (
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Expected Delivery Date</Label>
+                                  <Input type="date" value={form.expectedDeliveryDate} onChange={(e) => setForm((prev) => ({ ...prev, expectedDeliveryDate: e.target.value }))} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Total Received (₱)</Label>
+                                  <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Shipping Status</Label>
+                                  <Select value={form.shippingStatus} onValueChange={(v) => setForm((prev) => ({ ...prev, shippingStatus: v as ShippingStatus }))}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {SHIPPING_STATUSES.map((status) => (
+                                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
+                            )}
+                            {/* Amount Paid - Customer editable field */}
+                            <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label>Total Received (₱)</Label>
-                                <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Shipping Status</Label>
-                                <Select value={form.shippingStatus} onValueChange={(v) => setForm((prev) => ({ ...prev, shippingStatus: v as ShippingStatus }))}>
-                                  <SelectTrigger><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {SHIPPING_STATUSES.map((status) => (
-                                      <SelectItem key={status} value={status}>{status}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Label>Amount Paid (₱)</Label>
+                                <Input type="number" min="0" step="0.01" value={form.amountPaid} onChange={(e) => setForm((prev) => ({ ...prev, amountPaid: parseFloat(e.target.value) || 0 }))} placeholder="Enter amount paid" />
                               </div>
                             </div>
                             <div className="space-y-2">

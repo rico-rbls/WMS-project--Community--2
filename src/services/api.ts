@@ -210,6 +210,7 @@ function migrateSalesOrders(salesOrdersData: SalesOrder[]): SalesOrder[] {
   return salesOrdersData.map(so => {
     const totalAmount = so.totalAmount ?? 0;
     const totalReceived = so.totalReceived ?? 0;
+    const amountPaid = so.amountPaid ?? 0;
     const soDate = so.soDate ?? so.createdDate ?? new Date().toISOString().split('T')[0];
 
     return {
@@ -221,6 +222,7 @@ function migrateSalesOrders(salesOrdersData: SalesOrder[]): SalesOrder[] {
       items: so.items ?? [],
       totalAmount,
       totalReceived,
+      amountPaid,
       soBalance: so.soBalance ?? (totalAmount - totalReceived),
       receiptStatus: so.receiptStatus ?? "Unpaid",
       shippingStatus: so.shippingStatus ?? "Pending",
@@ -1644,6 +1646,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Sa
 
   const totalAmount = input.items.reduce((sum, item) => sum + item.totalPrice, 0);
   const totalReceived = input.totalReceived ?? 0;
+  const amountPaid = input.amountPaid ?? 0;
   const soBalance = totalAmount - totalReceived;
   const soDate = input.soDate ?? new Date().toISOString().split('T')[0];
 
@@ -1668,13 +1671,14 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Sa
     items: input.items.map(item => ({ ...item, quantityShipped: 0 })),
     totalAmount,
     totalReceived,
+    amountPaid,
     soBalance,
     receiptStatus,
     shippingStatus: input.shippingStatus ?? "Pending",
     createdBy: input.createdBy,
     createdDate: soDate,
     notes: input.notes ?? "",
-    expectedDeliveryDate: input.expectedDeliveryDate,
+    expectedDeliveryDate: input.expectedDeliveryDate ?? "",
   };
 
   salesOrders.push(so);
