@@ -106,268 +106,15 @@ const DEFAULT_INVENTORY: InventoryItem[] = [
   { id: "INV-008", name: "Filing Cabinet", category: "Furniture", quantity: 34, location: "B-03", status: "In Stock", brand: "Steelcase", pricePerPiece: 299.00, supplierId: "SUP-002", quantityPurchased: 60, quantitySold: 26, reorderRequired: false, description: "4-drawer vertical filing cabinet with full-extension drawers. Built-in lock for security. Holds letter and legal size documents." },
 ];
 
-const DEFAULT_SUPPLIERS: Supplier[] = [
-  { id: "SUP-001", name: "TechSource LLC", contact: "John Smith", email: "john@techsource.com", phone: "+1 (555) 123-4567", category: "Electronics", status: "Active", country: "United States", city: "San Francisco", address: "123 Tech Blvd, Suite 100", purchases: 125000, payments: 100000, balance: 25000 },
-  { id: "SUP-002", name: "FurniCraft Industries", contact: "Sarah Johnson", email: "sarah@furnicraft.com", phone: "+1 (555) 234-5678", category: "Furniture", status: "Active", country: "United States", city: "Grand Rapids", address: "456 Furniture Ave", purchases: 85000, payments: 85000, balance: 0 },
-  { id: "SUP-003", name: "Global Electronics Co", contact: "Michael Chen", email: "michael@globalelec.com", phone: "+1 (555) 345-6789", category: "Electronics", status: "Active", country: "China", city: "Shenzhen", address: "789 Electronics Park, Building A", purchases: 250000, payments: 200000, balance: 50000 },
-  { id: "SUP-004", name: "Metro Supplies Inc", contact: "Emily Davis", email: "emily@metrosupplies.com", phone: "+1 (555) 456-7890", category: "Office Supplies", status: "Inactive", country: "United States", city: "New York", address: "321 Office Tower, Floor 5", purchases: 45000, payments: 45000, balance: 0 },
-  { id: "SUP-005", name: "Premium Parts Ltd", contact: "Robert Wilson", email: "robert@premiumparts.com", phone: "+1 (555) 567-8901", category: "Electronics", status: "Active", country: "United Kingdom", city: "London", address: "10 Premium Lane, Industrial Estate", purchases: 175000, payments: 150000, balance: 25000 },
-];
+const DEFAULT_SUPPLIERS: Supplier[] = [];
 
-const DEFAULT_CUSTOMERS: Customer[] = [
-  { id: "CUS-001", name: "Acme Corp", contact: "Alice Johnson", email: "alice@acmecorp.com", phone: "+1 (555) 111-2222", category: "Technology", status: "Active", country: "United States", city: "San Francisco", address: "100 Market St, Suite 500", purchases: 45000, payments: 40000, balance: 5000 },
-  { id: "CUS-002", name: "TechStart Inc", contact: "Bob Williams", email: "bob@techstart.io", phone: "+1 (555) 222-3333", category: "Startup", status: "Active", country: "United States", city: "Austin", address: "200 Innovation Blvd", purchases: 28000, payments: 28000, balance: 0 },
-  { id: "CUS-003", name: "Global Solutions", contact: "Carol Martinez", email: "carol@globalsolutions.com", phone: "+1 (555) 333-4444", category: "Enterprise", status: "Active", country: "United Kingdom", city: "London", address: "50 Canary Wharf", purchases: 120000, payments: 100000, balance: 20000 },
-  { id: "CUS-004", name: "Beta Systems", contact: "David Lee", email: "david@betasystems.net", phone: "+1 (555) 444-5555", category: "Technology", status: "Active", country: "Canada", city: "Toronto", address: "789 Bay Street", purchases: 65000, payments: 60000, balance: 5000 },
-  { id: "CUS-005", name: "Metro Supplies", contact: "Eva Brown", email: "eva@metrosupplies.com", phone: "+1 (555) 555-6666", category: "Retail", status: "Inactive", country: "United States", city: "New York", address: "321 Fifth Avenue", purchases: 15000, payments: 15000, balance: 0 },
-];
+const DEFAULT_CUSTOMERS: Customer[] = [];
 
-const DEFAULT_SHIPMENTS: Shipment[] = [
-  { id: "SHIP-5678", salesOrderId: "SO-001", destination: "New York, NY", carrier: "FedEx", status: "In Transit", eta: "Oct 18, 2025" },
-  { id: "SHIP-5679", salesOrderId: "SO-002", destination: "Los Angeles, CA", carrier: "UPS", status: "Delivered", eta: "Oct 14, 2025" },
-  { id: "SHIP-5680", salesOrderId: "SO-003", destination: "Chicago, IL", carrier: "DHL", status: "In Transit", eta: "Oct 19, 2025" },
-  { id: "SHIP-5681", salesOrderId: "SO-004", destination: "Houston, TX", carrier: "FedEx", status: "Processing", eta: "Oct 20, 2025" },
-  { id: "SHIP-5682", salesOrderId: "SO-005", destination: "Phoenix, AZ", carrier: "USPS", status: "Pending", eta: "Oct 21, 2025" },
-  { id: "SHIP-5683", salesOrderId: "SO-006", destination: "Philadelphia, PA", carrier: "UPS", status: "In Transit", eta: "Oct 17, 2025" },
-];
+const DEFAULT_SHIPMENTS: Shipment[] = [];
 
-const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [
-  {
-    id: "PO-001",
-    poDate: "2025-10-01",
-    supplierId: "SUP-001",
-    supplierName: "TechSource LLC",
-    supplierCountry: "United States",
-    supplierCity: "San Francisco",
-    billNumber: "INV-2025-0142",
-    items: [
-      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 50, unitPrice: 899.99, totalPrice: 44999.50, quantityReceived: 50 },
-      { inventoryItemId: "INV-007", itemName: "Keyboard Mechanical", quantity: 100, unitPrice: 129.99, totalPrice: 12999.00, quantityReceived: 100 },
-    ],
-    totalAmount: 57998.50,
-    totalPaid: 57998.50,
-    poBalance: 0,
-    status: "Received",
-    shippingStatus: "Delivered",
-    createdBy: "1",
-    createdDate: "2025-10-01",
-    approvedBy: "1",
-    approvedDate: "2025-10-02",
-    receivedDate: "2025-10-10",
-    notes: "Q4 restock order",
-    expectedDeliveryDate: "2025-10-10",
-    actualCost: 57998.50,
-  },
-  {
-    id: "PO-002",
-    poDate: "2025-10-15",
-    supplierId: "SUP-002",
-    supplierName: "FurniCraft Industries",
-    supplierCountry: "United States",
-    supplierCity: "Grand Rapids",
-    billNumber: "FC-INV-4521",
-    items: [
-      { inventoryItemId: "INV-002", itemName: "Office Chair", quantity: 30, unitPrice: 549.00, totalPrice: 16470.00 },
-      { inventoryItemId: "INV-003", itemName: "Standing Desk", quantity: 20, unitPrice: 799.00, totalPrice: 15980.00 },
-    ],
-    totalAmount: 32450.00,
-    totalPaid: 16225.00,
-    poBalance: 16225.00,
-    status: "Ordered",
-    shippingStatus: "In Transit",
-    createdBy: "1",
-    createdDate: "2025-10-15",
-    approvedBy: "1",
-    approvedDate: "2025-10-16",
-    receivedDate: null,
-    notes: "Office expansion order",
-    expectedDeliveryDate: "2025-11-01",
-  },
-  {
-    id: "PO-003",
-    poDate: "2025-10-20",
-    supplierId: "SUP-003",
-    supplierName: "Global Gadgets",
-    supplierCountry: "Philippines",
-    supplierCity: "Makati",
-    billNumber: "",
-    items: [
-      { inventoryItemId: "INV-004", itemName: "Wireless Mouse", quantity: 100, unitPrice: 29.99, totalPrice: 2999.00 },
-    ],
-    totalAmount: 2999.00,
-    totalPaid: 0,
-    poBalance: 2999.00,
-    status: "Pending Approval",
-    shippingStatus: "Pending",
-    createdBy: "2",
-    createdDate: "2025-10-20",
-    approvedBy: null,
-    approvedDate: null,
-    receivedDate: null,
-    notes: "Urgent restock for critical stock item",
-    expectedDeliveryDate: "2025-10-30",
-  },
-  {
-    id: "PO-004",
-    poDate: "2025-10-22",
-    supplierId: "SUP-001",
-    supplierName: "TechSource LLC",
-    supplierCountry: "United States",
-    supplierCity: "San Francisco",
-    billNumber: "",
-    items: [
-      { inventoryItemId: "INV-006", itemName: "Monitor 27\"", quantity: 25, unitPrice: 349.99, totalPrice: 8749.75 },
-    ],
-    totalAmount: 8749.75,
-    totalPaid: 0,
-    poBalance: 8749.75,
-    status: "Draft",
-    shippingStatus: "Pending",
-    createdBy: "1",
-    createdDate: "2025-10-22",
-    approvedBy: null,
-    approvedDate: null,
-    receivedDate: null,
-    notes: "",
-    expectedDeliveryDate: "2025-11-15",
-  },
-  {
-    id: "PO-005",
-    poDate: "2025-11-01",
-    supplierId: "SUP-002",
-    supplierName: "FurniCraft Industries",
-    supplierCountry: "United States",
-    supplierCity: "Grand Rapids",
-    billNumber: "FC-INV-4590",
-    items: [
-      { inventoryItemId: "INV-008", itemName: "Filing Cabinet", quantity: 15, unitPrice: 299.00, totalPrice: 4485.00 },
-    ],
-    totalAmount: 4485.00,
-    totalPaid: 4485.00,
-    poBalance: 0,
-    status: "Approved",
-    shippingStatus: "Processing",
-    createdBy: "1",
-    createdDate: "2025-11-01",
-    approvedBy: "1",
-    approvedDate: "2025-11-02",
-    receivedDate: null,
-    notes: "Additional filing cabinets for archive room",
-    expectedDeliveryDate: "2025-11-20",
-  },
-];
+const DEFAULT_PURCHASE_ORDERS: PurchaseOrder[] = [];
 
-const DEFAULT_SALES_ORDERS: SalesOrder[] = [
-  {
-    id: "SO-001",
-    soDate: "2025-10-05",
-    customerId: "CUS-001",
-    customerName: "Acme Corp",
-    customerCountry: "United States",
-    customerCity: "San Francisco",
-    invoiceNumber: "INV-2025-0501",
-    items: [
-      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 10, unitPrice: 1299.99, totalPrice: 12999.90, quantityShipped: 10 },
-      { inventoryItemId: "INV-007", itemName: "Keyboard Mechanical", quantity: 10, unitPrice: 169.99, totalPrice: 1699.90, quantityShipped: 10 },
-    ],
-    totalAmount: 14699.80,
-    totalReceived: 14699.80,
-    soBalance: 0,
-    receiptStatus: "Paid",
-    shippingStatus: "Delivered",
-    createdBy: "1",
-    createdDate: "2025-10-05",
-    notes: "Corporate bulk order - priority customer",
-    expectedDeliveryDate: "2025-10-12",
-  },
-  {
-    id: "SO-002",
-    soDate: "2025-10-18",
-    customerId: "CUS-003",
-    customerName: "Global Solutions",
-    customerCountry: "United Kingdom",
-    customerCity: "London",
-    invoiceNumber: "INV-2025-0502",
-    items: [
-      { inventoryItemId: "INV-006", itemName: "Monitor 27\"", quantity: 20, unitPrice: 449.99, totalPrice: 8999.80 },
-      { inventoryItemId: "INV-003", itemName: "Standing Desk", quantity: 15, unitPrice: 999.00, totalPrice: 14985.00 },
-    ],
-    totalAmount: 23984.80,
-    totalReceived: 12000.00,
-    soBalance: 11984.80,
-    receiptStatus: "Partially Paid",
-    shippingStatus: "In Transit",
-    createdBy: "1",
-    createdDate: "2025-10-18",
-    notes: "Office expansion project - Phase 1",
-    expectedDeliveryDate: "2025-11-01",
-  },
-  {
-    id: "SO-003",
-    soDate: "2025-10-25",
-    customerId: "CUS-002",
-    customerName: "TechStart Inc",
-    customerCountry: "United States",
-    customerCity: "Austin",
-    invoiceNumber: "INV-2025-0503",
-    items: [
-      { inventoryItemId: "INV-004", itemName: "Wireless Mouse", quantity: 25, unitPrice: 39.99, totalPrice: 999.75 },
-      { inventoryItemId: "INV-005", itemName: "USB-C Cable", quantity: 50, unitPrice: 19.99, totalPrice: 999.50 },
-    ],
-    totalAmount: 1999.25,
-    totalReceived: 0,
-    soBalance: 1999.25,
-    receiptStatus: "Unpaid",
-    shippingStatus: "Processing",
-    createdBy: "2",
-    createdDate: "2025-10-25",
-    notes: "Startup office setup",
-    expectedDeliveryDate: "2025-11-05",
-  },
-  {
-    id: "SO-004",
-    soDate: "2025-11-01",
-    customerId: "CUS-004",
-    customerName: "Beta Systems",
-    customerCountry: "Canada",
-    customerCity: "Toronto",
-    invoiceNumber: "INV-2025-0504",
-    items: [
-      { inventoryItemId: "INV-002", itemName: "Office Chair", quantity: 8, unitPrice: 699.00, totalPrice: 5592.00 },
-      { inventoryItemId: "INV-008", itemName: "Filing Cabinet", quantity: 4, unitPrice: 399.00, totalPrice: 1596.00 },
-    ],
-    totalAmount: 7188.00,
-    totalReceived: 7188.00,
-    soBalance: 0,
-    receiptStatus: "Paid",
-    shippingStatus: "Shipped",
-    createdBy: "1",
-    createdDate: "2025-11-01",
-    notes: "New office furniture order",
-    expectedDeliveryDate: "2025-11-15",
-  },
-  {
-    id: "SO-005",
-    soDate: "2025-09-15",
-    customerId: "CUS-003",
-    customerName: "Global Solutions",
-    customerCountry: "United Kingdom",
-    customerCity: "London",
-    invoiceNumber: "INV-2025-0495",
-    items: [
-      { inventoryItemId: "INV-001", itemName: "Laptop Computer", quantity: 5, unitPrice: 1299.99, totalPrice: 6499.95 },
-    ],
-    totalAmount: 6499.95,
-    totalReceived: 3000.00,
-    soBalance: 3499.95,
-    receiptStatus: "Overdue",
-    shippingStatus: "Delivered",
-    createdBy: "1",
-    createdDate: "2025-09-15",
-    notes: "Payment reminder sent - overdue",
-    expectedDeliveryDate: "2025-09-25",
-  },
-];
+const DEFAULT_SALES_ORDERS: SalesOrder[] = [];
 
 // ============================================================================
 // In-Memory Store (loaded from localStorage or defaults)
@@ -1950,6 +1697,20 @@ export async function updateSalesOrder(input: UpdateSalesOrderInput): Promise<Sa
 
   // Recalculate soBalance
   next.soBalance = next.totalAmount - next.totalReceived;
+
+  // Auto-update receiptStatus based on payment if not explicitly set
+  if (input.totalReceived !== undefined && input.receiptStatus === undefined) {
+    if (next.totalReceived >= next.totalAmount && next.totalAmount > 0) {
+      next.receiptStatus = "Paid";
+    } else if (next.totalReceived > 0) {
+      next.receiptStatus = "Partially Paid";
+    } else {
+      // Keep existing status if unpaid (could be Overdue)
+      if (prev.receiptStatus !== "Overdue") {
+        next.receiptStatus = "Unpaid";
+      }
+    }
+  }
 
   salesOrders[index] = next;
   saveToLocalStorage(STORAGE_KEYS.SALES_ORDERS, salesOrders);

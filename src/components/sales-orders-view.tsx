@@ -180,7 +180,7 @@ export function SalesOrdersView() {
   const { currentPage, totalPages, paginatedData, goToPage, itemsPerPage, totalItems } = usePagination(sortedData, 10);
 
   // Batch selection
-  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection(paginatedData.map((so) => so.id));
+  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection<SalesOrder>(paginatedData);
 
   // Statistics
   const soStats = useMemo(() => {
@@ -259,6 +259,19 @@ export function SalesOrdersView() {
   const closeDetailView = () => {
     setDetailViewSO(null);
   };
+
+  // Sync detail view with updated data
+  useEffect(() => {
+    if (detailViewSO && salesOrdersData) {
+      const updatedSO = salesOrdersData.find((so) => so.id === detailViewSO.id);
+      if (updatedSO && JSON.stringify(updatedSO) !== JSON.stringify(detailViewSO)) {
+        setDetailViewSO(updatedSO);
+      } else if (!updatedSO) {
+        // Sales order was deleted, close detail view
+        setDetailViewSO(null);
+      }
+    }
+  }, [salesOrdersData, detailViewSO]);
 
   const getReceiptStatusBadge = (status: ReceiptStatus) => {
     const variants: Record<ReceiptStatus, { variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
@@ -371,6 +384,12 @@ export function SalesOrdersView() {
       return;
     }
     try {
+      // Get existing order to preserve quantityShipped values
+      const existingOrder = list.find((so) => so.id === id);
+      const existingItemsMap = new Map(
+        existingOrder?.items?.map((item) => [item.inventoryItemId, item.quantityShipped ?? 0]) ?? []
+      );
+
       const updated = await updateSalesOrder({
         id,
         soDate: form.soDate,
@@ -379,7 +398,11 @@ export function SalesOrdersView() {
         customerCountry: form.customerCountry,
         customerCity: form.customerCity,
         invoiceNumber: form.invoiceNumber,
-        items: form.items.map((item) => ({ ...item, quantityShipped: 0 })),
+        items: form.items.map((item) => ({
+          ...item,
+          // Preserve existing quantityShipped or default to 0 for new items
+          quantityShipped: existingItemsMap.get(item.inventoryItemId) ?? 0,
+        })),
         expectedDeliveryDate: form.expectedDeliveryDate,
         notes: form.notes,
         totalReceived: form.totalReceived,
