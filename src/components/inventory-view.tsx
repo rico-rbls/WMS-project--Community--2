@@ -861,11 +861,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       const newlyCreatedSuppliers = new Map<string, Supplier>();
       let suppliersCreatedCount = 0;
 
+      // Track all items (existing + newly created) for location generation
+      let allItemsForLocation = [...inventoryItems];
+
       const createdItems: InventoryItem[] = [];
       for (const item of importData) {
-        // Auto-assign default location if empty
+        // Auto-assign location based on category if empty
         let itemLocation = item.location?.trim() || "";
-        if (!itemLocation) {
+        if (!itemLocation && item.category) {
+          // Generate location code based on category
+          itemLocation = generateLocationCode(item.category, allItemsForLocation);
+        } else if (!itemLocation) {
           itemLocation = "UNASSIGNED";
         }
 
@@ -931,6 +937,8 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           description: item.description,
         });
         createdItems.push(created);
+        // Add to tracking array so subsequent imports get unique locations
+        allItemsForLocation.push(created);
       }
 
       // Update suppliers context with newly created suppliers
