@@ -59,17 +59,25 @@ export function LoginPage() {
   };
 
   function validateField(field: "name" | "email" | "password" | "confirmPassword", value: string) {
-    const schema = mode === "login" ? loginSchema : registerSchema;
-    const formData = mode === "login"
-      ? { email: field === "email" ? value : form.email, password: field === "password" ? value : form.password }
-      : { name: field === "name" ? value : form.name, email: field === "email" ? value : form.email, password: field === "password" ? value : form.password, confirmPassword: field === "confirmPassword" ? value : form.confirmPassword };
+    try {
+      const schema = mode === "login" ? loginSchema : registerSchema;
+      const formData = mode === "login"
+        ? { email: field === "email" ? value : form.email, password: field === "password" ? value : form.password }
+        : { name: field === "name" ? value : form.name, email: field === "email" ? value : form.email, password: field === "password" ? value : form.password, confirmPassword: field === "confirmPassword" ? value : form.confirmPassword };
 
-    const result = schema.safeParse(formData);
+      const result = schema.safeParse(formData);
 
-    if (!result.success) {
-      const fieldError = result.error.errors.find(err => err.path[0] === field);
-      if (fieldError) {
-        setFieldErrors(prev => ({ ...prev, [field]: fieldError.message }));
+      if (!result.success && result.error?.errors) {
+        const fieldError = result.error.errors.find(err => err.path[0] === field);
+        if (fieldError) {
+          setFieldErrors(prev => ({ ...prev, [field]: fieldError.message }));
+        } else {
+          setFieldErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[field];
+            return newErrors;
+          });
+        }
       } else {
         setFieldErrors(prev => {
           const newErrors = { ...prev };
@@ -77,41 +85,42 @@ export function LoginPage() {
           return newErrors;
         });
       }
-    } else {
-      setFieldErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
+    } catch (error) {
+      console.error("Validation error:", error);
     }
   }
 
   function validateForm() {
-    const schema = mode === "login" ? loginSchema : registerSchema;
-    const formData = mode === "login"
-      ? { email: form.email, password: form.password }
-      : { name: form.name, email: form.email, password: form.password, confirmPassword: form.confirmPassword };
+    try {
+      const schema = mode === "login" ? loginSchema : registerSchema;
+      const formData = mode === "login"
+        ? { email: form.email, password: form.password }
+        : { name: form.name, email: form.email, password: form.password, confirmPassword: form.confirmPassword };
 
-    const result = schema.safeParse(formData);
+      const result = schema.safeParse(formData);
 
-    if (!result.success) {
-      const errors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        const path = err.path.join(".");
-        errors[path] = err.message;
-      });
-      setFieldErrors(errors);
-      return Object.values(errors)[0];
+      if (!result.success && result.error?.errors) {
+        const errors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          const path = err.path.join(".");
+          errors[path] = err.message;
+        });
+        setFieldErrors(errors);
+        return Object.values(errors)[0];
+      }
+
+      // Check terms acceptance for registration
+      if (mode === "register" && !form.acceptTerms) {
+        setFieldErrors(prev => ({ ...prev, acceptTerms: "You must accept the Terms and Conditions" }));
+        return "You must accept the Terms and Conditions to create an account";
+      }
+
+      setFieldErrors({});
+      return null;
+    } catch (error) {
+      console.error("Form validation error:", error);
+      return null;
     }
-
-    // Check terms acceptance for registration
-    if (mode === "register" && !form.acceptTerms) {
-      setFieldErrors(prev => ({ ...prev, acceptTerms: "You must accept the Terms and Conditions" }));
-      return "You must accept the Terms and Conditions to create an account";
-    }
-
-    setFieldErrors({});
-    return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
