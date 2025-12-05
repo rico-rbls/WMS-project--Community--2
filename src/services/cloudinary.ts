@@ -10,8 +10,8 @@
  * 5. Update CLOUDINARY_CLOUD_NAME below with your cloud name
  */
 
-// ⚠️ IMPORTANT: Replace with your Cloudinary cloud name
-const CLOUDINARY_CLOUD_NAME = "your-cloud-name"; // TODO: Replace with your cloud name
+// Cloudinary cloud name
+const CLOUDINARY_CLOUD_NAME = "drnfqm0mm";
 const CLOUDINARY_UPLOAD_PRESET = "wms_products"; // Create this preset in Cloudinary settings
 
 // Cloudinary upload URL
