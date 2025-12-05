@@ -137,7 +137,13 @@ async function getUsersFromFirestore(): Promise<StoredUser[]> {
   } catch (error) {
     console.error("Error getting users from Firestore:", error);
     // Fall back to localStorage if Firestore fails
-    return getStoredUsers();
+    const localUsers = getStoredUsers();
+    // If localStorage is also empty, return DEFAULT_USERS
+    if (localUsers.length === 0) {
+      console.log("Falling back to DEFAULT_USERS");
+      return DEFAULT_USERS;
+    }
+    return localUsers;
   }
 }
 
