@@ -18,7 +18,23 @@ import {
   CheckCircle2,
   ArrowRight,
   Sparkles,
+  Star,
+  ImageIcon,
+  Tag,
 } from "lucide-react";
+
+// Customer-friendly product representation
+interface CustomerProduct {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  brand: string;
+  price: number;
+  availability: "In Stock" | "Low Stock" | "Out of Stock";
+  imageUrl?: string;
+  maxQuantity: number; // Hidden stock for cart validation
+}
 
 interface CartItem {
   inventoryItemId: string;
@@ -46,10 +62,47 @@ interface CustomerOrderFormProps {
 
 const formatCurrency = (amount: number) => `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
+// Customer-friendly category names mapping
+const categoryDisplayNames: Record<string, string> = {
+  "Books": "Books & Literature",
+  "Clothing": "Fashion & Apparel",
+  "Electronics": "Electronics & Gadgets",
+  "Food": "Food & Beverages",
+  "Furniture": "Home & Furniture",
+  "Health": "Health & Wellness",
+  "Sports": "Sports & Outdoors",
+  "Toys": "Toys & Games",
+  "Other": "Other Products",
+};
+
+// Transform inventory item to customer-friendly product
+function transformToCustomerProduct(item: InventoryItem): CustomerProduct {
+  // Determine availability status (hide exact numbers)
+  let availability: CustomerProduct["availability"] = "In Stock";
+  if (item.quantity <= 0) {
+    availability = "Out of Stock";
+  } else if (item.quantity <= (item.reorderLevel ?? 10)) {
+    availability = "Low Stock";
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description || `Quality ${item.brand} ${item.name} in the ${item.category} category.`,
+    category: categoryDisplayNames[item.category] || item.category,
+    brand: item.brand,
+    price: item.pricePerPiece,
+    availability,
+    imageUrl: item.photoUrl,
+    maxQuantity: item.quantity, // Hidden - only used for cart validation
+  };
+}
+
 export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder, onCancel }: CustomerOrderFormProps) {
   const { user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [notes, setNotes] = useState("");
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,27 +114,41 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
     return customersData.find(c => c.email === user.email);
   }, [user?.email, customersData]);
 
-  // Filter available products (in stock only)
-  const availableProducts = useMemo(() => {
-    return inventoryData.filter(item => {
-      const inStock = item.quantity > 0;
-      const matchesSearch = !searchTerm || 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase());
-      return inStock && matchesSearch;
+  // Transform inventory to customer-friendly products
+  const customerProducts = useMemo(() => {
+    return inventoryData
+      .filter(item => !item.archived && item.quantity > 0) // Only show non-archived, in-stock items
+      .map(transformToCustomerProduct);
+  }, [inventoryData]);
+
+  // Get unique categories for filtering
+  const categories = useMemo(() => {
+    const uniqueCategories = [...new Set(customerProducts.map(p => p.category))];
+    return uniqueCategories.sort();
+  }, [customerProducts]);
+
+  // Filter products by search and category
+  const filteredProducts = useMemo(() => {
+    return customerProducts.filter(product => {
+      const matchesSearch = !searchTerm ||
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
     });
-  }, [inventoryData, searchTerm]);
+  }, [customerProducts, searchTerm, selectedCategory]);
 
   // Calculate totals
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.totalPrice, 0), [cart]);
   const itemCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
-  const addToCart = (product: InventoryItem) => {
+  const addToCart = (product: CustomerProduct) => {
     const existingIndex = cart.findIndex(item => item.inventoryItemId === product.id);
     if (existingIndex >= 0) {
       // Update quantity if already in cart
       const newCart = [...cart];
-      const newQty = Math.min(newCart[existingIndex].quantity + 1, product.quantity);
+      const newQty = Math.min(newCart[existingIndex].quantity + 1, product.maxQuantity);
       newCart[existingIndex] = {
         ...newCart[existingIndex],
         quantity: newQty,
@@ -94,9 +161,9 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
         inventoryItemId: product.id,
         itemName: product.name,
         quantity: 1,
-        unitPrice: product.price ?? 0,
-        totalPrice: product.price ?? 0,
-        availableStock: product.quantity,
+        unitPrice: product.price,
+        totalPrice: product.price,
+        availableStock: product.maxQuantity,
       }]);
     }
     toast.success(`Added ${product.name} to cart`);
@@ -232,81 +299,144 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
       <div className="lg:col-span-2 space-y-4">
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Product Catalog
-                </CardTitle>
-                <CardDescription>Browse and add products to your order</CardDescription>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    Shop Products
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""} available
+                  </CardDescription>
+                </div>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search products, brands..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
+              {/* Category Filter */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={selectedCategory === "all" ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => setSelectedCategory("all")}
+                >
+                  All Products
+                </Button>
+                {categories.map(cat => (
+                  <Button
+                    key={cat}
+                    variant={selectedCategory === cat ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setSelectedCategory(cat)}
+                  >
+                    {cat}
+                  </Button>
+                ))}
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[400px]">
-              {availableProducts.length === 0 ? (
+            <ScrollArea className="h-[450px]">
+              {filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Package className="h-12 w-12 mb-4 opacity-50" />
-                  <p>No products found</p>
+                  <p className="font-medium">No products found</p>
+                  <p className="text-sm">Try adjusting your search or category filter</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {availableProducts.map((product) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {filteredProducts.map((product) => {
                     const inCart = cart.find(item => item.inventoryItemId === product.id);
                     return (
                       <div
                         key={product.id}
-                        className="border rounded-lg p-4 hover:border-primary/50 hover:bg-accent/30 transition-colors"
+                        className="group border rounded-xl overflow-hidden hover:border-primary/50 hover:shadow-md transition-all"
                       >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h4 className="font-medium">{product.name}</h4>
-                            <p className="text-sm text-muted-foreground">{product.category}</p>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {product.quantity} in stock
+                        {/* Product Image */}
+                        <div className="aspect-[4/3] bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center relative overflow-hidden">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center text-muted-foreground/50">
+                              <ImageIcon className="h-12 w-12 mb-1" />
+                              <span className="text-xs">No image</span>
+                            </div>
+                          )}
+                          {/* Availability Badge */}
+                          <Badge
+                            variant={product.availability === "Low Stock" ? "secondary" : "default"}
+                            className={`absolute top-2 right-2 text-xs ${
+                              product.availability === "In Stock" ? "bg-green-500/90" :
+                              product.availability === "Low Stock" ? "bg-amber-500/90 text-white" : ""
+                            }`}
+                          >
+                            {product.availability}
                           </Badge>
                         </div>
-                        <div className="flex justify-between items-center mt-3">
-                          <span className="text-lg font-semibold text-primary">
-                            {formatCurrency(product.price ?? 0)}
-                          </span>
-                          {inCart ? (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8"
-                                onClick={() => updateQuantity(cart.indexOf(inCart), -1)}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{inCart.quantity}</span>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8"
-                                onClick={() => updateQuantity(cart.indexOf(inCart), 1)}
-                                disabled={inCart.quantity >= product.quantity}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
+                        {/* Product Details */}
+                        <div className="p-4">
+                          <div className="mb-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-semibold line-clamp-1">{product.name}</h4>
                             </div>
-                          ) : (
-                            <Button size="sm" onClick={() => addToCart(product)}>
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add
-                            </Button>
-                          )}
+                            <div className="flex items-center gap-2 mt-1">
+                              <Tag className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{product.brand}</span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
+                            {product.description}
+                          </p>
+                          <Separator className="my-3" />
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl font-bold text-primary">
+                              {formatCurrency(product.price)}
+                            </span>
+                            {inCart ? (
+                              <div className="flex items-center gap-1.5 bg-accent rounded-lg p-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => updateQuantity(cart.indexOf(inCart), -1)}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span className="w-6 text-center font-semibold text-sm">{inCart.quantity}</span>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => updateQuantity(cart.indexOf(inCart), 1)}
+                                  disabled={inCart.quantity >= product.maxQuantity}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => addToCart(product)}
+                                className="gap-1"
+                              >
+                                <ShoppingCart className="h-4 w-4" />
+                                Add to Cart
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
