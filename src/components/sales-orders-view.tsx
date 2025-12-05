@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import {
   getSalesOrders,
   getCustomers,
-  getInventory,
   createSalesOrder,
   updateSalesOrder,
   deleteSalesOrder,
@@ -15,6 +14,7 @@ import {
   bulkRestoreSalesOrders,
   bulkPermanentlyDeleteSalesOrders,
 } from "@/services/api";
+import { getInventory } from "@/services/firebase-inventory-api";
 import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useNotifications } from "@/context/notifications-context";
