@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useNotifications } from "@/context/notifications-context";
-import { getCustomers, createSalesOrder } from "@/services/api";
+import { getCustomers, createCustomer, createSalesOrder } from "@/services/api";
 import type { Customer, SalesOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,13 +72,33 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       return;
     }
 
-    if (!customerRecord) {
-      toast.error("Customer account not found. Please contact support.");
+    if (!user?.email) {
+      toast.error("Please log in to place an order.");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Use existing customer record or auto-create one
+      let customer = customerRecord;
+
+      if (!customer) {
+        // Auto-create customer record from user profile
+        const displayName = user.displayName || user.email.split("@")[0];
+        customer = await createCustomer({
+          name: displayName,
+          email: user.email,
+          phone: "",
+          address: deliveryAddress || "",
+          city: "",
+          country: "Philippines",
+          status: "Active",
+        });
+        // Update local state
+        setCustomersData(prev => [...prev, customer!]);
+        toast.info("Customer profile created automatically.");
+      }
+
       const orderItems = cart.map(item => ({
         inventoryItemId: item.inventoryItemId,
         itemName: item.itemName,
@@ -88,17 +108,17 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       }));
 
       const order = await createSalesOrder({
-        customerId: customerRecord.id,
-        customerName: customerRecord.name,
-        customerCountry: customerRecord.country,
-        customerCity: customerRecord.city,
-        deliveryAddress: deliveryAddress || customerRecord.address || undefined,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerCountry: customer.country,
+        customerCity: customer.city,
+        deliveryAddress: deliveryAddress || customer.address || undefined,
         soDate: new Date().toISOString().split("T")[0],
         items: orderItems,
         totalAmount: cartTotal,
-        receiptStatus: parseFloat(amountPaid) >= cartTotal ? "Paid" : parseFloat(amountPaid) > 0 ? "Partially Paid" : "Unpaid",
+        receiptStatus: "Unpaid",
         notes: notes || undefined,
-        amountPaid: parseFloat(amountPaid) || 0,
+        amountPaid: 0,
       });
 
       setOrderPlaced(order);
@@ -107,13 +127,14 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       // Notify admins
       await sendNotification({
         title: "New Customer Order",
-        message: `${customerRecord.name} placed an order for ${formatCurrency(cartTotal)}`,
+        message: `${customer.name} placed an order for ${formatCurrency(cartTotal)}`,
         type: "info",
         recipientRoles: ["Admin", "Owner"],
       });
 
       toast.success("Order placed successfully!");
     } catch (error) {
+      console.error("Order error:", error);
       toast.error("Failed to place order. Please try again.");
     } finally {
       setIsSubmitting(false);
