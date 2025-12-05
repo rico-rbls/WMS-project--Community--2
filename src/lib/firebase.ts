@@ -70,7 +70,7 @@ export async function setAuthPersistence(rememberMe: boolean): Promise<void> {
 export const COLLECTIONS = {
   INVENTORY: 'inventory',
   CUSTOMERS: 'customers',
-  SUPPLIERS: 'suppliers',
+  WMS_SUPPLIERS: 'wms_suppliers',
   SALES_ORDERS: 'sales_orders',
   PURCHASE_ORDERS: 'purchase_orders',
   CASH_BANK_TRANSACTIONS: 'cash_bank_transactions',

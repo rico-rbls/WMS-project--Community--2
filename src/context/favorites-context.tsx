@@ -30,7 +30,7 @@ const defaultQuickLinks: QuickLink[] = [
   { id: "ql-3", label: "Pending Orders", entityType: "orders", filters: { status: "Pending" }, icon: "clock" },
   { id: "ql-4", label: "Processing Orders", entityType: "orders", filters: { status: "Processing" }, icon: "loader" },
   { id: "ql-5", label: "In Transit Shipments", entityType: "shipments", filters: { status: "In Transit" }, icon: "truck" },
-  { id: "ql-6", label: "Active Suppliers", entityType: "suppliers", filters: { status: "Active" }, icon: "users" },
+  { id: "ql-6", label: "Active WMS Suppliers", entityType: "suppliers", filters: { status: "Active" }, icon: "users" },
 ];
 
 export function FavoritesProvider({ children }: { children: ReactNode }) {

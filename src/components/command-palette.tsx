@@ -49,7 +49,7 @@ const MODULE_CONFIG: Record<EntityType, { name: string; icon: typeof Package; vi
   orders: { name: "Orders", icon: ShoppingCart, view: "orders" },
   "purchase-orders": { name: "Purchase Orders", icon: ClipboardList, view: "purchase-orders" },
   shipments: { name: "Shipments", icon: Truck, view: "shipments" },
-  suppliers: { name: "Suppliers", icon: Users, view: "suppliers" },
+  suppliers: { name: "WMS Suppliers", icon: Users, view: "suppliers" },
 };
 
 // Filter syntax help
@@ -295,7 +295,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: CommandPalett
           title: supplier.name,
           subtitle: `${supplier.id} • ${supplier.contact} • ${supplier.category}`,
           module: "suppliers",
-          moduleName: "Suppliers",
+          moduleName: "WMS Suppliers",
           icon: Users,
           matchedFields: [],
         });
@@ -542,7 +542,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: CommandPalett
               <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-muted-foreground">Start typing to search across all modules</p>
               <p className="text-sm text-muted-foreground/70 mt-1">
-                Search inventory, orders, purchase orders, shipments, and suppliers
+                Search inventory, orders, purchase orders, shipments, and WMS suppliers
               </p>
             </div>
           )}

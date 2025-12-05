@@ -74,7 +74,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
     { id: "sales-orders" as ViewType, label: "Sales Orders", icon: Receipt },
     { id: "shipments" as ViewType, label: "Shipments", icon: Truck },
-    { id: "suppliers" as ViewType, label: "Suppliers", icon: Factory },
+    { id: "suppliers" as ViewType, label: "WMS Suppliers", icon: Factory },
     { id: "customers" as ViewType, label: "Customers", icon: UserCheck },
     { id: "cash-bank" as ViewType, label: "Cash and Bank", icon: Landmark },
     { id: "payments" as ViewType, label: "Payments", icon: Wallet },

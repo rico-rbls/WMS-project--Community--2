@@ -546,7 +546,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
+        <h1 className="text-3xl font-bold tracking-tight">WMS Suppliers</h1>
         <p className="text-muted-foreground">Manage supplier profiles, contact information, and purchasing relationships</p>
       </div>
 
@@ -662,7 +662,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-xl">Supplier Management</CardTitle>
+              <CardTitle className="text-xl">WMS Supplier Management</CardTitle>
               <CardDescription className="mt-1">
                 Manage your supplier relationships and contacts
               </CardDescription>

@@ -14,7 +14,7 @@
 6. [Purchase Orders](#purchase-orders)
 7. [Sales Orders](#sales-orders)
 8. [Shipments & Delivery Tracking](#shipments--delivery-tracking)
-9. [Supplier Management](#supplier-management)
+9. [WMS Supplier Management](#wms-supplier-management)
 10. [Customer Management](#customer-management)
 11. [Cash & Bank (Receipts)](#cash--bank-receipts)
 12. [Payments (Disbursements)](#payments-disbursements)
@@ -380,15 +380,15 @@ Pending → Processing → Shipped → In Transit → Out for Delivery → Deliv
 
 ---
 
-## Supplier Management
+## WMS Supplier Management
 
 ### Overview
 
-**What it does:** Maintains a database of all suppliers the business works with.
+**What it does:** Maintains a database of all suppliers the business works with. Uses the `wms_suppliers` Firestore collection to avoid naming conflicts.
 
 **Who uses it:** All users can view; Admins/Owners can create and manage
 
-### Supplier Information
+### WMS Supplier Information
 
 | Field | Description |
 |-------|-------------|
@@ -413,7 +413,7 @@ Pending → Processing → Shipped → In Transit → Out for Delivery → Deliv
 
 ### Key Features
 
-- **Supplier Details View** – See complete supplier profile
+- **WMS Supplier Details View** – See complete supplier profile
 - **Purchase History** – View all POs with this supplier
 - **Products Supplied** – See which inventory items come from this supplier
 - **Payment Tracking** – Monitor what's owed to each supplier
