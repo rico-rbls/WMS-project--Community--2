@@ -1,7 +1,7 @@
 /**
  * Firebase Inventory API Service
  *
- * This module provides CRUD operations for inventory items using Firestore.
+ * This module provides CRUD operations for inventory items and suppliers using Firestore.
  * It maintains the same function signatures as the existing API for compatibility.
  */
 
@@ -23,6 +23,9 @@ import type {
   InventoryItem,
   CreateInventoryItemInput,
   UpdateInventoryItemInput,
+  Supplier,
+  CreateSupplierInput,
+  UpdateSupplierInput,
 } from "../types";
 
 // ============================================================================
@@ -460,6 +463,325 @@ export async function bulkUpdateInventoryItems(
 
   return {
     success: errors.length === 0,
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+// ============================================================================
+// SUPPLIERS API - Firebase Firestore Operations
+// ============================================================================
+
+/**
+ * Generate a sequential supplier ID (SUP-001, SUP-002, etc.)
+ */
+async function generateSupplierSequentialId(): Promise<string> {
+  const suppliersRef = collection(db, COLLECTIONS.WMS_SUPPLIERS);
+  const snapshot = await getDocs(suppliersRef);
+
+  let maxNum = 0;
+  snapshot.forEach((doc) => {
+    const id = doc.id;
+    const match = id.match(/^SUP-(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  });
+
+  return `SUP-${String(maxNum + 1).padStart(3, "0")}`;
+}
+
+/**
+ * Subscribe to real-time supplier updates from Firestore
+ */
+export function subscribeToSuppliers(
+  callback: (suppliers: Supplier[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const suppliersRef = collection(db, COLLECTIONS.WMS_SUPPLIERS);
+
+  return onSnapshot(
+    suppliersRef,
+    (snapshot) => {
+      const suppliers: Supplier[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        suppliers.push({
+          id: doc.id,
+          name: data.name || "",
+          contact: data.contact || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          category: data.category || "",
+          status: data.status || "Active",
+          country: data.country || "",
+          city: data.city || "",
+          address: data.address || "",
+          purchases: data.purchases || 0,
+          payments: data.payments || 0,
+          balance: data.balance || 0,
+          archived: data.archived || false,
+          archivedAt: data.archivedAt,
+        });
+      });
+      callback(suppliers);
+    },
+    onError
+  );
+}
+
+/**
+ * Get all suppliers from Firestore
+ */
+export async function getFirebaseSuppliers(): Promise<Supplier[]> {
+  const suppliersRef = collection(db, COLLECTIONS.WMS_SUPPLIERS);
+  const snapshot = await getDocs(suppliersRef);
+
+  const suppliers: Supplier[] = [];
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    suppliers.push({
+      id: doc.id,
+      name: data.name || "",
+      contact: data.contact || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      category: data.category || "",
+      status: data.status || "Active",
+      country: data.country || "",
+      city: data.city || "",
+      address: data.address || "",
+      purchases: data.purchases || 0,
+      payments: data.payments || 0,
+      balance: data.balance || 0,
+      archived: data.archived || false,
+      archivedAt: data.archivedAt,
+    });
+  });
+
+  return suppliers;
+}
+
+/**
+ * Create a new supplier in Firestore
+ */
+export async function createFirebaseSupplier(input: CreateSupplierInput): Promise<Supplier> {
+  const id = input.id && input.id.trim() !== ""
+    ? input.id
+    : await generateSupplierSequentialId();
+
+  // Check if ID already exists
+  const existingDoc = await getDoc(doc(db, COLLECTIONS.WMS_SUPPLIERS, id));
+  if (existingDoc.exists()) {
+    throw new Error(`Supplier with id ${id} already exists`);
+  }
+
+  const purchases = input.purchases ?? 0;
+  const payments = input.payments ?? 0;
+  const balance = purchases - payments;
+
+  const supplier: Supplier = {
+    id,
+    name: input.name.trim(),
+    contact: input.contact.trim(),
+    email: input.email.trim(),
+    phone: input.phone.trim(),
+    category: input.category.trim(),
+    status: input.status ?? "Active",
+    country: input.country?.trim() ?? "",
+    city: input.city?.trim() ?? "",
+    address: input.address?.trim() ?? "",
+    purchases,
+    payments,
+    balance,
+  };
+
+  const cleanedSupplier = removeUndefinedFields(supplier as Record<string, unknown>);
+  await setDoc(doc(db, COLLECTIONS.WMS_SUPPLIERS, id), cleanedSupplier);
+  return supplier;
+}
+
+/**
+ * Update an existing supplier in Firestore
+ */
+export async function updateFirebaseSupplier(input: UpdateSupplierInput): Promise<Supplier> {
+  const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, input.id);
+  const existingDoc = await getDoc(docRef);
+
+  if (!existingDoc.exists()) {
+    throw new Error("Supplier not found");
+  }
+
+  const prev = existingDoc.data() as Supplier;
+
+  const purchases = input.purchases !== undefined ? input.purchases : prev.purchases;
+  const payments = input.payments !== undefined ? input.payments : prev.payments;
+  const balance = purchases - payments;
+
+  const updated: Supplier = {
+    ...prev,
+    ...input,
+    purchases,
+    payments,
+    balance,
+  };
+
+  const cleanedUpdate = removeUndefinedFields(updated as Record<string, unknown>);
+  await updateDoc(docRef, cleanedUpdate);
+  return updated;
+}
+
+/**
+ * Delete a supplier from Firestore
+ */
+export async function deleteFirebaseSupplier(id: string): Promise<void> {
+  const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+  const existingDoc = await getDoc(docRef);
+
+  if (!existingDoc.exists()) {
+    throw new Error("Supplier not found");
+  }
+
+  await deleteDoc(docRef);
+}
+
+/**
+ * Archive (soft delete) a supplier
+ */
+export async function archiveFirebaseSupplier(id: string): Promise<Supplier> {
+  const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+  const existingDoc = await getDoc(docRef);
+
+  if (!existingDoc.exists()) {
+    throw new Error("Supplier not found");
+  }
+
+  const prev = existingDoc.data() as Supplier;
+  const updated: Supplier = {
+    ...prev,
+    archived: true,
+    archivedAt: new Date().toISOString(),
+  };
+
+  await updateDoc(docRef, { archived: true, archivedAt: updated.archivedAt });
+  return updated;
+}
+
+/**
+ * Restore an archived supplier
+ */
+export async function restoreFirebaseSupplier(id: string): Promise<Supplier> {
+  const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+  const existingDoc = await getDoc(docRef);
+
+  if (!existingDoc.exists()) {
+    throw new Error("Supplier not found");
+  }
+
+  const prev = existingDoc.data() as Supplier;
+  const updated: Supplier = {
+    ...prev,
+    archived: false,
+    archivedAt: undefined,
+  };
+
+  await updateDoc(docRef, { archived: false, archivedAt: null });
+  return updated;
+}
+
+/**
+ * Permanently delete a supplier
+ */
+export async function permanentlyDeleteFirebaseSupplier(id: string): Promise<void> {
+  await deleteFirebaseSupplier(id);
+}
+
+/**
+ * Bulk archive suppliers
+ */
+export async function bulkArchiveFirebaseSuppliers(ids: string[]): Promise<{ successCount: number; failedCount: number; errors?: string[] }> {
+  const batch = writeBatch(db);
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+    const existingDoc = await getDoc(docRef);
+
+    if (!existingDoc.exists()) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+
+    batch.update(docRef, { archived: true, archivedAt: new Date().toISOString() });
+    successCount++;
+  }
+
+  await batch.commit();
+
+  return {
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * Bulk restore suppliers
+ */
+export async function bulkRestoreFirebaseSuppliers(ids: string[]): Promise<{ successCount: number; failedCount: number; errors?: string[] }> {
+  const batch = writeBatch(db);
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+    const existingDoc = await getDoc(docRef);
+
+    if (!existingDoc.exists()) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+
+    batch.update(docRef, { archived: false, archivedAt: null });
+    successCount++;
+  }
+
+  await batch.commit();
+
+  return {
+    successCount,
+    failedCount: errors.length,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * Bulk permanently delete suppliers
+ */
+export async function bulkPermanentlyDeleteFirebaseSuppliers(ids: string[]): Promise<{ successCount: number; failedCount: number; errors?: string[] }> {
+  const batch = writeBatch(db);
+  const errors: string[] = [];
+  let successCount = 0;
+
+  for (const id of ids) {
+    const docRef = doc(db, COLLECTIONS.WMS_SUPPLIERS, id);
+    const existingDoc = await getDoc(docRef);
+
+    if (!existingDoc.exists()) {
+      errors.push(`Supplier ${id} not found`);
+      continue;
+    }
+
+    batch.delete(docRef);
+    successCount++;
+  }
+
+  await batch.commit();
+
+  return {
     successCount,
     failedCount: errors.length,
     errors: errors.length > 0 ? errors : undefined,

@@ -27,7 +27,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
-import { createSupplier, deleteSupplier, getSuppliers, updateSupplier, bulkDeleteSuppliers, bulkUpdateSupplierStatus, getPurchaseOrders, getInventory, archiveSupplier, restoreSupplier, permanentlyDeleteSupplier, bulkArchiveSuppliers, bulkRestoreSuppliers, bulkPermanentlyDeleteSuppliers } from "../services/api";
+import { getPurchaseOrders, getInventory } from "../services/api";
+import {
+  createFirebaseSupplier,
+  updateFirebaseSupplier,
+  deleteFirebaseSupplier,
+  archiveFirebaseSupplier,
+  restoreFirebaseSupplier,
+  permanentlyDeleteFirebaseSupplier,
+  bulkArchiveFirebaseSuppliers,
+  bulkRestoreFirebaseSuppliers,
+  bulkPermanentlyDeleteFirebaseSuppliers,
+} from "../services/firebase-inventory-api";
 import type { Supplier, PurchaseOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
@@ -244,7 +255,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   // Archive handler
   async function handleArchive(id: string) {
     try {
-      const archived = await archiveSupplier(id);
+      const archived = await archiveFirebaseSupplier(id);
       setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === id ? archived : s)));
       setIsEditOpen(null);
       toast.success("Supplier archived successfully");
@@ -256,7 +267,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   // Restore handler
   async function handleRestore(id: string) {
     try {
-      const restored = await restoreSupplier(id);
+      const restored = await restoreFirebaseSupplier(id);
       setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === id ? restored : s)));
       setIsEditOpen(null);
       toast.success("Supplier restored successfully");
@@ -268,7 +279,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   // Permanent delete handler
   async function handlePermanentDelete(id: string) {
     try {
-      await permanentlyDeleteSupplier(id);
+      await permanentlyDeleteFirebaseSupplier(id);
       setSuppliersData((prev) => (prev ?? []).filter((s) => s.id !== id));
       setIsEditOpen(null);
       toast.success("Supplier permanently deleted");
@@ -366,7 +377,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   const handleInlineUpdate = useCallback(async (supplierId: string, field: keyof Supplier, value: string | number) => {
     try {
       const updates: Partial<Supplier> = { [field]: value };
-      const updated = await updateSupplier({ id: supplierId, ...updates });
+      const updated = await updateFirebaseSupplier({ id: supplierId, ...updates });
       setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === supplierId ? updated : s)));
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
     } catch (e: any) {
@@ -404,7 +415,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     setIsBulkDeleting(true);
     try {
       const ids = Array.from(selectedIds);
-      const result = await bulkArchiveSuppliers(ids);
+      const result = await bulkArchiveFirebaseSuppliers(ids);
 
       setSuppliersData((prev) => {
         if (!prev) return prev;
@@ -436,7 +447,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     setIsBulkDeleting(true);
     try {
       const ids = Array.from(selectedIds);
-      const result = await bulkRestoreSuppliers(ids);
+      const result = await bulkRestoreFirebaseSuppliers(ids);
 
       setSuppliersData((prev) => {
         if (!prev) return prev;
@@ -468,7 +479,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
     setIsBulkDeleting(true);
     try {
       const ids = Array.from(selectedIds);
-      const result = await bulkPermanentlyDeleteSuppliers(ids);
+      const result = await bulkPermanentlyDeleteFirebaseSuppliers(ids);
 
       setSuppliersData((prev) => prev?.filter((supplier) => !ids.includes(supplier.id)) ?? []);
 
@@ -784,7 +795,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                           return;
                         }
                         try {
-                          const created = await createSupplier({
+                          const created = await createFirebaseSupplier({
                             name: form.name,
                             contact: form.contact,
                             email: form.email,
@@ -1383,7 +1394,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                         return;
                                       }
                                       try {
-                                        const updated = await updateSupplier({
+                                        const updated = await updateFirebaseSupplier({
                                           id: form.id,
                                           name: form.name,
                                           contact: form.contact,

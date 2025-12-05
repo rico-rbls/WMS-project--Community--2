@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import type { InventoryItem, Shipment, Supplier } from "../types";
-import { getShipments, getSuppliers } from "../services/api";
-import { subscribeToInventory } from "../services/firebase-inventory-api";
+import { getShipments } from "../services/api";
+import { subscribeToInventory, subscribeToSuppliers } from "../services/firebase-inventory-api";
 
 interface AppState {
   inventory: InventoryItem[] | null;
@@ -36,8 +36,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     suppliers: true,
   });
 
-  // Track if inventory subscription is set up
+  // Track Firebase subscriptions
   const inventoryUnsubscribeRef = useRef<(() => void) | null>(null);
+  const suppliersUnsubscribeRef = useRef<(() => void) | null>(null);
 
   // Set up real-time Firebase subscription for inventory
   useEffect(() => {
@@ -61,16 +62,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Set up real-time Firebase subscription for suppliers
+  useEffect(() => {
+    // Subscribe to supplier changes from Firebase
+    suppliersUnsubscribeRef.current = subscribeToSuppliers(
+      (items) => {
+        setSuppliers(items);
+        setIsLoading(prev => ({ ...prev, suppliers: false }));
+      },
+      (error) => {
+        console.error("Firebase suppliers subscription error:", error);
+        setIsLoading(prev => ({ ...prev, suppliers: false }));
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (suppliersUnsubscribeRef.current) {
+        suppliersUnsubscribeRef.current();
+      }
+    };
+  }, []);
+
   // Initial data load for non-Firebase data
   useEffect(() => {
     loadOtherData();
   }, []);
 
   async function loadOtherData() {
-    await Promise.all([
-      refreshShipments(),
-      refreshSuppliers(),
-    ]);
+    await refreshShipments();
   }
 
   // For Firebase inventory, refresh is a no-op since we use real-time subscription
@@ -90,14 +110,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // For Firebase suppliers, refresh is a no-op since we use real-time subscription
   async function refreshSuppliers() {
-    setIsLoading(prev => ({ ...prev, suppliers: true }));
-    try {
-      const data = await getSuppliers();
-      setSuppliers(data);
-    } finally {
-      setIsLoading(prev => ({ ...prev, suppliers: false }));
-    }
+    // No-op: Firebase real-time subscription handles updates automatically
+    // This function is kept for API compatibility
   }
 
   const value: AppContextType = {

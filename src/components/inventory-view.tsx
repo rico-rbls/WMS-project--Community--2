@@ -35,7 +35,7 @@ import {
 } from "./ui/dropdown-menu";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { createSupplier, getCategories, addCategory, addSubcategory } from "../services/api";
+import { getCategories, addCategory, addSubcategory } from "../services/api";
 import {
   createInventoryItem,
   deleteInventoryItem,
@@ -48,6 +48,7 @@ import {
   bulkDeleteInventoryItems,
   bulkPermanentlyDeleteInventoryItems,
   bulkUpdateInventoryItems,
+  createFirebaseSupplier,
 } from "../services/firebase-inventory-api";
 import type { InventoryCategory, InventoryItem, Supplier, CategoryDefinition } from "../types";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
@@ -508,7 +509,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     }
     setIsCreatingSupplier(true);
     try {
-      const created = await createSupplier({
+      const created = await createFirebaseSupplier({
         name: supplierForm.name,
         contact: supplierForm.contact,
         email: supplierForm.email,
@@ -897,7 +898,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               } else {
                 // Auto-create the supplier with minimal info
                 try {
-                  const newSupplier = await createSupplier({
+                  const newSupplier = await createFirebaseSupplier({
                     name: supplierNameFromImport,
                     contact: "",
                     email: "",

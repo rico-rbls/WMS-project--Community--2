@@ -84,16 +84,35 @@ service cloud.firestore {
     }
     
     // ============================================================================
+    // WMS Suppliers Collection Rules
+    // ============================================================================
+
+    match /wms_suppliers/{supplierId} {
+      // Anyone authenticated can read suppliers
+      allow read: if canRead();
+
+      // Operators and above can create/update suppliers
+      allow create, update: if canWrite();
+
+      // Only Admins and Owners can delete suppliers
+      allow delete: if isAdminOrOwner();
+    }
+
+    // ============================================================================
     // Development/Testing Rules (REMOVE IN PRODUCTION)
     // ============================================================================
-    
+
     // Temporarily allow all operations for development
     // IMPORTANT: Remove or comment out these rules before deploying to production!
     match /inventory/{itemId} {
       allow read, write: if true;
     }
-    
+
     match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /wms_suppliers/{supplierId} {
       allow read, write: if true;
     }
   }
