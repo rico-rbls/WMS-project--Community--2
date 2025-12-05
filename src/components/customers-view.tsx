@@ -63,7 +63,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
-  const canPermanentlyDelete = user ? isAdmin(user.role) : false;
+  const canPermanentlyDelete = user?.role === "Admin" || user?.role === "Owner";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
