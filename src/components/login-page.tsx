@@ -472,26 +472,6 @@ export function LoginPage() {
               )}
             </div>
 
-            {/* Demo Credentials Info (Login only) */}
-            {mode === "login" && (
-              <div className="mt-6 p-4 bg-muted rounded-lg">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">
-                  Demo Credentials:
-                </p>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>
-                    <span className="font-medium">Owner:</span> owner@wms.com / owner123
-                  </p>
-                  <p>
-                    <span className="font-medium">Admin:</span> admin@wms.com / admin123
-                  </p>
-                  <p>
-                    <span className="font-medium">Operator:</span> operator@wms.com / operator123
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Registration Info (Register only) */}
             {mode === "register" && (
               <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">

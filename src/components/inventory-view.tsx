@@ -704,7 +704,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   }, [setInventory]);
 
   // Excel/CSV import handler
-  // Expected column order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Description
+  // Expected column order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Location, Description
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -725,7 +725,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           const rowNum = index + 2; // Excel rows start at 1, plus header
 
           // Map Excel/CSV columns to inventory fields (case-insensitive)
-          // Expected order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Description
+          // Expected order: Photo, Name, Brand, Category, Sub Category, Quantity, Price, Supplier, Location, Description
           const photoUrl = row.Photo || row.photo || row.PHOTO || row["Photo URL"] || row.photoUrl || "";
           const name = row.Name || row.name || row.NAME;
           const brand = row.Brand || row.brand || row.BRAND || "Unknown";
@@ -734,6 +734,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           const quantity = Number(row.Quantity || row.quantity || row.QUANTITY || 0);
           const pricePerPiece = Number(row.Price || row.price || row.PRICE || row["Price Per Piece"] || row.pricePerPiece || 0);
           const supplier = row.Supplier || row.supplier || row.SUPPLIER || row["Supplier ID"] || row.supplierId || "";
+          const location = row.Location || row.location || row.LOCATION || "";
           const description = row.Description || row.description || row.DESCRIPTION || "";
 
           // Auto-populate quantityPurchased = quantity (imported items are assumed to be already purchased)
@@ -768,10 +769,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             category: category as InventoryCategory,
             subcategory: subcategory || undefined,
             quantity,
-            location: "", // Location is set manually or left empty
+            location: location.trim(), // Parse location from import file
             brand,
             pricePerPiece,
-            supplierId: supplier,
+            supplierId: supplier, // Store supplier name - will be resolved during import
             quantityPurchased,
             quantitySold,
             reorderRequired: false,
@@ -800,8 +801,68 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
     setIsImporting(true);
     try {
+      // Build a map of existing suppliers by name (case-insensitive) for quick lookup
+      const existingSuppliersByName = new Map<string, Supplier>();
+      suppliers?.forEach(s => {
+        existingSuppliersByName.set(s.name.toLowerCase().trim(), s);
+      });
+
+      // Track newly created suppliers during this import
+      const newlyCreatedSuppliers = new Map<string, Supplier>();
+      let suppliersCreatedCount = 0;
+
       const createdItems: InventoryItem[] = [];
       for (const item of importData) {
+        // Auto-assign default location if empty
+        let itemLocation = item.location?.trim() || "";
+        if (!itemLocation) {
+          itemLocation = "UNASSIGNED";
+        }
+
+        // Auto-create supplier if needed
+        let supplierId = "";
+        const supplierNameFromImport = (item.supplierId || "").trim();
+
+        if (supplierNameFromImport) {
+          // Check if it's already a valid supplier ID (existing supplier)
+          const existingById = suppliers?.find(s => s.id === supplierNameFromImport);
+          if (existingById) {
+            supplierId = existingById.id;
+          } else {
+            // Check if supplier exists by name (case-insensitive)
+            const existingByName = existingSuppliersByName.get(supplierNameFromImport.toLowerCase());
+            if (existingByName) {
+              supplierId = existingByName.id;
+            } else {
+              // Check if we already created this supplier in this import batch
+              const alreadyCreated = newlyCreatedSuppliers.get(supplierNameFromImport.toLowerCase());
+              if (alreadyCreated) {
+                supplierId = alreadyCreated.id;
+              } else {
+                // Auto-create the supplier with minimal info
+                try {
+                  const newSupplier = await createSupplier({
+                    name: supplierNameFromImport,
+                    contact: "",
+                    email: "",
+                    phone: "",
+                    category: "Imported",
+                    status: "Active",
+                  });
+                  supplierId = newSupplier.id;
+                  newlyCreatedSuppliers.set(supplierNameFromImport.toLowerCase(), newSupplier);
+                  existingSuppliersByName.set(supplierNameFromImport.toLowerCase(), newSupplier);
+                  suppliersCreatedCount++;
+                } catch (err) {
+                  // If supplier creation fails, continue without supplier
+                  console.warn(`Failed to create supplier "${supplierNameFromImport}":`, err);
+                  supplierId = "";
+                }
+              }
+            }
+          }
+        }
+
         // quantityPurchased is already set to quantity in handleFileSelect
         // quantitySold is already set to 0 in handleFileSelect
         const created = await createInventoryItem({
@@ -809,10 +870,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           category: item.category!,
           subcategory: item.subcategory,
           quantity: item.quantity ?? 0,
-          location: item.location ?? "",
+          location: itemLocation,
           brand: item.brand ?? "Unknown",
           pricePerPiece: item.pricePerPiece ?? 0,
-          supplierId: item.supplierId ?? "",
+          supplierId: supplierId,
           quantityPurchased: item.quantityPurchased ?? item.quantity ?? 0, // Default to quantity if not set
           quantitySold: item.quantitySold ?? 0,
           reorderRequired: item.reorderRequired ?? false,
@@ -822,8 +883,21 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
         createdItems.push(created);
       }
 
+      // Update suppliers context with newly created suppliers
+      if (newlyCreatedSuppliers.size > 0) {
+        const newSuppliersList = Array.from(newlyCreatedSuppliers.values());
+        setSuppliers((prev: Supplier[] | null) => [...newSuppliersList, ...(prev ?? [])]);
+      }
+
       setInventory([...createdItems, ...(inventory ?? [])]);
-      toast.success(`Successfully imported ${createdItems.length} items`);
+
+      // Show success message with details
+      let successMessage = `Successfully imported ${createdItems.length} items`;
+      if (suppliersCreatedCount > 0) {
+        successMessage += ` and created ${suppliersCreatedCount} new supplier${suppliersCreatedCount > 1 ? 's' : ''}`;
+      }
+      toast.success(successMessage);
+
       setIsImportDialogOpen(false);
       setImportData([]);
       setImportErrors([]);
@@ -832,7 +906,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     } finally {
       setIsImporting(false);
     }
-  }, [importData, inventory, setInventory]);
+  }, [importData, inventory, setInventory, suppliers, setSuppliers]);
 
   // Photo upload handler
   const handlePhotoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
