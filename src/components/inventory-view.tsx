@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2 } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -73,6 +73,8 @@ import { SortableTableHead } from "./ui/sortable-table-head";
 import { useAuth } from "../context/auth-context";
 import { canWrite } from "../lib/permissions";
 import { EditableCell } from "./ui/editable-cell";
+import { uploadImage, deleteImage, isCloudinaryConfigured } from "../services/cloudinary";
+
 const STATUSES = ["In Stock", "Low Stock", "Critical", "Overstock"] as const;
 
 // Default categories (fallback)
@@ -967,29 +969,40 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     }
   }, [importData, inventory, setInventory, suppliers, setSuppliers]);
 
-  // Photo upload handler
-  const handlePhotoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  // Photo upload handler - uploads to Cloudinary
+  const handlePhotoUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Invalid file type. Please upload JPG, PNG, or WebP images.");
+    // Check if Cloudinary is configured
+    if (!isCloudinaryConfigured()) {
+      toast.error("Cloudinary is not configured. Please update your cloud name in src/services/cloudinary.ts");
       return;
     }
 
-    // Create a data URL for preview/storage (in a real app, you'd upload to a server/cloud storage)
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setForm(prev => ({ ...prev, photoUrl: dataUrl }));
-    };
-    reader.readAsDataURL(file);
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload JPG, PNG, GIF, or WebP images.");
+      return;
+    }
 
-    // Reset file input
-    if (photoInputRef.current) {
-      photoInputRef.current.value = "";
+    setIsUploadingPhoto(true);
+
+    try {
+      // Upload to Cloudinary
+      const imageUrl = await uploadImage(file, "wms-products");
+      setForm(prev => ({ ...prev, photoUrl: imageUrl }));
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
+    } finally {
+      setIsUploadingPhoto(false);
+      // Reset file input
+      if (photoInputRef.current) {
+        photoInputRef.current.value = "";
+      }
     }
   }, []);
 
@@ -1747,7 +1760,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                     <div className="space-y-2 border-t pt-4">
                       <Label htmlFor="photo">Product Photo</Label>
                       <div className="flex items-center gap-4">
-                        {form.photoUrl ? (
+                        {isUploadingPhoto ? (
+                          <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                          </div>
+                        ) : form.photoUrl ? (
                           <div className="relative h-20 w-20 rounded-md border overflow-hidden">
                             <img
                               src={form.photoUrl}
@@ -1773,11 +1790,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                             variant="outline"
                             size="sm"
                             onClick={() => photoInputRef.current?.click()}
+                            disabled={isUploadingPhoto}
                           >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload Photo
+                            {isUploadingPhoto ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4 mr-2" />
+                            )}
+                            {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
                           </Button>
-                          <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                          <p className="text-xs text-muted-foreground">Uploads to Cloudinary. Max 10MB.</p>
                         </div>
                       </div>
                     </div>
@@ -2877,7 +2899,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 <div className="space-y-2 border-t pt-4">
                                   <Label htmlFor="edit-photo">Product Photo</Label>
                                   <div className="flex items-center gap-4">
-                                    {form.photoUrl ? (
+                                    {isUploadingPhoto ? (
+                                      <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                                        <Loader2 className="h-8 w-8 animate-spin" />
+                                      </div>
+                                    ) : form.photoUrl ? (
                                       <div className="relative h-20 w-20 rounded-md border overflow-hidden">
                                         <img
                                           src={form.photoUrl}
@@ -2903,11 +2929,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                         variant="outline"
                                         size="sm"
                                         onClick={() => photoInputRef.current?.click()}
+                                        disabled={isUploadingPhoto}
                                       >
-                                        <Upload className="h-4 w-4 mr-2" />
-                                        Upload Photo
+                                        {isUploadingPhoto ? (
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : (
+                                          <Upload className="h-4 w-4 mr-2" />
+                                        )}
+                                        {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
                                       </Button>
-                                      <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                                      <p className="text-xs text-muted-foreground">Uploads to Cloudinary. Max 10MB.</p>
                                     </div>
                                   </div>
                                 </div>
@@ -3497,7 +3528,11 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               <div className="space-y-2 border-t pt-4">
                 <Label htmlFor="catalog-edit-photo">Product Photo</Label>
                 <div className="flex items-center gap-4">
-                  {form.photoUrl ? (
+                  {isUploadingPhoto ? (
+                    <div className="h-20 w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : form.photoUrl ? (
                     <div className="relative h-20 w-20 rounded-md border overflow-hidden">
                       <img
                         src={form.photoUrl}
@@ -3523,11 +3558,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                       variant="outline"
                       size="sm"
                       onClick={() => photoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
                     >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Photo
+                      {isUploadingPhoto ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-2" />
+                      )}
+                      {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
                     </Button>
-                    <p className="text-xs text-muted-foreground">Supports JPG, PNG, WebP</p>
+                    <p className="text-xs text-muted-foreground">Uploads to Cloudinary. Max 10MB.</p>
                   </div>
                 </div>
               </div>
