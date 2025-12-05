@@ -132,8 +132,8 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Admin Section - Only visible to admins */}
-        {user?.role === "Admin" && (
+        {/* Admin Section - Only visible to admins and owners */}
+        {(user?.role === "Admin" || user?.role === "Owner") && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>

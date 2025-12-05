@@ -132,9 +132,42 @@ export function canManageAdmins(role: Role): boolean {
 }
 
 // Check if a user can manage another user based on role hierarchy
-// A user can only manage users with lower roles
+// Owner can manage anyone (including other Owners, but with restrictions)
+// Other roles can only manage users with lower roles
 export function canManageUser(managerRole: Role, targetRole: Role): boolean {
+  // Owner can manage anyone
+  if (managerRole === "Owner") {
+    return true;
+  }
+  // Other roles can only manage users with lower roles
   return ROLE_HIERARCHY[managerRole] > ROLE_HIERARCHY[targetRole];
+}
+
+// Check if a target user is protected from certain actions
+// Owners cannot be demoted or deleted by anyone
+export function isProtectedUser(targetRole: Role): boolean {
+  return targetRole === "Owner";
+}
+
+// Check if a user can delete another user
+// Owners cannot be deleted by anyone (including other Owners)
+export function canDeleteUser(managerRole: Role, targetRole: Role): boolean {
+  // No one can delete an Owner
+  if (targetRole === "Owner") {
+    return false;
+  }
+  return canManageUser(managerRole, targetRole);
+}
+
+// Check if a user can change another user's role
+// Owners cannot have their role changed by anyone
+export function canChangeRole(managerRole: Role, targetRole: Role, newRole: Role): boolean {
+  // No one can change an Owner's role
+  if (targetRole === "Owner") {
+    return false;
+  }
+  // Must be able to manage the user and assign the new role
+  return canManageUser(managerRole, targetRole) && canAssignRole(managerRole, newRole);
 }
 
 // Check if a user can assign a specific role

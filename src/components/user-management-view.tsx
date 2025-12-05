@@ -11,7 +11,7 @@ import { Label } from "./ui/label";
 import { toast } from "sonner";
 import { useAuth, User } from "../context/auth-context";
 import type { Role, UserStatus } from "../lib/permissions";
-import { canManageUser, getAssignableRoles, isAdmin } from "../lib/permissions";
+import { canManageUser, canDeleteUser, canChangeRole, isProtectedUser, getAssignableRoles, isAdmin, isOwner } from "../lib/permissions";
 import { useDebounce } from "../hooks/useDebounce";
 import { useTableSort } from "../hooks/useTableSort";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -301,8 +301,16 @@ export function UserManagementView() {
                             size="sm"
                             variant="ghost"
                             onClick={() => openEditDialog(user)}
-                            title={!canManageUser(currentUser.role, user.role) ? "Cannot edit users with equal or higher role" : "Edit"}
-                            disabled={user.id === currentUser?.id || !canManageUser(currentUser.role, user.role)}
+                            title={
+                              user.id === currentUser?.id
+                                ? "Cannot edit your own account"
+                                : isProtectedUser(user.role)
+                                  ? "Owner accounts cannot be modified"
+                                  : !canManageUser(currentUser.role, user.role)
+                                    ? "Cannot edit users with equal or higher role"
+                                    : "Edit"
+                            }
+                            disabled={user.id === currentUser?.id || isProtectedUser(user.role) || !canManageUser(currentUser.role, user.role)}
                           >
                             <UserCog className="h-4 w-4" />
                           </Button>
@@ -311,8 +319,16 @@ export function UserManagementView() {
                             variant="ghost"
                             className="text-red-600"
                             onClick={() => openDeleteDialog(user)}
-                            title={!canManageUser(currentUser.role, user.role) ? "Cannot delete users with equal or higher role" : "Delete"}
-                            disabled={user.id === currentUser?.id || !canManageUser(currentUser.role, user.role)}
+                            title={
+                              user.id === currentUser?.id
+                                ? "Cannot delete your own account"
+                                : isProtectedUser(user.role)
+                                  ? "Owner accounts cannot be deleted"
+                                  : !canDeleteUser(currentUser.role, user.role)
+                                    ? "Cannot delete users with equal or higher role"
+                                    : "Delete"
+                            }
+                            disabled={user.id === currentUser?.id || !canDeleteUser(currentUser.role, user.role)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -335,6 +351,14 @@ export function UserManagementView() {
             <DialogDescription>Update role and status for {selectedUser?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Owner warning banner */}
+            {isOwner(currentUser.role) && selectedUser && selectedUser.role === "Admin" && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <strong>⚠️ Admin Account:</strong> You are modifying an Admin account. Changes will take effect immediately.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Role</Label>
               <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v as Role })}>
@@ -353,6 +377,11 @@ export function UserManagementView() {
               {currentUser.role === "Admin" && (
                 <p className="text-xs text-muted-foreground">
                   Note: Only the Owner can assign Admin or Owner roles.
+                </p>
+              )}
+              {isOwner(currentUser.role) && editForm.role === "Owner" && selectedUser?.role !== "Owner" && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠️ Warning: Promoting to Owner grants full system access including the ability to manage all users.
                 </p>
               )}
             </div>
@@ -379,9 +408,18 @@ export function UserManagementView() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>Are you sure you want to delete {selectedUser?.name}? This action cannot be undone.</DialogDescription>
+            <DialogTitle className="text-destructive">Delete User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{selectedUser?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
           </DialogHeader>
+          {selectedUser && selectedUser.role === "Admin" && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-xs text-red-800 dark:text-red-200">
+                <strong>⚠️ Warning:</strong> You are about to delete an Admin account. This will immediately revoke their access to the system.
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete}>Delete User</Button>

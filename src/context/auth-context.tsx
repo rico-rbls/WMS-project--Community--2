@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { auth } from "../lib/firebase";
 import type { Role, UserStatus } from "../lib/permissions";
 
 export interface UserAddress {
@@ -31,6 +33,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
   register: (email: string, password: string, name: string) => Promise<void>;
   // User management (admin only)
@@ -259,6 +262,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUsers([...users, newUser]);
   };
 
+  const loginWithGoogle = async (): Promise<void> => {
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+
+      if (!googleUser.email) {
+        throw new Error("No email associated with this Google account");
+      }
+
+      const users = getStoredUsers();
+
+      // Check if user already exists
+      let existingUser = users.find(
+        (u) => u.email.toLowerCase() === googleUser.email!.toLowerCase()
+      );
+
+      if (existingUser) {
+        // User exists - check status
+        if (existingUser.status === "Pending") {
+          throw new Error("PENDING:Your account is pending approval. Please wait for an administrator to approve your account.");
+        }
+
+        if (existingUser.status === "Inactive") {
+          throw new Error("INACTIVE:Your account has been deactivated. Please contact an administrator.");
+        }
+
+        // Update last login
+        const updatedUsers = users.map(u =>
+          u.id === existingUser!.id
+            ? { ...u, lastLogin: new Date().toISOString() }
+            : u
+        );
+        saveUsers(updatedUsers);
+
+        // Create user object (without password)
+        const userData: User = {
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+          status: existingUser.status,
+          createdAt: existingUser.createdAt,
+          lastLogin: new Date().toISOString(),
+        };
+
+        setUser(userData);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
+        localStorage.setItem(REMEMBER_ME_KEY, "true");
+      } else {
+        // New user - create account with Pending status
+        const newUser: StoredUser = {
+          id: `google_${googleUser.uid}`,
+          email: googleUser.email,
+          password: "", // No password for Google users
+          name: googleUser.displayName || googleUser.email.split("@")[0],
+          role: "Operator", // New users default to Operator role
+          status: "Pending", // Requires admin approval
+          createdAt: new Date().toISOString(),
+        };
+
+        saveUsers([...users, newUser]);
+
+        throw new Error("PENDING:Your account has been created and is pending approval. Please wait for an administrator to approve your account.");
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        // Re-throw our custom errors
+        if (error.message.startsWith("PENDING:") ||
+            error.message.startsWith("INACTIVE:") ||
+            error.message.includes("popup-closed-by-user")) {
+          throw error;
+        }
+        // Handle Firebase errors
+        if (error.message.includes("auth/")) {
+          throw new Error("Google sign-in failed. Please try again.");
+        }
+        throw error;
+      }
+      throw new Error("Google sign-in failed. Please try again.");
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -365,6 +452,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginWithGoogle,
     logout,
     register,
     getAllUsers,
