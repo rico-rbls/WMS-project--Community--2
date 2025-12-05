@@ -21,6 +21,9 @@ export interface User {
   lastLogin?: string;
   phone?: string;
   address?: UserAddress;
+  // Google account linking
+  googleUserId?: string;
+  googleEmail?: string;
 }
 
 // Stored user includes password (for mock auth)
@@ -47,6 +50,9 @@ interface AuthContextType {
   // Profile management
   updateProfile: (updates: { name?: string; phone?: string; address?: UserAddress }) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  // Google account linking
+  linkGoogleAccount: () => Promise<void>;
+  unlinkGoogleAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -275,24 +281,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const users = getStoredUsers();
 
-      // Check if user already exists
-      let existingUser = users.find(
-        (u) => u.email.toLowerCase() === googleUser.email!.toLowerCase()
+      // First, check if this Google account is already linked to a WMS user
+      let linkedUser = users.find(
+        (u) => u.googleUserId === googleUser.uid
       );
 
-      if (existingUser) {
+      // If not linked by googleUserId, fall back to email matching
+      if (!linkedUser) {
+        linkedUser = users.find(
+          (u) => u.email.toLowerCase() === googleUser.email!.toLowerCase()
+        );
+      }
+
+      if (linkedUser) {
         // User exists - check status
-        if (existingUser.status === "Pending") {
+        if (linkedUser.status === "Pending") {
           throw new Error("PENDING:Your account is pending approval. Please wait for an administrator to approve your account.");
         }
 
-        if (existingUser.status === "Inactive") {
+        if (linkedUser.status === "Inactive") {
           throw new Error("INACTIVE:Your account has been deactivated. Please contact an administrator.");
         }
 
         // Update last login
         const updatedUsers = users.map(u =>
-          u.id === existingUser!.id
+          u.id === linkedUser!.id
             ? { ...u, lastLogin: new Date().toISOString() }
             : u
         );
@@ -300,13 +313,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Create user object (without password)
         const userData: User = {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          role: existingUser.role,
-          status: existingUser.status,
-          createdAt: existingUser.createdAt,
+          id: linkedUser.id,
+          email: linkedUser.email,
+          name: linkedUser.name,
+          role: linkedUser.role,
+          status: linkedUser.status,
+          createdAt: linkedUser.createdAt,
           lastLogin: new Date().toISOString(),
+          phone: linkedUser.phone,
+          address: linkedUser.address,
+          googleUserId: linkedUser.googleUserId,
+          googleEmail: linkedUser.googleEmail,
         };
 
         setUser(userData);
@@ -322,6 +339,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: "Operator", // New users default to Operator role
           status: "Pending", // Requires admin approval
           createdAt: new Date().toISOString(),
+          googleUserId: googleUser.uid,
+          googleEmail: googleUser.email,
         };
 
         saveUsers([...users, newUser]);
@@ -447,6 +466,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUsers(updatedUsers);
   }, [user]);
 
+  // Google account linking
+  const linkGoogleAccount = useCallback(async (): Promise<void> => {
+    if (!user) throw new Error("Not authenticated");
+
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+
+      if (!googleUser.email) {
+        throw new Error("No email associated with this Google account");
+      }
+
+      const users = getStoredUsers();
+
+      // Check if this Google account is already linked to another user
+      const existingLinkedUser = users.find(
+        (u) => u.googleUserId === googleUser.uid && u.id !== user.id
+      );
+
+      if (existingLinkedUser) {
+        throw new Error("This Google account is already linked to another WMS account");
+      }
+
+      // Update current user with Google account info
+      const updatedUsers = users.map(u =>
+        u.id === user.id
+          ? { ...u, googleUserId: googleUser.uid, googleEmail: googleUser.email }
+          : u
+      );
+      saveUsers(updatedUsers);
+
+      // Update current session
+      const updatedUser: User = {
+        ...user,
+        googleUserId: googleUser.uid,
+        googleEmail: googleUser.email!,
+      };
+      setUser(updatedUser);
+
+      // Update stored session
+      const rememberMe = localStorage.getItem(REMEMBER_ME_KEY);
+      if (rememberMe === "true") {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      } else {
+        sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        if (error.message.includes("popup-closed-by-user")) {
+          throw new Error("Google sign-in was cancelled");
+        }
+        if (error.message.includes("auth/")) {
+          throw new Error("Google sign-in failed. Please try again.");
+        }
+        throw error;
+      }
+      throw new Error("Failed to link Google account. Please try again.");
+    }
+  }, [user]);
+
+  const unlinkGoogleAccount = useCallback(async (): Promise<void> => {
+    if (!user) throw new Error("Not authenticated");
+
+    if (!user.googleUserId) {
+      throw new Error("No Google account is currently linked");
+    }
+
+    const users = getStoredUsers();
+
+    // Remove Google account info from user
+    const updatedUsers = users.map(u =>
+      u.id === user.id
+        ? { ...u, googleUserId: undefined, googleEmail: undefined }
+        : u
+    );
+    saveUsers(updatedUsers);
+
+    // Update current session
+    const updatedUser: User = {
+      ...user,
+      googleUserId: undefined,
+      googleEmail: undefined,
+    };
+    setUser(updatedUser);
+
+    // Update stored session
+    const rememberMe = localStorage.getItem(REMEMBER_ME_KEY);
+    if (rememberMe === "true") {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    } else {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    }
+  }, [user]);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
@@ -464,6 +579,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     deleteUser,
     updateProfile,
     changePassword,
+    linkGoogleAccount,
+    unlinkGoogleAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
