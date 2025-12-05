@@ -295,24 +295,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string, rememberMe = false): Promise<void> => {
+    console.log("[Login] Attempting login for:", email);
+
     // Fetch latest users from Firestore, fallback to allUsers state or DEFAULT_USERS
     let users = await getUsersFromFirestore();
+    console.log("[Login] Users from Firestore:", users.length, users.map(u => u.email));
 
     // If Firestore returned empty, try initializing default users
     if (users.length === 0) {
-      console.log("No users found in Firestore, initializing defaults...");
+      console.log("[Login] No users found in Firestore, initializing defaults...");
       users = await initializeDefaultUsers();
+      console.log("[Login] After init:", users.length, users.map(u => u.email));
     }
 
     // Still empty? Use allUsers state or DEFAULT_USERS as last resort
     if (users.length === 0) {
+      console.log("[Login] Still empty, using fallback. allUsers:", allUsers.length);
       users = allUsers.length > 0 ? allUsers : DEFAULT_USERS;
+      console.log("[Login] Final users:", users.length, users.map(u => u.email));
     }
 
     // First check if email exists
     const userByEmail = users.find(
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
+
+    console.log("[Login] Found user:", userByEmail?.email || "NOT FOUND");
 
     if (!userByEmail) {
       throw new Error("NO_ACCOUNT:No account found with this email address. Would you like to create one?");
