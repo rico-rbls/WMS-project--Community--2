@@ -1667,6 +1667,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Sa
     customerName: input.customerName,
     customerCountry: input.customerCountry ?? "",
     customerCity: input.customerCity ?? "",
+    deliveryAddress: input.deliveryAddress ?? "",
     invoiceNumber: input.invoiceNumber ?? "",
     items: input.items.map(item => ({ ...item, quantityShipped: 0 })),
     totalAmount,

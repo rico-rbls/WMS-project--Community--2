@@ -22,6 +22,7 @@ import {
   CreditCard,
   CheckCircle2,
   ShoppingBag,
+  MapPin,
 } from "lucide-react";
 import type { ViewType } from "@/App";
 import { useEffect } from "react";
@@ -40,6 +41,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
   const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, itemCount } = useCart();
   const { sendNotification } = useNotifications();
   const [notes, setNotes] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState<SalesOrder | null>(null);
@@ -80,6 +82,9 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       const order = await createSalesOrder({
         customerId: customerRecord.id,
         customerName: customerRecord.name,
+        customerCountry: customerRecord.country,
+        customerCity: customerRecord.city,
+        deliveryAddress: deliveryAddress || customerRecord.address || undefined,
         soDate: new Date().toISOString().split("T")[0],
         items: orderItems,
         totalAmount: cartTotal,
@@ -135,6 +140,15 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                 <span className="text-muted-foreground">Items:</span>
                 <span>{orderPlaced.items.length} item(s)</span>
               </div>
+              {orderPlaced.deliveryAddress && (
+                <div className="flex items-start gap-2 pt-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-sm text-muted-foreground">Deliver to:</span>
+                    <p className="text-sm">{orderPlaced.deliveryAddress}</p>
+                  </div>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total:</span>
@@ -290,13 +304,28 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
 
               <div className="space-y-3 pt-4">
                 <div>
+                  <Label htmlFor="deliveryAddress">Delivery Address</Label>
+                  <textarea
+                    id="deliveryAddress"
+                    placeholder={customerRecord?.address || "Enter your delivery address..."}
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  {customerRecord?.address && !deliveryAddress && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Default: {customerRecord.address}, {customerRecord.city}, {customerRecord.country}
+                    </p>
+                  )}
+                </div>
+                <div>
                   <Label htmlFor="notes">Order Notes (Optional)</Label>
                   <textarea
                     id="notes"
                     placeholder="Any special instructions..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-1.5 flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 <div>

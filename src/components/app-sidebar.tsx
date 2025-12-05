@@ -89,7 +89,6 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "products" as ViewType, label: "Products", icon: Store },
     { id: "customer-cart" as ViewType, label: "My Cart", icon: ShoppingCart },
     { id: "sales-orders" as ViewType, label: "My Orders", icon: Receipt },
-    { id: "shipments" as ViewType, label: "My Shipments", icon: Truck },
   ];
 
   const menuItems = isCustomer ? customerMenuItems : fullMenuItems;

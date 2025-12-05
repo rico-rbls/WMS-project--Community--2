@@ -318,6 +318,7 @@ export interface SalesOrder {
   customerName: string;
   customerCountry: string; // Customer's country (auto-populated)
   customerCity: string; // Customer's city (auto-populated)
+  deliveryAddress?: string; // Delivery address provided by customer
   invoiceNumber: string; // Invoice/bill reference number
   items: SOLineItem[];
   totalAmount: number;
@@ -342,6 +343,7 @@ export interface CreateSalesOrderInput {
   customerName: string;
   customerCountry?: string;
   customerCity?: string;
+  deliveryAddress?: string; // Delivery address provided by customer
   invoiceNumber?: string;
   items: Omit<SOLineItem, 'quantityShipped'>[];
   expectedDeliveryDate?: string; // Optional for customers (admin sets this)
@@ -360,6 +362,7 @@ export interface UpdateSalesOrderInput {
   customerName?: string;
   customerCountry?: string;
   customerCity?: string;
+  deliveryAddress?: string; // Delivery address provided by customer
   invoiceNumber?: string;
   items?: SOLineItem[];
   expectedDeliveryDate?: string;

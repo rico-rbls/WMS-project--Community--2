@@ -952,7 +952,8 @@ export function SalesOrdersView() {
                       <TableHead>Items</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Paid</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Shipping Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -970,10 +971,36 @@ export function SalesOrdersView() {
                         <TableCell>
                           <Badge
                             variant={
+                              so.receiptStatus === "Paid" ? "default" :
+                              so.receiptStatus === "Partially Paid" ? "secondary" :
+                              so.receiptStatus === "Overdue" ? "destructive" :
+                              "outline"
+                            }
+                            className={
+                              so.receiptStatus === "Paid" ? "bg-green-600" :
+                              so.receiptStatus === "Partially Paid" ? "bg-amber-500" :
+                              so.receiptStatus === "Overdue" ? "bg-red-600" :
+                              ""
+                            }
+                          >
+                            {so.receiptStatus ?? "Unpaid"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
                               so.shippingStatus === "Delivered" ? "default" :
-                              so.shippingStatus === "Shipped" || so.shippingStatus === "In Transit" ? "secondary" :
+                              so.shippingStatus === "Shipped" || so.shippingStatus === "In Transit" || so.shippingStatus === "Out for Delivery" ? "secondary" :
                               so.shippingStatus === "Failed" || so.shippingStatus === "Returned" ? "destructive" :
                               "outline"
+                            }
+                            className={
+                              so.shippingStatus === "Delivered" ? "bg-green-600" :
+                              so.shippingStatus === "Out for Delivery" ? "bg-blue-600" :
+                              so.shippingStatus === "In Transit" ? "bg-blue-500" :
+                              so.shippingStatus === "Shipped" ? "bg-cyan-600" :
+                              so.shippingStatus === "Processing" ? "bg-amber-500" :
+                              ""
                             }
                           >
                             {so.shippingStatus ?? "Pending"}
