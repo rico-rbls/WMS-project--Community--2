@@ -83,32 +83,32 @@ export function UserManagementView() {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleApprove = (userId: string) => {
+  const handleApprove = async (userId: string) => {
     try {
-      approveUser(userId);
+      await approveUser(userId);
       toast.success("User approved successfully");
     } catch (e: any) {
       toast.error(e?.message || "Failed to approve user");
     }
   };
 
-  const handleReject = (userId: string) => {
+  const handleReject = async (userId: string) => {
     try {
-      rejectUser(userId);
+      await rejectUser(userId);
       toast.success("User rejected and removed");
     } catch (e: any) {
       toast.error(e?.message || "Failed to reject user");
     }
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedUser) return;
     try {
       if (editForm.role !== selectedUser.role) {
-        updateUserRole(selectedUser.id, editForm.role);
+        await updateUserRole(selectedUser.id, editForm.role);
       }
       if (editForm.status !== selectedUser.status) {
-        updateUserStatus(selectedUser.id, editForm.status);
+        await updateUserStatus(selectedUser.id, editForm.status);
       }
       toast.success("User updated successfully");
       setIsEditDialogOpen(false);
@@ -118,10 +118,10 @@ export function UserManagementView() {
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedUser) return;
     try {
-      deleteUser(selectedUser.id);
+      await deleteUser(selectedUser.id);
       toast.success("User deleted successfully");
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
