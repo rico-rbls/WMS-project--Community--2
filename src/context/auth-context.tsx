@@ -297,23 +297,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string, rememberMe = false): Promise<void> => {
     console.log("[Login] Attempting login for:", email);
 
-    // Fetch latest users from Firestore, fallback to allUsers state or DEFAULT_USERS
+    // Fetch latest users from Firestore
     let users = await getUsersFromFirestore();
     console.log("[Login] Users from Firestore:", users.length, users.map(u => u.email));
 
-    // If Firestore returned empty, try initializing default users
-    if (users.length === 0) {
-      console.log("[Login] No users found in Firestore, initializing defaults...");
-      users = await initializeDefaultUsers();
-      console.log("[Login] After init:", users.length, users.map(u => u.email));
+    // ALWAYS merge DEFAULT_USERS with Firestore users to ensure default accounts work
+    // Only add default users that don't already exist in Firestore
+    const existingEmails = new Set(users.map(u => u.email.toLowerCase()));
+    for (const defaultUser of DEFAULT_USERS) {
+      if (!existingEmails.has(defaultUser.email.toLowerCase())) {
+        users.push(defaultUser);
+        console.log("[Login] Added default user:", defaultUser.email);
+      }
     }
 
-    // Still empty? Use allUsers state or DEFAULT_USERS as last resort
-    if (users.length === 0) {
-      console.log("[Login] Still empty, using fallback. allUsers:", allUsers.length);
-      users = allUsers.length > 0 ? allUsers : DEFAULT_USERS;
-      console.log("[Login] Final users:", users.length, users.map(u => u.email));
-    }
+    console.log("[Login] Final users list:", users.length, users.map(u => u.email));
 
     // First check if email exists
     const userByEmail = users.find(
