@@ -164,18 +164,22 @@ async function deleteUserFromFirestore(userId: string): Promise<void> {
 }
 
 // Initialize default users in Firestore if not present
-async function initializeDefaultUsers(): Promise<void> {
+async function initializeDefaultUsers(): Promise<StoredUser[]> {
   try {
     const existingUsers = await getUsersFromFirestore();
     if (existingUsers.length === 0) {
       // Seed default users to Firestore
+      console.log("Seeding default users to Firestore...");
       for (const user of DEFAULT_USERS) {
         await saveUserToFirestore(user);
       }
       saveUsersToLocalStorage(DEFAULT_USERS);
+      console.log("Default users seeded successfully");
+      return DEFAULT_USERS;
     } else {
       // Sync Firestore users to localStorage cache
       saveUsersToLocalStorage(existingUsers);
+      return existingUsers;
     }
   } catch (error) {
     console.error("Error initializing default users:", error);
@@ -183,7 +187,9 @@ async function initializeDefaultUsers(): Promise<void> {
     const existing = getStoredUsers();
     if (existing.length === 0) {
       saveUsersToLocalStorage(DEFAULT_USERS);
+      return DEFAULT_USERS;
     }
+    return existing;
   }
 }
 
@@ -283,8 +289,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string, rememberMe = false): Promise<void> => {
-    // Fetch latest users from Firestore
-    const users = await getUsersFromFirestore();
+    // Fetch latest users from Firestore, fallback to allUsers state or DEFAULT_USERS
+    let users = await getUsersFromFirestore();
+
+    // If Firestore returned empty, try initializing default users
+    if (users.length === 0) {
+      console.log("No users found in Firestore, initializing defaults...");
+      users = await initializeDefaultUsers();
+    }
+
+    // Still empty? Use allUsers state or DEFAULT_USERS as last resort
+    if (users.length === 0) {
+      users = allUsers.length > 0 ? allUsers : DEFAULT_USERS;
+    }
 
     // First check if email exists
     const userByEmail = users.find(
@@ -311,9 +328,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("INACTIVE:Your account has been deactivated. Please contact an administrator.");
     }
 
-    // Update last login in Firestore
+    // Update last login in Firestore (ignore errors for this)
     const lastLogin = new Date().toISOString();
-    await updateUserInFirestore(foundUser.id, { lastLogin });
+    try {
+      await updateUserInFirestore(foundUser.id, { lastLogin });
+    } catch (error) {
+      console.warn("Could not update lastLogin in Firestore:", error);
+    }
 
     // Create user object (without password)
     const userData: User = {
