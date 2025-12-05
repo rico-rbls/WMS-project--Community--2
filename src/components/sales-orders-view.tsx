@@ -22,6 +22,7 @@ import { useBatchSelection } from "@/hooks/useBatchSelection";
 import { usePagination } from "@/hooks/usePagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/components/ui/utils";
+import { SelectAllBanner } from "@/components/ui/select-all-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,7 +181,7 @@ export function SalesOrdersView() {
   const { currentPage, totalPages, paginatedData, goToPage, itemsPerPage, totalItems } = usePagination(sortedData, 10);
 
   // Batch selection
-  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection<SalesOrder>(paginatedData);
+  const { selectedIds, isSelected, toggleItem, toggleAll, selectAllPages, deselectAll, isAllSelected, isAllPageSelected, isAllPagesSelected, isPartiallySelected, selectionCount, hasSelection, totalItemCount, pageItemCount } = useBatchSelection<SalesOrder>(paginatedData, sortedData);
 
   // Statistics
   const soStats = useMemo(() => {
@@ -1016,7 +1017,19 @@ export function SalesOrdersView() {
             />
           ) : (
             <>
-              <div className="border rounded-lg overflow-x-auto">
+              <div className="border rounded-lg overflow-hidden">
+                {/* Select All Pages Banner */}
+                <SelectAllBanner
+                  pageItemCount={pageItemCount}
+                  totalItemCount={totalItemCount}
+                  isAllPagesSelected={isAllPagesSelected}
+                  show={isAllPageSelected && totalItemCount > pageItemCount}
+                  onSelectAllPages={selectAllPages}
+                  onClearSelection={deselectAll}
+                  itemLabel="orders"
+                />
+
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1088,6 +1101,7 @@ export function SalesOrdersView() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               <PaginationControls currentPage={currentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} onPageChange={goToPage} totalItems={totalItems} />

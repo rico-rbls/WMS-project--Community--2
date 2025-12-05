@@ -56,6 +56,7 @@ import { useBatchSelection } from "../hooks/useBatchSelection";
 import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
+import { SelectAllBanner } from "./ui/select-all-banner";
 import { useAuth } from "../context/auth-context";
 import { getUserRole, hasPermission } from "../lib/permissions";
 import { SortableTableHead } from "./ui/sortable-table-head";
@@ -128,17 +129,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const list = useMemo(() => purchaseOrdersData ?? [], [purchaseOrdersData]);
 
-  const {
-    selectedIds,
-    toggleItem,
-    toggleAll,
-    isSelected,
-    isAllSelected,
-    isPartiallySelected,
-    selectionCount,
-    hasSelection,
-    deselectAll,
-  } = useBatchSelection(list);
+
 
   // Fetch data on mount
   useEffect(() => {
@@ -240,6 +231,24 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   }, [list, debouncedSearchTerm, filterStatus, sortColumn, sortDirection, showArchived]);
 
   const { paginatedData, currentPage, totalPages, goToPage, itemsPerPage, totalItems } = usePagination<PurchaseOrder>(filteredData, 10);
+
+  // Batch selection (after pagination is defined)
+  const {
+    selectedIds,
+    toggleItem,
+    toggleAll,
+    selectAllPages,
+    isSelected,
+    isAllSelected,
+    isAllPageSelected,
+    isAllPagesSelected,
+    isPartiallySelected,
+    selectionCount,
+    hasSelection,
+    deselectAll,
+    totalItemCount,
+    pageItemCount,
+  } = useBatchSelection(paginatedData, filteredData);
 
   // Calculate statistics
   // Calculate statistics (only non-archived POs)
@@ -1239,7 +1248,19 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
             />
           ) : (
         <>
-          <div className="border rounded-lg overflow-x-auto">
+          <div className="border rounded-lg overflow-hidden">
+            {/* Select All Pages Banner */}
+            <SelectAllBanner
+              pageItemCount={pageItemCount}
+              totalItemCount={totalItemCount}
+              isAllPagesSelected={isAllPagesSelected}
+              show={isAllPageSelected && totalItemCount > pageItemCount}
+              onSelectAllPages={selectAllPages}
+              onClearSelection={deselectAll}
+              itemLabel="orders"
+            />
+
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1419,6 +1440,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
 
           <PaginationControls

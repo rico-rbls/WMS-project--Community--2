@@ -36,6 +36,7 @@ import { useBatchSelection } from "../hooks/useBatchSelection";
 import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
+import { SelectAllBanner } from "./ui/select-all-banner";
 import { cn } from "./ui/utils";
 import { FavoriteButton } from "./ui/favorite-button";
 
@@ -281,13 +282,18 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
     selectedItems,
     selectionCount,
     isAllSelected,
+    isAllPageSelected,
+    isAllPagesSelected,
     isPartiallySelected,
     hasSelection,
     toggleItem,
     toggleAll,
+    selectAllPages,
     deselectAll,
     isSelected,
-  } = useBatchSelection(paginatedData);
+    totalItemCount,
+    pageItemCount,
+  } = useBatchSelection(paginatedData, sortedData);
 
   // Bulk operation states
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -916,7 +922,18 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
               onAction={!showArchived && !searchTerm ? () => setIsAddOpen(true) : undefined}
             />
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-hidden">
+              {/* Select All Pages Banner */}
+              <SelectAllBanner
+                pageItemCount={pageItemCount}
+                totalItemCount={totalItemCount}
+                isAllPagesSelected={isAllPagesSelected}
+                show={isAllPageSelected && totalItemCount > pageItemCount}
+                onSelectAllPages={selectAllPages}
+                onClearSelection={deselectAll}
+                itemLabel="customers"
+              />
+
               <Table>
                 <TableHeader>
                   <TableRow>

@@ -20,6 +20,7 @@ import { useBatchSelection } from "@/hooks/useBatchSelection";
 import { usePagination } from "@/hooks/usePagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/components/ui/utils";
+import { SelectAllBanner } from "@/components/ui/select-all-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -169,7 +170,7 @@ export function PaymentsView() {
   const { currentPage, totalPages, paginatedData, goToPage, itemsPerPage, totalItems } = usePagination(sortedData, 10);
 
   // Batch selection
-  const { selectedIds, isSelected, toggleItem, toggleAll, deselectAll, isAllSelected, isPartiallySelected, selectionCount, hasSelection } = useBatchSelection(paginatedData);
+  const { selectedIds, isSelected, toggleItem, toggleAll, selectAllPages, deselectAll, isAllSelected, isAllPageSelected, isAllPagesSelected, isPartiallySelected, selectionCount, hasSelection, totalItemCount, pageItemCount } = useBatchSelection(paginatedData, sortedData);
 
   // Statistics
   const trxStats = useMemo(() => {
@@ -733,7 +734,19 @@ export function PaymentsView() {
             />
           ) : (
             <>
-              <div className="rounded-md border overflow-x-auto">
+              <div className="rounded-md border overflow-hidden">
+                {/* Select All Pages Banner */}
+                <SelectAllBanner
+                  pageItemCount={pageItemCount}
+                  totalItemCount={totalItemCount}
+                  isAllPagesSelected={isAllPagesSelected}
+                  show={isAllPageSelected && totalItemCount > pageItemCount}
+                  onSelectAllPages={selectAllPages}
+                  onClearSelection={deselectAll}
+                  itemLabel="payments"
+                />
+
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -829,6 +842,7 @@ export function PaymentsView() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               {/* Pagination */}

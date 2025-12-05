@@ -62,6 +62,7 @@ import { useBatchSelection } from "../hooks/useBatchSelection";
 import { PaginationControls } from "./ui/pagination-controls";
 import { BulkActionsToolbar } from "./ui/bulk-actions-toolbar";
 import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
+import { SelectAllBanner } from "./ui/select-all-banner";
 import { BulkUpdateDialog, type BulkUpdateField } from "./ui/bulk-update-dialog";
 import { FavoriteButton } from "./ui/favorite-button";
 
@@ -145,7 +146,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
-  const canPermanentlyDelete = user?.role === "Admin";
+  const canPermanentlyDelete = user?.role === "Admin" || user?.role === "Owner";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterSubcategory, setFilterSubcategory] = useState("all");
@@ -443,20 +444,30 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     selectedIds,
     toggleItem,
     toggleAll,
+    selectAllPages,
     deselectAll,
     isSelected,
     isAllSelected,
+    isAllPageSelected,
+    isAllPagesSelected,
     isPartiallySelected,
     selectionCount,
     hasSelection,
     selectedItems,
-  } = useBatchSelection<InventoryItem>(paginatedData);
+    totalItemCount,
+    pageItemCount,
+    canSelectAllPages,
+  } = useBatchSelection<InventoryItem>(paginatedData, sortedData);
 
   // Bulk operation states
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [bulkUpdateType, setBulkUpdateType] = useState<"category" | "status" | "location" | "reorderRequired" | "supplier" | null>(null);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  // Single item delete confirmation states
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<InventoryItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   function resetForm() {
     const defaultCategory: InventoryCategory = categoryNames[0] || "Electronics";
@@ -685,6 +696,45 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
     } catch (e: any) {
       toast.error(e?.message || "Failed to permanently delete item");
     }
+  }
+
+  // Confirm archive from dialog
+  async function handleConfirmArchive() {
+    if (!deleteConfirmItem) return;
+    setIsDeleting(true);
+    try {
+      const archived = await archiveInventoryItem(deleteConfirmItem.id);
+      setInventory((inventory ?? []).map((i) => (i.id === deleteConfirmItem.id ? archived : i)));
+      setIsEditOpen(null);
+      setDeleteConfirmItem(null);
+      toast.success("Item archived successfully");
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || "Failed to archive item");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  // Confirm permanent delete from dialog
+  async function handleConfirmPermanentDelete() {
+    if (!deleteConfirmItem) return;
+    setIsDeleting(true);
+    try {
+      await permanentlyDeleteInventoryItem(deleteConfirmItem.id);
+      setInventory((inventory ?? []).filter((i) => i.id !== deleteConfirmItem.id));
+      setIsEditOpen(null);
+      setDeleteConfirmItem(null);
+      toast.success("Item permanently deleted");
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || "Failed to permanently delete item");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  // Open delete confirmation dialog
+  function openDeleteConfirmation(item: InventoryItem) {
+    setDeleteConfirmItem(item);
   }
 
   // Inline edit handler for quick cell updates
@@ -1890,10 +1940,10 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 }] : []),
               ] : [
                 {
-                  id: "archive",
-                  label: "Archive",
-                  icon: <Archive className="h-4 w-4 mr-1" />,
-                  variant: "outline",
+                  id: "delete",
+                  label: "Delete",
+                  icon: <Trash2 className="h-4 w-4 mr-1" />,
+                  variant: "destructive" as const,
                   onClick: () => setShowBulkDeleteDialog(true),
                 },
               ]}
@@ -1916,22 +1966,104 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             />
           )}
 
-          {/* Bulk Delete/Archive Dialog */}
-          <BulkDeleteDialog
-            open={showBulkDeleteDialog}
-            onOpenChange={setShowBulkDeleteDialog}
-            itemCount={selectionCount}
-            itemType="item"
-            itemNames={selectedItemNames}
-            onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
-            isLoading={isBulkDeleting}
-            title={showArchived ? "Permanently Delete Items" : "Archive Items"}
-            description={showArchived
-              ? "This action cannot be undone. These items will be permanently removed from the system."
-              : "These items will be moved to the archive. You can restore them later if needed."
-            }
-            confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
-          />
+          {/* Bulk Delete/Archive Dialog - Two-tier for active items, single option for archived */}
+          <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  Delete {selectionCount} Item{selectionCount !== 1 ? "s" : ""}
+                </DialogTitle>
+                <DialogDescription>
+                  {showArchived
+                    ? "These items are already archived. This action will permanently remove them from the system."
+                    : "Choose how you want to delete the selected items:"}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Show selected item names */}
+              {selectedItemNames.length > 0 && (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-muted/50">
+                  <ul className="text-sm space-y-1">
+                    {selectedItemNames.slice(0, 10).map((name, idx) => (
+                      <li key={idx} className="truncate">• {name}</li>
+                    ))}
+                    {selectedItemNames.length > 10 && (
+                      <li className="text-muted-foreground">...and {selectedItemNames.length - 10} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {showArchived ? (
+                // Archived items - only permanent delete option
+                <div className="space-y-4 pt-2">
+                  <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                    <div className="flex items-start gap-2">
+                      <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                      <div>
+                        <p className="font-medium text-destructive">Permanent Deletion</p>
+                        <p className="text-sm text-muted-foreground">
+                          This cannot be undone. All data will be permanently removed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                      Cancel
+                    </Button>
+                    <Button variant="destructive" onClick={handleBulkPermanentDelete} disabled={isBulkDeleting}>
+                      {isBulkDeleting ? "Deleting..." : "Permanently Delete All"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Active items - show both options
+                <div className="space-y-4 pt-2">
+                  {/* Archive Option */}
+                  <div className="p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start gap-2">
+                      <Archive className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="font-medium">Archive</p>
+                        <p className="text-sm text-muted-foreground">
+                          Move to archive. Items can be restored later.
+                        </p>
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={handleBulkArchive} disabled={isBulkDeleting}>
+                        {isBulkDeleting ? "..." : "Archive"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Permanent Delete Option */}
+                  {canPermanentlyDelete && (
+                    <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                      <div className="flex items-start gap-2">
+                        <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                        <div className="flex-1">
+                          <p className="font-medium text-destructive">Delete Permanently</p>
+                          <p className="text-sm text-muted-foreground">
+                            Cannot be undone. Data will be permanently removed.
+                          </p>
+                        </div>
+                        <Button variant="destructive" size="sm" onClick={handleBulkPermanentDelete} disabled={isBulkDeleting}>
+                          {isBulkDeleting ? "..." : "Delete"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Bulk Update Dialog */}
           {bulkUpdateType && getBulkUpdateField() && (
@@ -1963,6 +2095,17 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
           ) : viewMode === "catalog" ? (
             /* ============ CATALOG VIEW ============ */
             <div>
+              {/* Select All Pages Banner */}
+              <SelectAllBanner
+                pageItemCount={pageItemCount}
+                totalItemCount={totalItemCount}
+                isAllPagesSelected={isAllPagesSelected}
+                show={isAllPageSelected && totalItemCount > pageItemCount}
+                onSelectAllPages={selectAllPages}
+                onClearSelection={deselectAll}
+                itemLabel="items"
+              />
+
               {/* Catalog Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {paginatedData.map((item) => {
@@ -2121,7 +2264,18 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
             </div>
           ) : (
             /* ============ TABLE VIEW ============ */
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-hidden">
+              {/* Select All Pages Banner */}
+              <SelectAllBanner
+                pageItemCount={pageItemCount}
+                totalItemCount={totalItemCount}
+                isAllPagesSelected={isAllPagesSelected}
+                show={isAllPageSelected && totalItemCount > pageItemCount}
+                onSelectAllPages={selectAllPages}
+                onClearSelection={deselectAll}
+                itemLabel="items"
+              />
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2752,7 +2906,16 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                                 {/* Action Buttons */}
                                 <div className="flex gap-2 pt-2">
                                   <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                                  <Button variant="destructive" size="lg" onClick={() => handleDelete(item.id)}>Delete</Button>
+                                  {item.archived ? (
+                                    <Button variant="outline" size="lg" onClick={() => handleRestore(item.id)}>
+                                      <ArchiveRestore className="h-4 w-4 mr-2" />
+                                      Restore
+                                    </Button>
+                                  ) : null}
+                                  <Button variant="destructive" size="lg" onClick={() => openDeleteConfirmation(item)}>
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </Button>
                                 </div>
                               </div>
                             </DialogContent>
@@ -3363,7 +3526,26 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               {/* Action Buttons */}
               <div className="flex gap-2 pt-2">
                 <Button className="flex-1" size="lg" onClick={handleEditSave}>Save Changes</Button>
-                <Button variant="destructive" size="lg" onClick={() => handleDelete(form.id)}>Delete</Button>
+                {(() => {
+                  const currentItem = inventoryItems.find((i) => i.id === form.id);
+                  return currentItem?.archived ? (
+                    <Button variant="outline" size="lg" onClick={() => handleRestore(form.id)}>
+                      <ArchiveRestore className="h-4 w-4 mr-2" />
+                      Restore
+                    </Button>
+                  ) : null;
+                })()}
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  onClick={() => {
+                    const currentItem = inventoryItems.find((i) => i.id === form.id);
+                    if (currentItem) openDeleteConfirmation(currentItem);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -3474,6 +3656,86 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               setIsAddSubcategoryOpen(false);
             }}>
               Add Subcategory
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              {deleteConfirmItem?.archived ? "Permanently Delete Item?" : "Delete Item?"}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteConfirmItem?.archived
+                ? "This action cannot be undone. The item will be permanently removed from the database."
+                : "Choose how you want to handle this item:"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteConfirmItem && (
+            <div className="rounded-md border p-3 bg-muted/50">
+              <p className="font-medium">{deleteConfirmItem.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {deleteConfirmItem.category} • Qty: {deleteConfirmItem.quantity}
+              </p>
+            </div>
+          )}
+
+          {!deleteConfirmItem?.archived && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-background hover:bg-accent/50 transition-colors">
+                <Archive className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">Archive</p>
+                  <p className="text-sm text-muted-foreground">
+                    Move to archive. You can restore it later if needed.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-md border border-destructive/50 bg-destructive/5">
+                <Trash2 className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-destructive">Delete Permanently</p>
+                  <p className="text-sm text-muted-foreground">
+                    Remove forever. This cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmItem(null)}
+              disabled={isDeleting}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            {!deleteConfirmItem?.archived && (
+              <Button
+                variant="secondary"
+                onClick={handleConfirmArchive}
+                disabled={isDeleting}
+                className="w-full sm:w-auto"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                {isDeleting ? "Archiving..." : "Archive"}
+              </Button>
+            )}
+            <Button
+              variant="destructive"
+              onClick={handleConfirmPermanentDelete}
+              disabled={isDeleting}
+              className="w-full sm:w-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {isDeleting ? "Deleting..." : "Delete Permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>
