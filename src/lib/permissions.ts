@@ -5,16 +5,19 @@ export type Permission =
   | "inventory:create"
   | "inventory:update"
   | "inventory:delete"
-  // Orders permissions
+  // Orders permissions (Sales Orders)
   | "orders:read"
   | "orders:create"
   | "orders:update"
   | "orders:delete"
+  | "orders:read_own" // Customer can only read their own orders
+  | "orders:create_own" // Customer can only create their own orders
   // Shipments permissions
   | "shipments:read"
   | "shipments:create"
   | "shipments:update"
   | "shipments:delete"
+  | "shipments:read_own" // Customer can only read their own shipments
   // Suppliers permissions
   | "suppliers:read"
   | "suppliers:create"
@@ -27,6 +30,23 @@ export type Permission =
   | "purchase_orders:delete"
   | "purchase_orders:approve"
   | "purchase_orders:receive"
+  // Customer permissions
+  | "customers:read"
+  | "customers:create"
+  | "customers:update"
+  | "customers:delete"
+  // Cash & Bank permissions
+  | "cash_bank:read"
+  | "cash_bank:create"
+  | "cash_bank:update"
+  | "cash_bank:delete"
+  // Payments permissions
+  | "payments:read"
+  | "payments:create"
+  | "payments:update"
+  | "payments:delete"
+  // Dashboard permissions
+  | "dashboard:read"
   // User management permissions
   | "users:read"
   | "users:create"
@@ -38,12 +58,12 @@ export type Permission =
   // System settings (Owner only)
   | "system:settings";
 
-// Role hierarchy: Owner > Admin > Operator > Viewer
+// Role hierarchy: Owner > Admin > Customer > Viewer
 // Owner: Full system access including admin management
 // Admin: Full access except admin user management
-// Operator: Read-only access to operational data
+// Customer: Limited access to own Sales Orders and Shipments only
 // Viewer: Read-only access (basic view permissions)
-export type Role = "Owner" | "Admin" | "Operator" | "Viewer";
+export type Role = "Owner" | "Admin" | "Customer" | "Viewer";
 
 // User status for approval workflow
 export type UserStatus = "Active" | "Pending" | "Inactive";
@@ -52,7 +72,7 @@ export type UserStatus = "Active" | "Pending" | "Inactive";
 export const ROLE_HIERARCHY: Record<Role, number> = {
   Owner: 4,
   Admin: 3,
-  Operator: 2,
+  Customer: 2,
   Viewer: 1,
 };
 
@@ -60,12 +80,16 @@ export const ROLE_HIERARCHY: Record<Role, number> = {
 export const rolePermissions: Record<Role, Permission[]> = {
   Owner: [
     // Full access to all features
+    "dashboard:read",
     "inventory:read", "inventory:create", "inventory:update", "inventory:delete",
     "orders:read", "orders:create", "orders:update", "orders:delete",
     "shipments:read", "shipments:create", "shipments:update", "shipments:delete",
     "suppliers:read", "suppliers:create", "suppliers:update", "suppliers:delete",
+    "customers:read", "customers:create", "customers:update", "customers:delete",
     "purchase_orders:read", "purchase_orders:create", "purchase_orders:update",
     "purchase_orders:delete", "purchase_orders:approve", "purchase_orders:receive",
+    "cash_bank:read", "cash_bank:create", "cash_bank:update", "cash_bank:delete",
+    "payments:read", "payments:create", "payments:update", "payments:delete",
     // User management (including admin management)
     "users:read", "users:create", "users:update", "users:delete", "users:approve",
     "users:manage_admins",
@@ -74,30 +98,35 @@ export const rolePermissions: Record<Role, Permission[]> = {
   ],
   Admin: [
     // Full access to all features
+    "dashboard:read",
     "inventory:read", "inventory:create", "inventory:update", "inventory:delete",
     "orders:read", "orders:create", "orders:update", "orders:delete",
     "shipments:read", "shipments:create", "shipments:update", "shipments:delete",
     "suppliers:read", "suppliers:create", "suppliers:update", "suppliers:delete",
+    "customers:read", "customers:create", "customers:update", "customers:delete",
     "purchase_orders:read", "purchase_orders:create", "purchase_orders:update",
     "purchase_orders:delete", "purchase_orders:approve", "purchase_orders:receive",
-    // User management (can manage Operators and Viewers, not Admins or Owners)
+    "cash_bank:read", "cash_bank:create", "cash_bank:update", "cash_bank:delete",
+    "payments:read", "payments:create", "payments:update", "payments:delete",
+    // User management (can manage Customers and Viewers, not Admins or Owners)
     "users:read", "users:create", "users:update", "users:delete", "users:approve",
   ],
-  Operator: [
-    // Read-only access to all data
-    "inventory:read",
-    "orders:read",
-    "shipments:read",
-    "suppliers:read",
-    "purchase_orders:read",
+  Customer: [
+    // Limited access - only own Sales Orders and Shipments
+    "orders:read_own", "orders:create_own", // Can create and view own orders
+    "shipments:read_own", // Can view own shipments
   ],
   Viewer: [
     // Read-only access to all data
+    "dashboard:read",
     "inventory:read",
     "orders:read",
     "shipments:read",
     "suppliers:read",
+    "customers:read",
     "purchase_orders:read",
+    "cash_bank:read",
+    "payments:read",
   ],
 };
 
@@ -171,14 +200,14 @@ export function canChangeRole(managerRole: Role, targetRole: Role, newRole: Role
 }
 
 // Check if a user can assign a specific role
-// Owners can assign any role, Admins can only assign Operator/Viewer
+// Owners can assign any role, Admins can only assign Customer/Viewer
 export function canAssignRole(assignerRole: Role, targetRole: Role): boolean {
   if (assignerRole === "Owner") {
     return true; // Owner can assign any role
   }
   if (assignerRole === "Admin") {
-    // Admin can only assign Operator or Viewer roles
-    return targetRole === "Operator" || targetRole === "Viewer";
+    // Admin can only assign Customer or Viewer roles
+    return targetRole === "Customer" || targetRole === "Viewer";
   }
   return false;
 }
@@ -186,12 +215,17 @@ export function canAssignRole(assignerRole: Role, targetRole: Role): boolean {
 // Get roles that a user can assign to others
 export function getAssignableRoles(role: Role): Role[] {
   if (role === "Owner") {
-    return ["Owner", "Admin", "Operator", "Viewer"];
+    return ["Owner", "Admin", "Customer", "Viewer"];
   }
   if (role === "Admin") {
-    return ["Operator", "Viewer"];
+    return ["Customer", "Viewer"];
   }
   return [];
+}
+
+// Check if user is a Customer
+export function isCustomer(role: Role): boolean {
+  return role === "Customer";
 }
 
 // Get role for a user ID (now reads from localStorage users)

@@ -79,6 +79,7 @@ export const COLLECTIONS = {
   ORDERS: 'orders',
   USERS: 'users',
   CATEGORIES: 'categories',
+  NOTIFICATIONS: 'notifications',
 } as const;
 
 // Type for collection names

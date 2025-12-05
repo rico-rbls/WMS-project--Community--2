@@ -65,7 +65,10 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
   const isCollapsed = state === "collapsed";
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  const menuItems = [
+  const isCustomer = user?.role === "Customer";
+
+  // Full menu items for non-customer users
+  const fullMenuItems = [
     { id: "dashboard" as ViewType, label: "Dashboard", icon: LayoutDashboard },
     { id: "inventory" as ViewType, label: "Inventory", icon: Package },
     { id: "purchase-orders" as ViewType, label: "Purchase Orders", icon: ClipboardList },
@@ -76,6 +79,14 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "cash-bank" as ViewType, label: "Cash and Bank", icon: Landmark },
     { id: "payments" as ViewType, label: "Payments", icon: Wallet },
   ];
+
+  // Customer-only menu items (limited access)
+  const customerMenuItems = [
+    { id: "sales-orders" as ViewType, label: "My Orders", icon: Receipt },
+    { id: "shipments" as ViewType, label: "My Shipments", icon: Truck },
+  ];
+
+  const menuItems = isCustomer ? customerMenuItems : fullMenuItems;
 
   // Admin-only menu items
   const adminMenuItems = [

@@ -17,6 +17,7 @@ import {
 } from "@/services/api";
 import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus } from "@/types";
 import { useAuth } from "@/context/auth-context";
+import { useNotifications } from "@/context/notifications-context";
 import { getUserRole, hasPermission } from "@/lib/permissions";
 import { useBatchSelection } from "@/hooks/useBatchSelection";
 import { usePagination } from "@/hooks/usePagination";
@@ -81,11 +82,14 @@ const formatCurrency = (amount: number) => {
 
 export function SalesOrdersView() {
   const { user } = useAuth();
+  const { createNotification } = useNotifications();
   const userRole = user ? getUserRole(user.id) : "Viewer";
+  const isCustomer = userRole === "Customer";
   // Use purchase_orders permissions as sales orders have similar access control
-  const canCreate = hasPermission(userRole, "purchase_orders:create");
-  const canEdit = hasPermission(userRole, "purchase_orders:update");
-  const canDelete = hasPermission(userRole, "purchase_orders:delete");
+  // Customers can create their own orders
+  const canCreate = isCustomer || hasPermission(userRole, "purchase_orders:create");
+  const canEdit = !isCustomer && hasPermission(userRole, "purchase_orders:update");
+  const canDelete = !isCustomer && hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
 
   const { printReceipt } = usePrintReceipt();
@@ -143,6 +147,11 @@ export function SalesOrdersView() {
 
   const filteredData = useMemo(() => {
     return list.filter((so) => {
+      // Customer users can only see their own orders (created by them)
+      if (isCustomer && user?.email && so.createdBy !== user.email) {
+        return false;
+      }
+
       // Filter by archived status (treat undefined as false)
       const isArchived = so.archived === true;
       if (showArchived !== isArchived) return false;
@@ -157,7 +166,7 @@ export function SalesOrdersView() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [list, debouncedSearch, filterStatus, showArchived]);
+  }, [list, debouncedSearch, filterStatus, showArchived, isCustomer, user?.email]);
 
   // Sorting
   const sortedData = useMemo(() => {
@@ -367,11 +376,26 @@ export function SalesOrdersView() {
         items: form.items.map((item) => ({ ...item, quantityShipped: 0 })),
         expectedDeliveryDate: form.expectedDeliveryDate,
         notes: form.notes,
-        createdBy: user?.id ?? "1",
+        createdBy: user?.email ?? user?.id ?? "unknown",
         totalReceived: form.totalReceived,
       });
       setSalesOrdersData((prev) => [newSO, ...(prev ?? [])]);
       toast.success(`Sales Order ${newSO.id} created successfully`);
+
+      // Create notification for Owner/Admin when a Customer creates an order
+      if (isCustomer && user?.email) {
+        const totalAmount = form.items.reduce((sum, item) => sum + item.totalPrice, 0);
+        await createNotification({
+          type: "new_sales_order",
+          title: "New Sales Order Created",
+          message: `${user.name || user.email} created order ${newSO.id} for ${form.customerName} - ${formatCurrency(totalAmount)}`,
+          salesOrderId: newSO.id,
+          customerName: form.customerName,
+          createdBy: user.email,
+          targetRoles: ["Owner", "Admin"],
+        });
+      }
+
       setIsAddOpen(false);
       resetForm();
     } catch (error) {

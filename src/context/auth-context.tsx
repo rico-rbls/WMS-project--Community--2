@@ -86,10 +86,10 @@ const DEFAULT_USERS: StoredUser[] = [
   },
   {
     id: "2",
-    email: "operator@wms.com",
-    password: "operator123",
-    name: "Operator User",
-    role: "Operator",
+    email: "customer@wms.com",
+    password: "customer123",
+    name: "Customer User",
+    role: "Customer",
     status: "Active",
     createdAt: "2024-01-15T00:00:00Z",
   },
@@ -403,7 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       name,
-      role: "Operator", // New users default to Operator role
+      role: "Customer", // New users default to Customer role
       status: "Pending", // Requires admin approval
       createdAt: new Date().toISOString(),
     };
@@ -477,7 +477,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: googleUser.email,
           password: "", // No password for Google users
           name: googleUser.displayName || googleUser.email.split("@")[0],
-          role: "Operator", // New users default to Operator role
+          role: "Customer", // New users default to Customer role
           status: "Pending", // Requires admin approval
           createdAt: new Date().toISOString(),
           googleUserId: googleUser.uid,

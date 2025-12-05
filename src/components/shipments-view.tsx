@@ -13,8 +13,8 @@ import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { DateRangeFilter } from "./ui/date-range-filter";
-import { createShipment, deleteShipment, getShipments, updateShipment, bulkDeleteShipments, bulkUpdateShipmentStatus } from "../services/api";
-import type { Shipment } from "../types";
+import { createShipment, deleteShipment, getShipments, getSalesOrders, updateShipment, bulkDeleteShipments, bulkUpdateShipmentStatus } from "../services/api";
+import type { Shipment, SalesOrder } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -48,12 +48,14 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const { isFavorite, getFavoritesByType } = useFavorites();
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
+  const isCustomer = user?.role === "Customer";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [shipmentsData, setShipmentsData] = useState<Shipment[] | null>(null);
+  const [salesOrdersData, setSalesOrdersData] = useState<SalesOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
@@ -69,11 +71,25 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   // Debounce search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
+  // Get customer's sales order IDs for filtering shipments
+  const customerSalesOrderIds = useMemo(() => {
+    if (!isCustomer || !user?.email) return new Set<string>();
+    return new Set(
+      salesOrdersData
+        .filter(so => so.createdBy === user.email)
+        .map(so => so.id)
+    );
+  }, [isCustomer, user?.email, salesOrdersData]);
+
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const data = await getShipments();
-      setShipmentsData(data);
+      const [shipments, salesOrders] = await Promise.all([
+        getShipments(),
+        getSalesOrders(),
+      ]);
+      setShipmentsData(shipments);
+      setSalesOrdersData(salesOrders);
       setIsLoading(false);
     })();
   }, []);
@@ -179,6 +195,11 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   // Optimized filtering with early returns and debounced search
   const filteredShipments = useMemo(() => {
     return list.filter(shipment => {
+      // Customer users can only see shipments for their own sales orders
+      if (isCustomer && !customerSalesOrderIds.has(shipment.salesOrderId)) {
+        return false;
+      }
+
       // Early return for favorites filter
       if (showFavoritesOnly && !isFavorite("shipments", shipment.id)) {
         return false;
@@ -230,7 +251,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
       return true;
     });
-  }, [list, debouncedSearchTerm, filterStatus, fromDate, toDate, showFavoritesOnly, isFavorite]);
+  }, [list, debouncedSearchTerm, filterStatus, fromDate, toDate, showFavoritesOnly, isFavorite, isCustomer, customerSalesOrderIds]);
 
 
 

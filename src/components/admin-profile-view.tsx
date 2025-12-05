@@ -437,14 +437,15 @@ export function AdminProfileView() {
             <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
               <Badge
                 variant={user.role === "Owner" || user.role === "Admin" ? "default" : "secondary"}
-                className={`text-sm px-3 py-1.5 gap-1.5 ${user.role === "Owner" ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" : ""}`}
+                className={`text-sm px-3 py-1.5 gap-1.5 ${user.role === "Owner" ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" : user.role === "Customer" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : ""}`}
               >
                 {user.role === "Owner" ? <Crown className="h-3.5 w-3.5" /> : <Shield className="h-3.5 w-3.5" />}
                 {user.role}
               </Badge>
               <span className="text-sm text-muted-foreground">
                 {user.role === "Owner" ? "Full system access including admin management" :
-                 user.role === "Admin" ? "Full system access" : "Read-only access"}
+                 user.role === "Admin" ? "Full system access" :
+                 user.role === "Customer" ? "Limited access to own orders and shipments" : "Read-only access"}
               </span>
             </div>
             <div className="space-y-3">
@@ -468,8 +469,14 @@ export function AdminProfileView() {
                     <PermissionItem>Manage orders and shipments</PermissionItem>
                     <PermissionItem>Create and approve purchase orders</PermissionItem>
                     <PermissionItem>Manage suppliers</PermissionItem>
-                    <PermissionItem>Manage Operator and Viewer accounts</PermissionItem>
+                    <PermissionItem>Manage Customer and Viewer accounts</PermissionItem>
                     <PermissionItem>View all reports and analytics</PermissionItem>
+                  </>
+                ) : user.role === "Customer" ? (
+                  <>
+                    <PermissionItem>Create and view your own sales orders</PermissionItem>
+                    <PermissionItem variant="view">View your own shipments</PermissionItem>
+                    <PermissionItem variant="view">View and print your receipts</PermissionItem>
                   </>
                 ) : (
                   <>
@@ -481,7 +488,7 @@ export function AdminProfileView() {
                   </>
                 )}
               </div>
-              {(user.role === "Operator" || user.role === "Viewer") && (
+              {(user.role === "Customer" || user.role === "Viewer") && (
                 <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                   <p className="text-sm text-amber-700 dark:text-amber-300">
                     <AlertCircle className="h-4 w-4 inline mr-1.5 -mt-0.5" />

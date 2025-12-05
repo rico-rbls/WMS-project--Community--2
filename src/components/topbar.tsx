@@ -1,7 +1,10 @@
-import { Search, Command, User, LogOut, ChevronDown } from "lucide-react";
+import { Search, Command, User, LogOut, ChevronDown, Bell, ShoppingCart, Check } from "lucide-react";
 import { useAuth } from "../context/auth-context";
+import { useNotifications } from "../context/notifications-context";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { ScrollArea } from "./ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +22,22 @@ interface TopbarProps {
 
 export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
   const { user, logout } = useAuth();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const canSeeNotifications = user?.role === "Owner" || user?.role === "Admin";
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
 
   const handleLogout = () => {
     logout();
@@ -61,6 +80,86 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
         <Search className="h-4 w-4" />
         <span className="sr-only">Search</span>
       </Button>
+
+      {/* Notifications Bell - Only for Owner/Admin */}
+      {canSeeNotifications && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative shrink-0">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Badge>
+              )}
+              <span className="sr-only">Notifications</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80" sideOffset={8}>
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto py-1 px-2 text-xs"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    markAllAsRead();
+                  }}
+                >
+                  <Check className="h-3 w-3 mr-1" />
+                  Mark all read
+                </Button>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[300px]">
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No notifications yet
+                </div>
+              ) : (
+                notifications.slice(0, 10).map((notification) => (
+                  <DropdownMenuItem
+                    key={notification.id}
+                    className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
+                      !notification.read ? "bg-accent/50" : ""
+                    }`}
+                    onSelect={() => markAsRead(notification.id)}
+                  >
+                    <div className="flex items-start gap-2 w-full">
+                      <ShoppingCart className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{notification.title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {notification.salesOrderId && (
+                            <Badge variant="outline" className="text-xs">
+                              {notification.salesOrderId}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimeAgo(notification.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                      {!notification.read && (
+                        <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </ScrollArea>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       {/* Right Side - User Profile Dropdown */}
       {user && (

@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX, Crown, Eye } from "lucide-react";
+import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX, Crown, Eye, ShoppingBag } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
@@ -24,7 +24,7 @@ export function UserManagementView() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<{ role: Role; status: UserStatus }>({ role: "Operator", status: "Active" });
+  const [editForm, setEditForm] = useState<{ role: Role; status: UserStatus }>({ role: "Customer", status: "Active" });
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -147,8 +147,8 @@ export function UserManagementView() {
         return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"><Crown className="h-3 w-3 mr-1" />Owner</Badge>;
       case "Admin":
         return <Badge variant="default"><Shield className="h-3 w-3 mr-1" />Admin</Badge>;
-      case "Operator":
-        return <Badge variant="secondary"><UserCog className="h-3 w-3 mr-1" />Operator</Badge>;
+      case "Customer":
+        return <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"><ShoppingBag className="h-3 w-3 mr-1" />Customer</Badge>;
       case "Viewer":
         return <Badge variant="outline"><Eye className="h-3 w-3 mr-1" />Viewer</Badge>;
     }
@@ -368,7 +368,7 @@ export function UserManagementView() {
                     <SelectItem key={role} value={role}>
                       {role === "Owner" && "Owner - Full system access"}
                       {role === "Admin" && "Admin - Full access (except admin management)"}
-                      {role === "Operator" && "Operator - Read-only access"}
+                      {role === "Customer" && "Customer - Limited access to own orders"}
                       {role === "Viewer" && "Viewer - Read-only access"}
                     </SelectItem>
                   ))}

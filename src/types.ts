@@ -474,3 +474,24 @@ export interface UpdatePaymentTransactionInput {
   amountPaid?: number;
   notes?: string;
 }
+
+// ============================================
+// NOTIFICATION TYPES
+// ============================================
+
+export type NotificationType = "new_sales_order";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  salesOrderId?: string;
+  customerName?: string;
+  createdBy: string; // Email of user who triggered the notification
+  createdAt: string; // ISO date
+  read: boolean;
+  readAt?: string; // ISO date when marked as read
+  // Target users who should see this notification
+  targetRoles: ("Owner" | "Admin")[];
+}
