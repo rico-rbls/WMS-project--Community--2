@@ -114,10 +114,10 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
     return customersData.find(c => c.email === user.email);
   }, [user?.email, customersData]);
 
-  // Transform inventory to customer-friendly products
+  // Transform inventory to customer-friendly products (show ALL products including out of stock)
   const customerProducts = useMemo(() => {
     return inventoryData
-      .filter(item => !item.archived && item.quantity > 0) // Only show non-archived, in-stock items
+      .filter(item => !item.archived) // Only filter out archived items, show all stock levels
       .map(transformToCustomerProduct);
   }, [inventoryData]);
 
@@ -377,10 +377,11 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
                           )}
                           {/* Availability Badge */}
                           <Badge
-                            variant={product.availability === "Low Stock" ? "secondary" : "default"}
+                            variant={product.availability === "Out of Stock" ? "destructive" : product.availability === "Low Stock" ? "secondary" : "default"}
                             className={`absolute top-2 right-2 text-xs ${
                               product.availability === "In Stock" ? "bg-green-500/90" :
-                              product.availability === "Low Stock" ? "bg-amber-500/90 text-white" : ""
+                              product.availability === "Low Stock" ? "bg-amber-500/90 text-white" :
+                              product.availability === "Out of Stock" ? "bg-red-500/90" : ""
                             }`}
                           >
                             {product.availability}
@@ -402,10 +403,19 @@ export function CustomerOrderForm({ inventoryData, customersData, onSubmitOrder,
                           </p>
                           <Separator className="my-3" />
                           <div className="flex items-center justify-between">
-                            <span className="text-xl font-bold text-primary">
+                            <span className={`text-xl font-bold ${product.availability === "Out of Stock" ? "text-muted-foreground" : "text-primary"}`}>
                               {formatCurrency(product.price)}
                             </span>
-                            {inCart ? (
+                            {product.availability === "Out of Stock" ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="gap-1 opacity-60"
+                              >
+                                Out of Stock
+                              </Button>
+                            ) : inCart ? (
                               <div className="flex items-center gap-1.5 bg-accent rounded-lg p-1">
                                 <Button
                                   size="icon"
