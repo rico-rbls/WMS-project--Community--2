@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
@@ -23,6 +23,14 @@ import {
   CheckCircle2,
   ShoppingBag,
   MapPin,
+  Banknote,
+  Printer,
+  Truck,
+  Clock,
+  Receipt,
+  User,
+  Calendar,
+  Hash,
 } from "lucide-react";
 import type { ViewType } from "@/App";
 import { useEffect } from "react";
@@ -112,64 +120,181 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
     }
   };
 
-  // Order confirmation view
+  // Print receipt function
+  const handlePrintReceipt = () => {
+    window.print();
+  };
+
+  // Order confirmation view with detailed receipt
   if (orderPlaced) {
+    const orderDateTime = new Date(orderPlaced.soDate);
+
     return (
-      <div className="max-w-2xl mx-auto py-8">
-        <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20">
-          <CardContent className="pt-8 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="rounded-full bg-green-100 dark:bg-green-900/50 p-4">
-                <CheckCircle2 className="h-12 w-12 text-green-600" />
+      <div className="max-w-2xl mx-auto py-4 sm:py-8 px-2 sm:px-0">
+        {/* Success Banner */}
+        <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 mb-6">
+          <CardContent className="pt-6 pb-4 text-center">
+            <div className="flex justify-center mb-3">
+              <div className="rounded-full bg-green-100 dark:bg-green-900/50 p-3">
+                <CheckCircle2 className="h-10 w-10 text-green-600" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Order Placed Successfully!</h2>
-            <p className="text-muted-foreground mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold mb-1">Order Placed Successfully!</h2>
+            <p className="text-sm text-muted-foreground">
               Thank you for your order. We&apos;ll process it shortly.
             </p>
-            <div className="bg-background rounded-lg p-4 text-left space-y-2 mb-6">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Order ID:</span>
-                <span className="font-mono font-medium">{orderPlaced.id}</span>
+          </CardContent>
+        </Card>
+
+        {/* Detailed Receipt */}
+        <Card className="print:shadow-none print:border-none" id="order-receipt">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Order Receipt</CardTitle>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date:</span>
-                <span>{new Date(orderPlaced.soDate).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Items:</span>
-                <span>{orderPlaced.items.length} item(s)</span>
-              </div>
-              {orderPlaced.deliveryAddress && (
-                <div className="flex items-start gap-2 pt-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div>
-                    <span className="text-sm text-muted-foreground">Deliver to:</span>
-                    <p className="text-sm">{orderPlaced.deliveryAddress}</p>
-                  </div>
+              <Button variant="outline" size="sm" onClick={handlePrintReceipt} className="print:hidden gap-1">
+                <Printer className="h-4 w-4" />
+                <span className="hidden sm:inline">Print</span>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Order Info Grid */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Order ID</p>
+                  <p className="font-mono font-medium text-xs sm:text-sm">{orderPlaced.id}</p>
                 </div>
-              )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Date & Time</p>
+                  <p className="font-medium text-xs sm:text-sm">
+                    {orderDateTime.toLocaleDateString()} {orderDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Customer</p>
+                  <p className="font-medium text-xs sm:text-sm">{orderPlaced.customerName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Shipping Status</p>
+                  <Badge variant="outline" className="text-xs mt-0.5">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {orderPlaced.shippingStatus || "Pending"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery Address */}
+            {orderPlaced.deliveryAddress && (
+              <div className="flex items-start gap-2 bg-muted/50 rounded-lg p-3">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Delivery Address</p>
+                  <p className="text-sm">{orderPlaced.deliveryAddress}</p>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Items Ordered */}
+            <div>
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Items Ordered ({orderPlaced.items.length})
+              </h4>
+              <div className="space-y-2 bg-muted/30 rounded-lg p-3">
+                {orderPlaced.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-start text-sm">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="font-medium line-clamp-1">{item.itemName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(item.unitPrice)} × {item.quantity}
+                      </p>
+                    </div>
+                    <p className="font-medium shrink-0">{formatCurrency(item.totalPrice)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Order Summary */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(orderPlaced.totalAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="text-green-600">Free</span>
+              </div>
               <Separator />
               <div className="flex justify-between font-semibold text-lg">
-                <span>Total:</span>
+                <span>Total</span>
                 <span className="text-primary">{formatCurrency(orderPlaced.totalAmount)}</span>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Payment Info */}
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Banknote className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-sm">Payment Method</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <Badge variant="secondary" className="gap-1">
+                  <Banknote className="h-3 w-3" />
+                  Cash on Delivery
+                </Badge>
+                <Badge
+                  variant={orderPlaced.receiptStatus === "Paid" ? "default" : "outline"}
+                  className={orderPlaced.receiptStatus === "Paid" ? "bg-green-600" : "text-amber-600 border-amber-300"}
+                >
+                  {orderPlaced.receiptStatus === "Paid" ? "Paid" : "Unpaid - Pay on Delivery"}
+                </Badge>
+              </div>
               {orderPlaced.amountPaid > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Amount Paid:</span>
-                  <span>{formatCurrency(orderPlaced.amountPaid)}</span>
-                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Amount paid: {formatCurrency(orderPlaced.amountPaid)} •
+                  Balance due: {formatCurrency(orderPlaced.totalAmount - orderPlaced.amountPaid)}
+                </p>
               )}
             </div>
-            <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={() => navigateToView("sales-orders")}>
-                View My Orders
-              </Button>
-              <Button onClick={() => { setOrderPlaced(null); navigateToView("products"); }}>
-                Continue Shopping
-              </Button>
-            </div>
+
+            {/* Notes */}
+            {orderPlaced.notes && (
+              <div className="text-sm">
+                <p className="text-muted-foreground mb-1">Order Notes:</p>
+                <p className="italic">{orderPlaced.notes}</p>
+              </div>
+            )}
           </CardContent>
+          <CardFooter className="flex flex-col sm:flex-row gap-3 print:hidden">
+            <Button variant="outline" onClick={() => navigateToView("sales-orders")} className="w-full sm:w-auto">
+              View My Orders
+            </Button>
+            <Button onClick={() => { setOrderPlaced(null); navigateToView("products"); }} className="w-full sm:w-auto">
+              Continue Shopping
+            </Button>
+          </CardFooter>
         </Card>
       </div>
     );
@@ -319,6 +444,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
               <CardTitle>Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Items List */}
               <div className="space-y-2">
                 {cart.map((item) => (
                   <div key={item.inventoryItemId} className="flex justify-between text-sm">
@@ -329,15 +455,52 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                   </div>
                 ))}
               </div>
+
               <Separator />
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Total</span>
-                <span className="text-primary">{formatCurrency(cartTotal)}</span>
+
+              {/* Subtotal & Total */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal ({itemCount} items)</span>
+                  <span>{formatCurrency(cartTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Shipping</span>
+                  <span className="text-green-600">Free</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Total</span>
+                  <span className="text-primary">{formatCurrency(cartTotal)}</span>
+                </div>
               </div>
 
-              <div className="space-y-3 pt-4">
+              {/* Payment Method Badge */}
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium">Payment Method</span>
+                  </div>
+                  <Badge variant="secondary" className="gap-1">
+                    <Banknote className="h-3 w-3" />
+                    Cash on Delivery
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Pay when your order arrives at your doorstep
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* Delivery & Notes */}
+              <div className="space-y-3">
                 <div>
-                  <Label htmlFor="deliveryAddress">Delivery Address</Label>
+                  <Label htmlFor="deliveryAddress" className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    Delivery Address
+                  </Label>
                   <textarea
                     id="deliveryAddress"
                     placeholder={customerRecord?.address || "Enter your delivery address..."}
@@ -361,17 +524,6 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                     className="mt-1.5 flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="amountPaid">Amount to Pay Now (Optional)</Label>
-                  <Input
-                    id="amountPaid"
-                    type="number"
-                    placeholder="0.00"
-                    value={amountPaid}
-                    onChange={(e) => setAmountPaid(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
               </div>
             </CardContent>
             <CardFooter>
@@ -385,8 +537,8 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                   "Placing Order..."
                 ) : (
                   <>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Place Order
+                    <ShoppingBag className="h-4 w-4 mr-2" />
+                    Place Order - {formatCurrency(cartTotal)}
                   </>
                 )}
               </Button>

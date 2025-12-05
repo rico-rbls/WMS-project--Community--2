@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import type { InventoryItem } from "@/types";
 import { getInventory } from "@/services/firebase-inventory-api";
+import { getCategories } from "@/services/api";
 import { useCart } from "@/context/cart-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ShoppingCart,
   Plus,
@@ -21,26 +28,17 @@ import {
   Grid3X3,
   LayoutList,
   ArrowRight,
+  Eye,
+  X,
+  Layers,
 } from "lucide-react";
 import type { ViewType } from "@/App";
+import type { CategoryDefinition } from "@/types";
 
 // Format currency
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
 }
-
-// Category display names
-const categoryDisplayNames: Record<string, string> = {
-  "Books": "Books & Literature",
-  "Clothing": "Fashion & Apparel",
-  "Electronics": "Electronics & Gadgets",
-  "Food": "Food & Beverages",
-  "Furniture": "Home & Furniture",
-  "Health": "Health & Wellness",
-  "Sports": "Sports & Outdoors",
-  "Toys": "Toys & Games",
-  "Other": "Other Products",
-};
 
 interface ProductsCatalogViewProps {
   navigateToView: (view: ViewType) => void;
@@ -49,15 +47,22 @@ interface ProductsCatalogViewProps {
 export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps) {
   const { addToCart, getCartItem, updateQuantity, itemCount, cartTotal } = useCart();
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
+  const [categoryDefinitions, setCategoryDefinitions] = useState<CategoryDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
+  const [detailQuantity, setDetailQuantity] = useState(1);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const data = await getInventory();
-        setInventoryData(data);
+        const [inventory, cats] = await Promise.all([
+          getInventory(),
+          getCategories()
+        ]);
+        setInventoryData(inventory);
+        setCategoryDefinitions(cats);
       } catch (error) {
         toast.error("Failed to load products");
       } finally {
@@ -72,14 +77,13 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
     return inventoryData.filter(item => !item.archived);
   }, [inventoryData]);
 
-  // Get unique categories
+  // Get categories from the category definitions (matching inventory module)
   const categories = useMemo(() => {
-    const uniqueCats = [...new Set(allProducts.map(p => p.category))];
-    return uniqueCats.map(cat => ({
-      id: cat,
-      name: categoryDisplayNames[cat] || cat,
-    })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [allProducts]);
+    return categoryDefinitions.map(cat => ({
+      id: cat.name,
+      name: cat.name,
+    }));
+  }, [categoryDefinitions]);
 
   // Filtered products
   const filteredProducts = useMemo(() => {
@@ -166,7 +170,7 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
         Showing {filteredProducts.length} of {allProducts.length} products
       </div>
 
-      {/* Product Grid */}
+      {/* Product Grid - 2 columns on mobile */}
       {filteredProducts.length === 0 ? (
         <Card>
           <CardContent className="py-12">
@@ -178,7 +182,7 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
           {filteredProducts.map((product) => {
             const availability = getAvailability(product);
             const cartItem = getCartItem(product.id);
@@ -187,7 +191,10 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
             return (
               <Card key={product.id} className="group overflow-hidden hover:shadow-md transition-all">
                 {/* Product Image */}
-                <div className="aspect-[4/3] bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center relative overflow-hidden">
+                <div
+                  className="aspect-[4/3] bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center relative overflow-hidden cursor-pointer"
+                  onClick={() => { setSelectedProduct(product); setDetailQuantity(1); }}
+                >
                   {product.photoUrl ? (
                     <img
                       src={product.photoUrl}
@@ -196,63 +203,74 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
                     />
                   ) : (
                     <div className="flex flex-col items-center text-muted-foreground/50">
-                      <ImageIcon className="h-10 w-10 mb-1" />
-                      <span className="text-xs">No image</span>
+                      <ImageIcon className="h-6 w-6 sm:h-10 sm:w-10 mb-1" />
+                      <span className="text-[10px] sm:text-xs">No image</span>
                     </div>
                   )}
                   <Badge
-                    className={`absolute top-2 right-2 text-xs ${
+                    className={`absolute top-1 right-1 sm:top-2 sm:right-2 text-[10px] sm:text-xs ${
                       availability === "In Stock" ? "bg-green-500/90" :
                       availability === "Low Stock" ? "bg-amber-500/90" : "bg-red-500/90"
                     }`}
                   >
-                    {availability}
+                    {availability === "Out of Stock" ? "Out" : availability === "Low Stock" ? "Low" : "In Stock"}
                   </Badge>
+                  {/* View Details overlay on hover */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Button size="sm" variant="secondary" className="gap-1">
+                      <Eye className="h-4 w-4" />
+                      <span className="hidden sm:inline">View Details</span>
+                    </Button>
+                  </div>
                 </div>
                 {/* Product Details */}
-                <CardContent className="p-4">
-                  <h4 className="font-semibold line-clamp-1">{product.name}</h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Tag className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">{product.brand}</span>
+                <CardContent className="p-2 sm:p-4">
+                  <h4 className="font-semibold text-xs sm:text-base line-clamp-1">{product.name}</h4>
+                  <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
+                    <Tag className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
+                    <span className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1">{product.brand}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-2 min-h-[2.5rem]">
+                  <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-2 mt-1 sm:mt-2 min-h-[1.5rem] sm:min-h-[2.5rem] hidden sm:block">
                     {product.description || `Quality ${product.brand} product.`}
                   </p>
-                  <Separator className="my-3" />
-                  <div className="flex items-center justify-between">
-                    <span className={`text-lg font-bold ${availability === "Out of Stock" ? "text-muted-foreground" : "text-primary"}`}>
+                  <Separator className="my-1.5 sm:my-3" />
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`text-sm sm:text-lg font-bold ${availability === "Out of Stock" ? "text-muted-foreground" : "text-primary"}`}>
                       {formatCurrency(product.pricePerPiece)}
                     </span>
                     {availability === "Out of Stock" ? (
-                      <Button size="sm" variant="outline" disabled className="opacity-60">
-                        Out of Stock
+                      <Button size="sm" variant="outline" disabled className="opacity-60 h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3">
+                        Out
                       </Button>
                     ) : inCart ? (
-                      <div className="flex items-center gap-1.5 bg-accent rounded-lg p-1">
+                      <div className="flex items-center gap-0.5 sm:gap-1.5 bg-accent rounded-lg p-0.5 sm:p-1">
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
+                          className="h-5 w-5 sm:h-7 sm:w-7"
+                          onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
                         >
-                          <Minus className="h-3 w-3" />
+                          <Minus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         </Button>
-                        <span className="w-6 text-center font-semibold text-sm">{cartItem.quantity}</span>
+                        <span className="w-4 sm:w-6 text-center font-semibold text-[10px] sm:text-sm">{cartItem.quantity}</span>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                          className="h-5 w-5 sm:h-7 sm:w-7"
+                          onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
                           disabled={cartItem.quantity >= product.quantity}
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         </Button>
                       </div>
                     ) : (
-                      <Button size="sm" onClick={() => addToCart(product)} className="gap-1">
-                        <ShoppingCart className="h-4 w-4" />
-                        Add
+                      <Button
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                        className="gap-1 h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3"
+                      >
+                        <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Add</span>
                       </Button>
                     )}
                   </div>
@@ -262,6 +280,153 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
           })}
         </div>
       )}
+
+      {/* Product Detail Modal */}
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          {selectedProduct && (() => {
+            const availability = getAvailability(selectedProduct);
+            const cartItem = getCartItem(selectedProduct.id);
+            const inCart = !!cartItem;
+            const maxQty = selectedProduct.quantity - (cartItem?.quantity || 0);
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-xl">{selectedProduct.name}</DialogTitle>
+                </DialogHeader>
+
+                {/* Product Image */}
+                <div className="aspect-[4/3] bg-gradient-to-br from-muted/50 to-muted rounded-lg flex items-center justify-center overflow-hidden">
+                  {selectedProduct.photoUrl ? (
+                    <img
+                      src={selectedProduct.photoUrl}
+                      alt={selectedProduct.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-muted-foreground/50">
+                      <ImageIcon className="h-16 w-16 mb-2" />
+                      <span className="text-sm">No image available</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Info */}
+                <div className="space-y-4">
+                  {/* Brand & Category */}
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="gap-1">
+                      <Tag className="h-3 w-3" />
+                      {selectedProduct.brand}
+                    </Badge>
+                    <Badge variant="outline" className="gap-1">
+                      <Layers className="h-3 w-3" />
+                      {selectedProduct.category}
+                    </Badge>
+                    <Badge
+                      className={`${
+                        availability === "In Stock" ? "bg-green-500" :
+                        availability === "Low Stock" ? "bg-amber-500" : "bg-red-500"
+                      }`}
+                    >
+                      {availability}
+                    </Badge>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
+                    <p className="text-sm">
+                      {selectedProduct.description || `Quality ${selectedProduct.brand} product. Great value for your money.`}
+                    </p>
+                  </div>
+
+                  {/* Stock Info */}
+                  {availability !== "Out of Stock" && (
+                    <div className="text-sm text-muted-foreground">
+                      {selectedProduct.quantity} units available
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  {/* Price & Add to Cart */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Price</p>
+                      <p className={`text-2xl font-bold ${availability === "Out of Stock" ? "text-muted-foreground" : "text-primary"}`}>
+                        {formatCurrency(selectedProduct.pricePerPiece)}
+                      </p>
+                    </div>
+
+                    {availability === "Out of Stock" ? (
+                      <Button disabled variant="outline" className="opacity-60">
+                        Out of Stock
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        {/* Quantity Selector */}
+                        <div className="flex items-center gap-2 bg-accent rounded-lg p-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => setDetailQuantity(Math.max(1, detailQuantity - 1))}
+                            disabled={detailQuantity <= 1}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-8 text-center font-semibold">{detailQuantity}</span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => setDetailQuantity(Math.min(maxQty, detailQuantity + 1))}
+                            disabled={detailQuantity >= maxQty}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* Add to Cart Button */}
+                        <Button
+                          onClick={() => {
+                            if (inCart) {
+                              updateQuantity(selectedProduct.id, cartItem.quantity + detailQuantity);
+                            } else {
+                              for (let i = 0; i < detailQuantity; i++) {
+                                addToCart(selectedProduct);
+                              }
+                              // Adjust quantity after adding (addToCart adds with qty 1)
+                              if (detailQuantity > 1) {
+                                setTimeout(() => updateQuantity(selectedProduct.id, detailQuantity), 0);
+                              }
+                            }
+                            toast.success(`Added ${detailQuantity} × ${selectedProduct.name} to cart`);
+                            setSelectedProduct(null);
+                          }}
+                          disabled={maxQty <= 0}
+                          className="gap-2"
+                        >
+                          <ShoppingCart className="h-4 w-4" />
+                          {inCart ? "Add More" : "Add to Cart"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {inCart && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      You already have {cartItem.quantity} in your cart
+                    </p>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
