@@ -202,6 +202,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
   // Photo preview states
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Inline supplier creation states
