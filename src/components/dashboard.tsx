@@ -330,7 +330,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
         </div>
 
         {/* Secondary Stats Grid */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("inventory")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
@@ -413,7 +413,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
               <Button
                 variant="outline"
                 className="h-20 flex-col gap-2 hover:border-primary hover:bg-primary/5"

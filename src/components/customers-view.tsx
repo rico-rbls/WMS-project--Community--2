@@ -1018,6 +1018,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
                 itemLabel="customers"
               />
 
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1264,6 +1265,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
 

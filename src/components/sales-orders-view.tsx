@@ -876,14 +876,14 @@ export function SalesOrdersView() {
   // Customer simplified view
   if (isCustomer) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Orders</h1>
-            <p className="text-muted-foreground">View and track your orders</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">My Orders</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">View and track your orders</p>
           </div>
-          <Button onClick={() => setShowCustomerOrderForm(true)}>
+          <Button onClick={() => setShowCustomerOrderForm(true)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Place New Order
           </Button>
@@ -943,31 +943,31 @@ export function SalesOrdersView() {
                 }
               />
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Paid</TableHead>
-                      <TableHead>Payment</TableHead>
-                      <TableHead>Shipping Status</TableHead>
+                      <TableHead className="whitespace-nowrap">Order ID</TableHead>
+                      <TableHead className="whitespace-nowrap">Date</TableHead>
+                      <TableHead className="whitespace-nowrap">Items</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Total</TableHead>
+                      <TableHead className="text-right whitespace-nowrap hidden sm:table-cell">Paid</TableHead>
+                      <TableHead className="whitespace-nowrap">Payment</TableHead>
+                      <TableHead className="whitespace-nowrap">Shipping</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedData.map((so) => (
                       <TableRow key={so.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetailView(so)}>
-                        <TableCell className="font-medium font-mono">{so.id}</TableCell>
-                        <TableCell>{so.soDate ?? so.createdDate}</TableCell>
-                        <TableCell>
-                          <span className="text-muted-foreground">
+                        <TableCell className="font-medium font-mono text-xs sm:text-sm whitespace-nowrap">{so.id}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs sm:text-sm">{so.soDate ?? so.createdDate}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span className="text-muted-foreground text-xs sm:text-sm">
                             {so.items.length} item{so.items.length !== 1 ? "s" : ""}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(so.totalAmount)}</TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(so.amountPaid ?? 0)}</TableCell>
+                        <TableCell className="text-right font-medium whitespace-nowrap text-xs sm:text-sm">{formatCurrency(so.totalAmount)}</TableCell>
+                        <TableCell className="text-right text-green-600 hidden sm:table-cell">{formatCurrency(so.amountPaid ?? 0)}</TableCell>
                         <TableCell>
                           <Badge
                             variant={

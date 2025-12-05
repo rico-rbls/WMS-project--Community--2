@@ -192,7 +192,7 @@ export default function App() {
               setCurrentView={setCurrentView}
               setCommandPaletteOpen={setCommandPaletteOpen}
             />
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6">
               <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
                 {renderView()}
               </Suspense>

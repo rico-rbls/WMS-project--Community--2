@@ -210,13 +210,13 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigateToView("products")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Shopping Cart</h1>
-          <p className="text-muted-foreground">{itemCount} item(s) in your cart</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Shopping Cart</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">{itemCount} item(s) in your cart</p>
         </div>
       </div>
 
@@ -225,24 +225,48 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
         <div className="lg:col-span-2 space-y-4">
           {cart.map((item) => (
             <Card key={item.inventoryItemId}>
-              <CardContent className="p-4">
-                <div className="flex gap-4">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex gap-3 sm:gap-4">
                   {/* Product Image */}
-                  <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.itemName} className="w-full h-full object-cover" />
                     ) : (
-                      <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+                      <ImageIcon className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground/50" />
                     )}
                   </div>
                   {/* Item Details */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold">{item.itemName}</h4>
-                    <p className="text-sm text-muted-foreground">{item.brand}</p>
-                    <p className="text-primary font-medium mt-1">{formatCurrency(item.unitPrice)}</p>
+                    <h4 className="font-semibold text-sm sm:text-base line-clamp-2">{item.itemName}</h4>
+                    <p className="text-xs sm:text-sm text-muted-foreground">{item.brand}</p>
+                    <p className="text-primary font-medium mt-1 text-sm sm:text-base">{formatCurrency(item.unitPrice)}</p>
+                    {/* Mobile: Quantity controls inline */}
+                    <div className="flex items-center justify-between mt-2 sm:hidden">
+                      <div className="flex items-center gap-1 bg-accent rounded-lg p-0.5">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => updateQuantity(item.inventoryItemId, item.quantity - 1)}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center font-semibold text-sm">{item.quantity}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => updateQuantity(item.inventoryItemId, item.quantity + 1)}
+                          disabled={item.quantity >= item.availableStock}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="font-semibold text-sm">{formatCurrency(item.totalPrice)}</p>
+                    </div>
                   </div>
-                  {/* Quantity Controls */}
-                  <div className="flex flex-col items-end gap-2">
+                  {/* Desktop: Quantity Controls */}
+                  <div className="hidden sm:flex flex-col items-end gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -273,6 +297,15 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                     </div>
                     <p className="font-semibold">{formatCurrency(item.totalPrice)}</p>
                   </div>
+                  {/* Mobile: Delete button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive shrink-0 sm:hidden"
+                    onClick={() => removeFromCart(item.inventoryItemId)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>

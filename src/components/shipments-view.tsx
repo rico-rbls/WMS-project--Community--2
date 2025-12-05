@@ -940,6 +940,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                 itemLabel="shipments"
               />
 
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1177,6 +1178,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
                   })}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination Controls */}
               {filteredShipments.length > 0 && (

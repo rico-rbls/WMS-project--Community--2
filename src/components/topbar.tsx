@@ -1,4 +1,4 @@
-import { Search, Command, User, LogOut, ChevronDown, Bell, ShoppingCart, Check } from "lucide-react";
+import { Search, Command, User, LogOut, ChevronDown, Bell, ShoppingCart, Check, Menu } from "lucide-react";
 import { useAuth } from "../context/auth-context";
 import { useNotifications } from "../context/notifications-context";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { useSidebar } from "./ui/sidebar";
 import { ViewType } from "../App";
 
 interface TopbarProps {
@@ -23,6 +24,7 @@ interface TopbarProps {
 export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { toggleSidebar, isMobile } = useSidebar();
   const canSeeNotifications = user?.role === "Owner" || user?.role === "Admin";
 
   const formatTimeAgo = (dateString: string) => {
@@ -45,7 +47,20 @@ export function Topbar({ setCurrentView, setCommandPaletteOpen }: TopbarProps) {
   };
 
   return (
-    <header className="shrink-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
+    <header className="shrink-0 z-50 flex h-14 items-center gap-2 sm:gap-4 border-b bg-background px-3 sm:px-6">
+      {/* Mobile Hamburger Menu */}
+      {isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0 md:hidden"
+          onClick={toggleSidebar}
+          aria-label="Toggle menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      )}
+
       {/* Left Side - Application Title */}
       <div className="min-w-0 flex-1">
         <h1 className="text-sm font-semibold truncate sm:text-base">

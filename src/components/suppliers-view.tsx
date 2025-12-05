@@ -1067,6 +1067,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                 itemLabel="suppliers"
               />
 
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1427,6 +1428,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                   })}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination Controls */}
               {filteredSuppliers.length > 0 && (

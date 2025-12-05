@@ -2308,6 +2308,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                 itemLabel="items"
               />
 
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2968,6 +2969,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
                   })}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination Controls */}
               {filteredItems.length > 0 && (
@@ -2986,7 +2988,7 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
 
       {/* Import Preview Dialog */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[80vh]">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
