@@ -147,11 +147,28 @@ async function getUsersFromFirestore(): Promise<StoredUser[]> {
   }
 }
 
-// Helper to update a user in Firestore
+// Helper to update a user in Firestore (creates document if it doesn't exist)
 async function updateUserInFirestore(userId: string, updates: Partial<StoredUser>): Promise<void> {
   try {
     const userRef = doc(db, COLLECTIONS.USERS, userId);
-    await updateDoc(userRef, updates);
+    // First try to update
+    try {
+      await updateDoc(userRef, updates);
+    } catch (updateError: unknown) {
+      // If document doesn't exist, check if it's a default user and create it
+      if (updateError instanceof Error && updateError.message.includes("No document to update")) {
+        const defaultUser = DEFAULT_USERS.find(u => u.id === userId);
+        if (defaultUser) {
+          // Create the default user in Firestore with the updates
+          await setDoc(userRef, { ...defaultUser, ...updates });
+          console.log("Created default user in Firestore:", userId);
+        } else {
+          throw updateError;
+        }
+      } else {
+        throw updateError;
+      }
+    }
   } catch (error) {
     console.error("Error updating user in Firestore:", error);
     throw error;
