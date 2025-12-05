@@ -48,6 +48,9 @@ import {
   UserCheck,
   Landmark,
   Wallet,
+  ShoppingCart,
+  Store,
+  Home,
 } from "lucide-react";
 import { ViewType } from "../App";
 import { useAuth } from "../context/auth-context";
@@ -67,7 +70,7 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
 
   const isCustomer = user?.role === "Customer";
 
-  // Full menu items for non-customer users
+  // Full menu items for non-customer users (Admin/Owner)
   const fullMenuItems = [
     { id: "dashboard" as ViewType, label: "Dashboard", icon: LayoutDashboard },
     { id: "inventory" as ViewType, label: "Inventory", icon: Package },
@@ -80,8 +83,11 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "payments" as ViewType, label: "Payments", icon: Wallet },
   ];
 
-  // Customer-only menu items (limited access)
+  // Customer-only menu items (e-commerce style navigation)
   const customerMenuItems = [
+    { id: "customer-dashboard" as ViewType, label: "Home", icon: Home },
+    { id: "products" as ViewType, label: "Products", icon: Store },
+    { id: "customer-cart" as ViewType, label: "My Cart", icon: ShoppingCart },
     { id: "sales-orders" as ViewType, label: "My Orders", icon: Receipt },
     { id: "shipments" as ViewType, label: "My Shipments", icon: Truck },
   ];

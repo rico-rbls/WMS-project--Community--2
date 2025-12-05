@@ -13,18 +13,24 @@ const UserManagementView = React.lazy(() => import("./components/user-management
 const AdminProfileView = React.lazy(() => import("./components/admin-profile-view").then(m => ({ default: m.AdminProfileView })));
 const CashBankView = React.lazy(() => import("./components/cash-bank-view").then(m => ({ default: m.CashBankView })));
 const PaymentsView = React.lazy(() => import("./components/payments-view").then(m => ({ default: m.PaymentsView })));
+// Customer-specific views
+const CustomerDashboard = React.lazy(() => import("./components/customer-dashboard").then(m => ({ default: m.CustomerDashboard })));
+const ProductsCatalogView = React.lazy(() => import("./components/products-catalog-view").then(m => ({ default: m.ProductsCatalogView })));
+const CustomerCartView = React.lazy(() => import("./components/customer-cart-view").then(m => ({ default: m.CustomerCartView })));
 import { Toaster } from "./components/ui/sonner";
 import { ErrorBoundary } from "./components/error-boundary";
 import { LoginPage } from "./components/login-page";
 import { useAuth } from "./context/auth-context";
+import { CartProvider } from "./context/cart-context";
 import { Loader2 } from "lucide-react";
 import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
-export type ViewType = "dashboard" | "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile";
+
+export type ViewType = "dashboard" | "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile" | "customer-dashboard" | "products" | "customer-cart";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile", "customer-dashboard", "products", "customer-cart"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -164,6 +170,13 @@ export default function App() {
         return <UserManagementView />;
       case "profile":
         return <AdminProfileView />;
+      // Customer-specific views
+      case "customer-dashboard":
+        return <CustomerDashboard navigateToView={navigateToView} />;
+      case "products":
+        return <ProductsCatalogView navigateToView={navigateToView} />;
+      case "customer-cart":
+        return <CustomerCartView navigateToView={navigateToView} />;
       default:
         return <Dashboard navigateToView={navigateToView} />;
     }
@@ -171,29 +184,31 @@ export default function App() {
 
   return (
     <ErrorBoundary onError={reportError}>
-      <SidebarProvider>
-        <AppSidebar currentView={currentView} setCurrentView={setCurrentView} />
-        <SidebarInset className="flex flex-col bg-muted/30 h-screen overflow-hidden">
-          <Topbar
-            setCurrentView={setCurrentView}
-            setCommandPaletteOpen={setCommandPaletteOpen}
+      <CartProvider>
+        <SidebarProvider>
+          <AppSidebar currentView={currentView} setCurrentView={setCurrentView} />
+          <SidebarInset className="flex flex-col bg-muted/30 h-screen overflow-hidden">
+            <Topbar
+              setCurrentView={setCurrentView}
+              setCommandPaletteOpen={setCommandPaletteOpen}
+            />
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+              <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
+                {renderView()}
+              </Suspense>
+            </div>
+          </SidebarInset>
+
+          {/* Command Palette / Global Search */}
+          <CommandPalette
+            open={commandPaletteOpen}
+            onOpenChange={setCommandPaletteOpen}
+            onNavigate={handleCommandPaletteNavigate}
           />
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
-            <Suspense fallback={<div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>}>
-              {renderView()}
-            </Suspense>
-          </div>
-        </SidebarInset>
 
-        {/* Command Palette / Global Search */}
-        <CommandPalette
-          open={commandPaletteOpen}
-          onOpenChange={setCommandPaletteOpen}
-          onNavigate={handleCommandPaletteNavigate}
-        />
-
-        <Toaster />
-      </SidebarProvider>
+          <Toaster />
+        </SidebarProvider>
+      </CartProvider>
     </ErrorBoundary>
   );
 }
