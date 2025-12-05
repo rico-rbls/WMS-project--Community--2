@@ -56,6 +56,7 @@ import {
   Eye,
   ArrowLeft,
   Printer,
+  AlertCircle,
 } from "lucide-react";
 import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 
@@ -1309,21 +1310,90 @@ export function SalesOrdersView() {
         </CardContent>
       </Card>
 
-      {/* Bulk Delete/Archive Confirmation Dialog */}
-      <BulkDeleteDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        itemCount={selectionCount}
-        itemType="sales order"
-        onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
-        title={showArchived ? "Permanently Delete Sales Orders?" : "Archive Sales Orders?"}
-        description={
-          showArchived
-            ? `This will permanently delete ${selectionCount} sales order(s). This action cannot be undone.`
-            : `This will archive ${selectionCount} sales order(s). You can restore them later from the archived view.`
-        }
-        confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
-      />
+      {/* Bulk Delete/Archive Dialog - Two-tier for active items, single option for archived */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Delete {selectionCount} Sales Order{selectionCount !== 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {showArchived
+                ? "These sales orders are already archived. This action will permanently remove them from the system."
+                : "Choose how you want to delete the selected sales orders:"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {showArchived ? (
+            // Archived items - only permanent delete option
+            <div className="space-y-4 pt-2">
+              <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                <div className="flex items-start gap-2">
+                  <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                  <div>
+                    <p className="font-medium text-destructive">Permanent Deletion</p>
+                    <p className="text-sm text-muted-foreground">
+                      This cannot be undone. All data will be permanently removed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleBulkPermanentDelete}>
+                  Permanently Delete All
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // Active items - show both options
+            <div className="space-y-4 pt-2">
+              {/* Archive Option */}
+              <div className="p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                <div className="flex items-start gap-2">
+                  <Archive className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="font-medium">Archive</p>
+                    <p className="text-sm text-muted-foreground">
+                      Move to archive. Sales orders can be restored later.
+                    </p>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={handleBulkArchive}>
+                    Archive
+                  </Button>
+                </div>
+              </div>
+
+              {/* Permanent Delete Option */}
+              {canPermanentlyDelete && (
+                <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                  <div className="flex items-start gap-2">
+                    <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                    <div className="flex-1">
+                      <p className="font-medium text-destructive">Delete Permanently</p>
+                      <p className="text-sm text-muted-foreground">
+                        Cannot be undone. Data will be permanently removed.
+                      </p>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={handleBulkPermanentDelete}>
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

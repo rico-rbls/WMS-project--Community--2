@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -930,22 +930,104 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
             />
           )}
 
-          {/* Bulk Delete/Archive Dialog */}
-          <BulkDeleteDialog
-            open={showBulkDeleteDialog}
-            onOpenChange={setShowBulkDeleteDialog}
-            itemCount={selectionCount}
-            itemType="supplier"
-            itemNames={selectedSupplierNames}
-            onConfirm={showArchived ? handleBulkPermanentDelete : handleBulkArchive}
-            isLoading={isBulkDeleting}
-            title={showArchived ? "Permanently Delete Suppliers" : "Archive Suppliers"}
-            description={showArchived
-              ? `Are you sure you want to permanently delete ${selectionCount} supplier${selectionCount !== 1 ? "s" : ""}? This action cannot be undone.`
-              : `Are you sure you want to archive ${selectionCount} supplier${selectionCount !== 1 ? "s" : ""}? Archived suppliers can be restored later.`
-            }
-            confirmLabel={showArchived ? "Permanently Delete" : "Archive"}
-          />
+          {/* Bulk Delete/Archive Dialog - Two-tier for active items, single option for archived */}
+          <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  Delete {selectionCount} Supplier{selectionCount !== 1 ? "s" : ""}
+                </DialogTitle>
+                <DialogDescription>
+                  {showArchived
+                    ? "These suppliers are already archived. This action will permanently remove them from the system."
+                    : "Choose how you want to delete the selected suppliers:"}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Show selected supplier names */}
+              {selectedSupplierNames.length > 0 && (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-muted/50">
+                  <ul className="text-sm space-y-1">
+                    {selectedSupplierNames.slice(0, 10).map((name, idx) => (
+                      <li key={idx} className="truncate">• {name}</li>
+                    ))}
+                    {selectedSupplierNames.length > 10 && (
+                      <li className="text-muted-foreground">...and {selectedSupplierNames.length - 10} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {showArchived ? (
+                // Archived items - only permanent delete option
+                <div className="space-y-4 pt-2">
+                  <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                    <div className="flex items-start gap-2">
+                      <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                      <div>
+                        <p className="font-medium text-destructive">Permanent Deletion</p>
+                        <p className="text-sm text-muted-foreground">
+                          This cannot be undone. All data will be permanently removed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                      Cancel
+                    </Button>
+                    <Button variant="destructive" onClick={handleBulkPermanentDelete} disabled={isBulkDeleting}>
+                      {isBulkDeleting ? "Deleting..." : "Permanently Delete All"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Active items - show both options
+                <div className="space-y-4 pt-2">
+                  {/* Archive Option */}
+                  <div className="p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start gap-2">
+                      <Archive className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="font-medium">Archive</p>
+                        <p className="text-sm text-muted-foreground">
+                          Move to archive. Suppliers can be restored later.
+                        </p>
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={handleBulkArchive} disabled={isBulkDeleting}>
+                        {isBulkDeleting ? "..." : "Archive"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Permanent Delete Option */}
+                  {canPermanentlyDelete && (
+                    <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                      <div className="flex items-start gap-2">
+                        <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                        <div className="flex-1">
+                          <p className="font-medium text-destructive">Delete Permanently</p>
+                          <p className="text-sm text-muted-foreground">
+                            Cannot be undone. Data will be permanently removed.
+                          </p>
+                        </div>
+                        <Button variant="destructive" size="sm" onClick={handleBulkPermanentDelete} disabled={isBulkDeleting}>
+                          {isBulkDeleting ? "..." : "Delete"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {isLoading ? (
             <TableLoadingSkeleton rows={8} />

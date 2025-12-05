@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star, TrendingUp, Clock, CheckCircle, Filter, Calendar } from "lucide-react";
+import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star, TrendingUp, Clock, CheckCircle, Filter, Calendar, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -864,16 +864,56 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
             />
           )}
 
-          {/* Bulk Delete Dialog */}
-          <BulkDeleteDialog
-            open={showBulkDeleteDialog}
-            onOpenChange={setShowBulkDeleteDialog}
-            itemCount={selectionCount}
-            itemType="shipment"
-            itemNames={selectedShipmentNames}
-            onConfirm={handleBulkDelete}
-            isLoading={isBulkDeleting}
-          />
+          {/* Bulk Delete Dialog - Consistent styling with other modules */}
+          <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  Delete {selectionCount} Shipment{selectionCount !== 1 ? "s" : ""}
+                </DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete the selected shipments?
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Show selected shipment names */}
+              {selectedShipmentNames.length > 0 && (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-muted/50">
+                  <ul className="text-sm space-y-1">
+                    {selectedShipmentNames.slice(0, 10).map((name, idx) => (
+                      <li key={idx} className="truncate">• {name}</li>
+                    ))}
+                    {selectedShipmentNames.length > 10 && (
+                      <li className="text-muted-foreground">...and {selectedShipmentNames.length - 10} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              <div className="space-y-4 pt-2">
+                <div className="p-3 border border-destructive/50 rounded-md bg-destructive/10">
+                  <div className="flex items-start gap-2">
+                    <Trash2 className="h-4 w-4 mt-0.5 text-destructive" />
+                    <div>
+                      <p className="font-medium text-destructive">Delete Shipments</p>
+                      <p className="text-sm text-muted-foreground">
+                        This action cannot be undone. Selected shipments will be permanently removed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkDeleting}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={handleBulkDelete} disabled={isBulkDeleting}>
+                    {isBulkDeleting ? "Deleting..." : "Delete All"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {isLoading ? (
             <TableLoadingSkeleton rows={8} />
