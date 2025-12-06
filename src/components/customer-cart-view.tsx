@@ -8,7 +8,8 @@ import {
   createFirebaseCustomer,
   updateFirebaseCustomer,
 } from "@/services/firebase-customers-api";
-import { createFirebaseSalesOrder } from "@/services/firebase-sales-orders-api";
+import { createFirebaseSalesOrder, updateFirebaseSalesOrder } from "@/services/firebase-sales-orders-api";
+import { createFirebaseShipment } from "@/services/firebase-shipments-api";
 import type { Customer, SalesOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -176,7 +177,32 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
         notes: notes || undefined,
         amountPaid: 0,
         createdBy: user.email, // Critical for order tracking - must match user.email
+        shippingStatus: "Processing", // Auto-set to Processing since shipment will be created
       });
+
+      // Automatically create shipment for the order
+      try {
+        await createFirebaseShipment({
+          salesOrderId: order.id,
+          destination: effectiveDeliveryAddress,
+          carrier: "Pending Assignment", // Admin will assign carrier later
+          status: "Pending",
+          eta: undefined, // Admin will set ETA later
+        });
+        console.log("[Checkout] Shipment auto-created for order:", order.id);
+      } catch (shipmentError) {
+        // If shipment creation fails, still proceed - order was created successfully
+        // Just update the order's shipping status back to "Pending"
+        console.warn("[Checkout] Failed to auto-create shipment:", shipmentError);
+        try {
+          await updateFirebaseSalesOrder({
+            id: order.id,
+            shippingStatus: "Pending",
+          });
+        } catch {
+          // Ignore update error - order still exists
+        }
+      }
 
       setOrderPlaced(order);
       clearCart();
