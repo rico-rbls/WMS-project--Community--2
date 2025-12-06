@@ -1,25 +1,31 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  getSalesOrders,
-  getCustomers,
-  createSalesOrder,
-  updateSalesOrder,
-  deleteSalesOrder,
-  archiveSalesOrder,
-  restoreSalesOrder,
-  permanentlyDeleteSalesOrder,
-  bulkDeleteSalesOrders,
-  bulkArchiveSalesOrders,
-  bulkRestoreSalesOrders,
-  bulkPermanentlyDeleteSalesOrders,
-  getShipments,
-  createShipment,
   getCashBankTransactions,
   createCashBankTransaction,
-  updateCustomer,
 } from "@/services/api";
 import { getInventory, updateInventoryItem } from "@/services/firebase-inventory-api";
+import {
+  getFirebaseSalesOrders,
+  createFirebaseSalesOrder,
+  updateFirebaseSalesOrder,
+  archiveFirebaseSalesOrder,
+  restoreFirebaseSalesOrder,
+  permanentlyDeleteFirebaseSalesOrder,
+  bulkArchiveFirebaseSalesOrders,
+  bulkRestoreFirebaseSalesOrders,
+  bulkPermanentlyDeleteFirebaseSalesOrders,
+} from "@/services/firebase-sales-orders-api";
+import {
+  getFirebaseCustomers,
+  updateFirebaseCustomer,
+} from "@/services/firebase-customers-api";
+import {
+  getFirebaseShipments,
+  createFirebaseShipment,
+} from "@/services/firebase-shipments-api";
+// Context hooks available for real-time updates if needed:
+// import { useSalesOrders, useCustomers, useShipments } from "@/context/app-context";
 import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus, Shipment, CashBankTransaction, PaymentMode } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useNotifications } from "@/context/notifications-context";
@@ -174,10 +180,10 @@ export function SalesOrdersView() {
   const loadAllData = useCallback(async () => {
     try {
       const [soData, custData, invData, shipData, payData] = await Promise.all([
-        getSalesOrders(),
-        getCustomers(),
+        getFirebaseSalesOrders(),
+        getFirebaseCustomers(),
         getInventory(),
-        getShipments(),
+        getFirebaseShipments(),
         getCashBankTransactions(),
       ]);
       setSalesOrdersData(soData);
@@ -452,7 +458,7 @@ export function SalesOrdersView() {
       const newBalance = detailViewSO.totalAmount - newTotalReceived;
       const newStatus: ReceiptStatus = newBalance <= 0 ? "Paid" : newBalance < detailViewSO.totalAmount ? "Partially Paid" : "Unpaid";
 
-      await updateSalesOrder({
+      await updateFirebaseSalesOrder({
         id: detailViewSO.id,
         totalReceived: newTotalReceived,
         receiptStatus: newStatus,
@@ -460,7 +466,7 @@ export function SalesOrdersView() {
 
       // Update customer balance
       if (customer) {
-        await updateCustomer({
+        await updateFirebaseCustomer({
           id: customer.id,
           payments: (customer.payments || 0) + paymentForm.amountReceived,
         });
@@ -483,7 +489,7 @@ export function SalesOrdersView() {
     }
 
     try {
-      await createShipment({
+      await createFirebaseShipment({
         salesOrderId: detailViewSO.id,
         destination: shipmentForm.destination || detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`,
         carrier: shipmentForm.carrier,
@@ -492,7 +498,7 @@ export function SalesOrdersView() {
       });
 
       // Update order shipping status
-      await updateSalesOrder({
+      await updateFirebaseSalesOrder({
         id: detailViewSO.id,
         shippingStatus: "Processing",
       });
@@ -604,7 +610,7 @@ export function SalesOrdersView() {
       return;
     }
     try {
-      const newSO = await createSalesOrder({
+      const newSO = await createFirebaseSalesOrder({
         soDate: form.soDate,
         customerId: form.customerId,
         customerName: form.customerName,
@@ -652,7 +658,7 @@ export function SalesOrdersView() {
     customerCountry: string;
     customerCity: string;
   }): Promise<SalesOrder> => {
-    const newSO = await createSalesOrder({
+    const newSO = await createFirebaseSalesOrder({
       soDate: new Date().toISOString().split("T")[0],
       customerId: orderData.customerId,
       customerName: orderData.customerName,
@@ -699,7 +705,7 @@ export function SalesOrdersView() {
         existingOrder?.items?.map((item) => [item.inventoryItemId, item.quantityShipped ?? 0]) ?? []
       );
 
-      const updated = await updateSalesOrder({
+      const updated = await updateFirebaseSalesOrder({
         id,
         soDate: form.soDate,
         customerId: form.customerId,
@@ -730,7 +736,7 @@ export function SalesOrdersView() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteSalesOrder(id);
+      await permanentlyDeleteFirebaseSalesOrder(id);
       setSalesOrdersData((prev) => prev?.filter((so) => so.id !== id) ?? []);
       toast.success(`Sales Order ${id} deleted`);
       setIsEditOpen(null);
@@ -741,7 +747,7 @@ export function SalesOrdersView() {
 
   const handleArchive = async (id: string) => {
     try {
-      await archiveSalesOrder(id);
+      await archiveFirebaseSalesOrder(id);
       setSalesOrdersData((prev) => prev?.map((so) => (so.id === id ? { ...so, archived: true } : so)) ?? []);
       toast.success(`Sales Order ${id} archived`);
     } catch (error) {
@@ -751,7 +757,7 @@ export function SalesOrdersView() {
 
   const handleRestore = async (id: string) => {
     try {
-      await restoreSalesOrder(id);
+      await restoreFirebaseSalesOrder(id);
       setSalesOrdersData((prev) => prev?.map((so) => (so.id === id ? { ...so, archived: false } : so)) ?? []);
       toast.success(`Sales Order ${id} restored`);
     } catch (error) {
@@ -761,13 +767,13 @@ export function SalesOrdersView() {
 
   const handleBulkArchive = async () => {
     try {
-      const result = await bulkArchiveSalesOrders(Array.from(selectedIds));
+      const result = await bulkArchiveFirebaseSalesOrders(Array.from(selectedIds));
       if (result.success) {
         toast.success(`${result.successCount} sales orders archived`);
       } else {
         toast.warning(`${result.successCount} archived, ${result.failedCount} failed`);
       }
-      const updatedSOs = await getSalesOrders();
+      const updatedSOs = await getFirebaseSalesOrders();
       setSalesOrdersData(updatedSOs);
       deselectAll();
       setBulkDeleteOpen(false);
@@ -778,13 +784,13 @@ export function SalesOrdersView() {
 
   const handleBulkRestore = async () => {
     try {
-      const result = await bulkRestoreSalesOrders(Array.from(selectedIds));
+      const result = await bulkRestoreFirebaseSalesOrders(Array.from(selectedIds));
       if (result.success) {
         toast.success(`${result.successCount} sales orders restored`);
       } else {
         toast.warning(`${result.successCount} restored, ${result.failedCount} failed`);
       }
-      const updatedSOs = await getSalesOrders();
+      const updatedSOs = await getFirebaseSalesOrders();
       setSalesOrdersData(updatedSOs);
       deselectAll();
     } catch (error) {
@@ -794,7 +800,7 @@ export function SalesOrdersView() {
 
   const handleBulkPermanentDelete = async () => {
     try {
-      const result = await bulkPermanentlyDeleteSalesOrders(Array.from(selectedIds));
+      const result = await bulkPermanentlyDeleteFirebaseSalesOrders(Array.from(selectedIds));
       if (result.success) {
         toast.success(`${result.successCount} sales orders permanently deleted`);
       } else {

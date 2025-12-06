@@ -1,18 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { getPurchaseOrders, getSuppliers } from "@/services/api";
 import {
-  getPaymentTransactions,
-  getPurchaseOrders,
-  getSuppliers,
-  createPaymentTransaction,
-  updatePaymentTransaction,
-  deletePaymentTransaction,
-  archivePaymentTransaction,
-  restorePaymentTransaction,
-  batchArchivePaymentTransactions,
-  batchRestorePaymentTransactions,
-  batchDeletePaymentTransactions,
-} from "@/services/api";
+  getFirebasePayments,
+  createFirebasePayment,
+  updateFirebasePayment,
+  archiveFirebasePayment,
+  restoreFirebasePayment,
+  permanentlyDeleteFirebasePayment,
+  bulkArchiveFirebasePayments,
+  bulkRestoreFirebasePayments,
+  bulkPermanentlyDeleteFirebasePayments,
+} from "@/services/firebase-payments-api";
 import type { PaymentTransaction, PurchaseOrder, Supplier, PaymentMode } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { getUserRole, hasPermission } from "@/lib/permissions";
@@ -113,7 +112,7 @@ export function PaymentsView() {
     const loadData = async () => {
       try {
         const [trxData, poData, supplierData] = await Promise.all([
-          getPaymentTransactions(),
+          getFirebasePayments(),
           getPurchaseOrders(),
           getSuppliers(),
         ]);
@@ -280,7 +279,7 @@ export function PaymentsView() {
       return;
     }
     try {
-      const newTrx = await createPaymentTransaction({
+      const newTrx = await createFirebasePayment({
         trxDate: form.trxDate,
         supplierId: form.supplierId,
         supplierName: form.supplierName,
@@ -308,7 +307,7 @@ export function PaymentsView() {
       return;
     }
     try {
-      const updated = await updatePaymentTransaction({
+      const updated = await updateFirebasePayment({
         id,
         trxDate: form.trxDate,
         supplierId: form.supplierId,
@@ -332,7 +331,7 @@ export function PaymentsView() {
 
   const handleArchive = async (id: string) => {
     try {
-      const archived = await archivePaymentTransaction(id);
+      const archived = await archiveFirebasePayment(id);
       setTransactionsData((prev) => prev?.map((trx) => (trx.id === id ? archived : trx)) ?? []);
       toast.success(`Transaction ${id} archived`);
     } catch (error) {
@@ -342,7 +341,7 @@ export function PaymentsView() {
 
   const handleRestore = async (id: string) => {
     try {
-      const restored = await restorePaymentTransaction(id);
+      const restored = await restoreFirebasePayment(id);
       setTransactionsData((prev) => prev?.map((trx) => (trx.id === id ? restored : trx)) ?? []);
       toast.success(`Transaction ${id} restored`);
     } catch (error) {
@@ -352,7 +351,7 @@ export function PaymentsView() {
 
   const handlePermanentDelete = async (id: string) => {
     try {
-      await deletePaymentTransaction(id);
+      await permanentlyDeleteFirebasePayment(id);
       setTransactionsData((prev) => prev?.filter((trx) => trx.id !== id) ?? []);
       toast.success(`Transaction ${id} permanently deleted`);
     } catch (error) {
@@ -362,7 +361,7 @@ export function PaymentsView() {
 
   const handleBulkArchive = async () => {
     try {
-      await batchArchivePaymentTransactions(Array.from(selectedIds));
+      await bulkArchiveFirebasePayments(Array.from(selectedIds) as string[]);
       setTransactionsData((prev) =>
         prev?.map((trx) =>
           selectedIds.has(trx.id) ? { ...trx, archived: true, archivedAt: new Date().toISOString() } : trx
@@ -377,7 +376,7 @@ export function PaymentsView() {
 
   const handleBulkRestore = async () => {
     try {
-      await batchRestorePaymentTransactions(Array.from(selectedIds));
+      await bulkRestoreFirebasePayments(Array.from(selectedIds) as string[]);
       setTransactionsData((prev) =>
         prev?.map((trx) =>
           selectedIds.has(trx.id) ? { ...trx, archived: false, archivedAt: undefined } : trx
@@ -392,7 +391,7 @@ export function PaymentsView() {
 
   const handleBulkDelete = async () => {
     try {
-      await batchDeletePaymentTransactions(Array.from(selectedIds));
+      await bulkPermanentlyDeleteFirebasePayments(Array.from(selectedIds) as string[]);
       setTransactionsData((prev) => prev?.filter((trx) => !selectedIds.has(trx.id)) ?? []);
       toast.success(`${selectionCount} transactions permanently deleted`);
       deselectAll();

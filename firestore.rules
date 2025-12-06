@@ -99,6 +99,85 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // Sales Orders Collection Rules
+    // ============================================================================
+
+    match /sales_orders/{orderId} {
+      // Customers can read their own orders, Admins/Owners can read all
+      allow read: if isAuthenticated() && (
+        isAdminOrOwner() ||
+        resource.data.createdBy == request.auth.token.email
+      );
+
+      // Customers can create orders, Operators and above can create/update
+      allow create: if isAuthenticated();
+      allow update: if canWrite() || resource.data.createdBy == request.auth.token.email;
+
+      // Only Admins and Owners can delete orders
+      allow delete: if isAdminOrOwner();
+    }
+
+    // ============================================================================
+    // Customers Collection Rules
+    // ============================================================================
+
+    match /customers/{customerId} {
+      // Anyone authenticated can read customers
+      allow read: if canRead();
+
+      // Operators and above can create/update customers
+      // Customers can also create/update their own profile
+      allow create: if isAuthenticated();
+      allow update: if canWrite() || resource.data.email == request.auth.token.email;
+
+      // Only Admins and Owners can delete customers
+      allow delete: if isAdminOrOwner();
+    }
+
+    // ============================================================================
+    // Shipments Collection Rules
+    // ============================================================================
+
+    match /shipments/{shipmentId} {
+      // Anyone authenticated can read shipments
+      allow read: if canRead();
+
+      // Operators and above can create/update/delete shipments
+      allow create, update: if canWrite();
+      allow delete: if isAdminOrOwner();
+    }
+
+    // ============================================================================
+    // Payment Transactions Collection Rules
+    // ============================================================================
+
+    match /payment_transactions/{paymentId} {
+      // Anyone authenticated can read payments
+      allow read: if canRead();
+
+      // Operators and above can create/update payments
+      allow create, update: if canWrite();
+
+      // Only Admins and Owners can delete payments
+      allow delete: if isAdminOrOwner();
+    }
+
+    // ============================================================================
+    // Notifications Collection Rules
+    // ============================================================================
+
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated();
+
+      // Anyone authenticated can create notifications
+      allow create: if isAuthenticated();
+
+      // Users can update/delete their own notifications
+      allow update, delete: if isAuthenticated();
+    }
+
+    // ============================================================================
     // Development/Testing Rules (REMOVE IN PRODUCTION)
     // ============================================================================
 
@@ -113,6 +192,26 @@ service cloud.firestore {
     }
 
     match /wms_suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
+    match /sales_orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+
+    match /shipments/{shipmentId} {
+      allow read, write: if true;
+    }
+
+    match /payment_transactions/{paymentId} {
+      allow read, write: if true;
+    }
+
+    match /notifications/{notificationId} {
       allow read, write: if true;
     }
   }

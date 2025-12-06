@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useNotifications } from "@/context/notifications-context";
-import { getCustomers, createCustomer, updateCustomer, createSalesOrder } from "@/services/api";
+import {
+  getFirebaseCustomers,
+  createFirebaseCustomer,
+  updateFirebaseCustomer,
+} from "@/services/firebase-customers-api";
+import { createFirebaseSalesOrder } from "@/services/firebase-sales-orders-api";
 import type { Customer, SalesOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -57,7 +62,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
 
   // Load customers data
   useEffect(() => {
-    getCustomers().then(setCustomersData).catch(() => {});
+    getFirebaseCustomers().then(setCustomersData).catch(() => {});
   }, []);
 
   // Find customer record matching logged-in user
@@ -114,7 +119,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
         const city = addressParts.length > 1 ? addressParts[1] : "";
         const address = addressParts[0] || effectiveDeliveryAddress;
 
-        customer = await createCustomer({
+        customer = await createFirebaseCustomer({
           name: displayName,
           contact: displayName,
           email: user.email,
@@ -145,7 +150,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
           }
         }
 
-        customer = await updateCustomer(updates);
+        customer = await updateFirebaseCustomer(updates);
         setCustomersData(prev => prev.map(c => c.id === customer!.id ? customer! : c));
       }
 
@@ -158,7 +163,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       }));
 
       // Create order with createdBy set to user email for tracking
-      const order = await createSalesOrder({
+      const order = await createFirebaseSalesOrder({
         customerId: customer.id,
         customerName: customer.name,
         customerCountry: customer.country || "Philippines",

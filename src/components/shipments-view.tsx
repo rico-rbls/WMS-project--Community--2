@@ -13,7 +13,14 @@ import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { DateRangeFilter } from "./ui/date-range-filter";
-import { createShipment, deleteShipment, getShipments, getSalesOrders, updateShipment, bulkDeleteShipments, bulkUpdateShipmentStatus } from "../services/api";
+import {
+  getFirebaseShipments,
+  createFirebaseShipment,
+  updateFirebaseShipment,
+  permanentlyDeleteFirebaseShipment,
+  bulkPermanentlyDeleteFirebaseShipments,
+} from "../services/firebase-shipments-api";
+import { getFirebaseSalesOrders } from "../services/firebase-sales-orders-api";
 import type { Shipment, SalesOrder } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
@@ -85,8 +92,8 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
     (async () => {
       setIsLoading(true);
       const [shipments, salesOrders] = await Promise.all([
-        getShipments(),
-        getSalesOrders(),
+        getFirebaseShipments(),
+        getFirebaseSalesOrders(),
       ]);
       setShipmentsData(shipments);
       setSalesOrdersData(salesOrders);
@@ -356,7 +363,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       return;
     }
     try {
-      const created = await createShipment({ salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      const created = await createFirebaseShipment({ salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
       setShipmentsData((prev) => [created, ...(prev ?? [])]);
       setIsAddOpen(false);
       resetForm();
@@ -377,7 +384,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       return;
     }
     try {
-      const updated = await updateShipment({ id: form.id, salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
+      const updated = await updateFirebaseShipment({ id: form.id, salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
       setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
       setIsEditOpen(null);
       toast.success("Shipment updated successfully");
@@ -388,7 +395,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
 
   async function handleDelete(id: string) {
     try {
-      await deleteShipment(id);
+      await permanentlyDeleteFirebaseShipment(id);
       setShipmentsData((prev) => (prev ?? []).filter((s) => s.id !== id));
       setIsEditOpen(null);
       toast.success("Shipment deleted successfully");
@@ -401,7 +408,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const handleInlineUpdate = useCallback(async (shipmentId: string, field: keyof Shipment, value: string | number) => {
     try {
       const updates: Partial<Shipment> = { [field]: value };
-      const updated = await updateShipment({ id: shipmentId, ...updates });
+      const updated = await updateFirebaseShipment({ id: shipmentId, ...updates });
       setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === shipmentId ? updated : s)));
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
     } catch (e: any) {
@@ -440,8 +447,8 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const handleBulkDelete = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkDeleteShipments(ids);
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkPermanentlyDeleteFirebaseShipments(ids);
 
       setShipmentsData((prev) => prev?.filter((shipment) => !ids.includes(shipment.id)) ?? []);
 
@@ -464,8 +471,19 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const handleBulkStatusUpdate = useCallback(async (status: string) => {
     setIsBulkUpdating(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkUpdateShipmentStatus(ids, status as Shipment["status"]);
+      const ids = Array.from(selectedIds) as string[];
+      let successCount = 0;
+      let failedCount = 0;
+
+      // Update each shipment individually
+      for (const id of ids) {
+        try {
+          await updateFirebaseShipment({ id, status: status as Shipment["status"] });
+          successCount++;
+        } catch {
+          failedCount++;
+        }
+      }
 
       setShipmentsData((prev) => {
         if (!prev) return prev;
@@ -477,10 +495,10 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
         });
       });
 
-      if (result.failedCount > 0) {
-        toast.warning(`Updated ${result.successCount} shipments. ${result.failedCount} failed.`);
+      if (failedCount > 0) {
+        toast.warning(`Updated ${successCount} shipments. ${failedCount} failed.`);
       } else {
-        toast.success(`Successfully updated ${result.successCount} shipment${result.successCount !== 1 ? "s" : ""}`);
+        toast.success(`Successfully updated ${successCount} shipment${successCount !== 1 ? "s" : ""}`);
       }
 
       deselectAll();

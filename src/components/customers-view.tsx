@@ -27,7 +27,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
-import { createCustomer, deleteCustomer, getCustomers, updateCustomer, bulkDeleteCustomers, bulkUpdateCustomerStatus, archiveCustomer, restoreCustomer, permanentlyDeleteCustomer, bulkArchiveCustomers, bulkRestoreCustomers, bulkPermanentlyDeleteCustomers } from "../services/api";
+import {
+  getFirebaseCustomers,
+  createFirebaseCustomer,
+  updateFirebaseCustomer,
+  archiveFirebaseCustomer,
+  restoreFirebaseCustomer,
+  permanentlyDeleteFirebaseCustomer,
+  bulkArchiveFirebaseCustomers,
+  bulkRestoreFirebaseCustomers,
+  bulkPermanentlyDeleteFirebaseCustomers,
+} from "../services/firebase-customers-api";
 import type { Customer } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
@@ -94,7 +104,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const customers = await getCustomers();
+      const customers = await getFirebaseCustomers();
       setCustomersData(customers);
       setIsLoading(false);
     })();
@@ -204,7 +214,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   // Archive handler
   async function handleArchive(id: string) {
     try {
-      const archived = await archiveCustomer(id);
+      const archived = await archiveFirebaseCustomer(id);
       setCustomersData((prev) => (prev ?? []).map((c) => (c.id === id ? archived : c)));
       setIsEditOpen(null);
       toast.success("Customer archived successfully");
@@ -216,7 +226,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   // Restore handler
   async function handleRestore(id: string) {
     try {
-      const restored = await restoreCustomer(id);
+      const restored = await restoreFirebaseCustomer(id);
       setCustomersData((prev) => (prev ?? []).map((c) => (c.id === id ? restored : c)));
       setIsEditOpen(null);
       toast.success("Customer restored successfully");
@@ -228,7 +238,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   // Permanent delete handler
   async function handlePermanentDelete(id: string) {
     try {
-      await permanentlyDeleteCustomer(id);
+      await permanentlyDeleteFirebaseCustomer(id);
       setCustomersData((prev) => (prev ?? []).filter((c) => c.id !== id));
       setIsEditOpen(null);
       toast.success("Customer permanently deleted");
@@ -326,7 +336,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const handleInlineUpdate = useCallback(async (customerId: string, field: keyof Customer, value: string | number) => {
     try {
       const updates: Partial<Customer> = { [field]: value };
-      const updated = await updateCustomer({ id: customerId, ...updates });
+      const updated = await updateFirebaseCustomer({ id: customerId, ...updates });
       setCustomersData((prev) => (prev ?? []).map((c) => (c.id === customerId ? updated : c)));
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
     } catch (e: any) {
@@ -335,14 +345,22 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
     }
   }, [setCustomersData]);
 
-  // Bulk delete handler
+  // Bulk delete handler (uses archive for soft delete)
   const handleBulkDelete = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkDeleteCustomers(ids);
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkArchiveFirebaseCustomers(ids);
 
-      setCustomersData((prev) => prev?.filter((customer) => !ids.includes(customer.id)) ?? []);
+      setCustomersData((prev) => {
+        if (!prev) return prev;
+        return prev.map((customer) => {
+          if (ids.includes(customer.id)) {
+            return { ...customer, archived: true, archivedAt: new Date().toISOString() };
+          }
+          return customer;
+        });
+      });
 
       if (result.failedCount > 0) {
         toast.warning(`Deleted ${result.successCount} customers. ${result.failedCount} failed.`);
@@ -363,8 +381,8 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const handleBulkArchive = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkArchiveCustomers(ids);
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkArchiveFirebaseCustomers(ids);
 
       setCustomersData((prev) => {
         if (!prev) return prev;
@@ -395,8 +413,8 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const handleBulkRestore = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkRestoreCustomers(ids);
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkRestoreFirebaseCustomers(ids);
 
       setCustomersData((prev) => {
         if (!prev) return prev;
@@ -427,8 +445,8 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const handleBulkPermanentDelete = useCallback(async () => {
     setIsBulkDeleting(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkPermanentlyDeleteCustomers(ids);
+      const ids = Array.from(selectedIds) as string[];
+      const result = await bulkPermanentlyDeleteFirebaseCustomers(ids);
 
       setCustomersData((prev) => prev?.filter((customer) => !ids.includes(customer.id)) ?? []);
 
@@ -451,8 +469,19 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const handleBulkStatusUpdate = useCallback(async (status: string) => {
     setIsBulkUpdating(true);
     try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkUpdateCustomerStatus(ids, status as Customer["status"]);
+      const ids = Array.from(selectedIds) as string[];
+      let successCount = 0;
+      let failedCount = 0;
+
+      // Update each customer individually
+      for (const id of ids) {
+        try {
+          await updateFirebaseCustomer({ id, status: status as Customer["status"] });
+          successCount++;
+        } catch {
+          failedCount++;
+        }
+      }
 
       setCustomersData((prev) => {
         if (!prev) return prev;
@@ -464,10 +493,10 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
         });
       });
 
-      if (result.failedCount > 0) {
-        toast.warning(`Updated ${result.successCount} customers. ${result.failedCount} failed.`);
+      if (failedCount > 0) {
+        toast.warning(`Updated ${successCount} customers. ${failedCount} failed.`);
       } else {
-        toast.success(`Successfully updated ${result.successCount} customer${result.successCount !== 1 ? "s" : ""}`);
+        toast.success(`Successfully updated ${successCount} customer${successCount !== 1 ? "s" : ""}`);
       }
 
       deselectAll();
@@ -746,7 +775,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
                           return;
                         }
                         try {
-                          const created = await createCustomer({
+                          const created = await createFirebaseCustomer({
                             name: form.name,
                             contact: form.contact,
                             email: form.email,
@@ -1395,7 +1424,7 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
                     return;
                   }
                   try {
-                    const updated = await updateCustomer({
+                    const updated = await updateFirebaseCustomer({
                       id: isEditOpen,
                       name: form.name,
                       contact: form.contact,
