@@ -261,7 +261,7 @@ export function LoginPage() {
                   }}
                   className={`pl-9 ${fieldErrors.email ? "border-red-500" : ""}`}
                   disabled={isLoading}
-                  autoComplete="email"
+                  autoComplete="off"
                 />
               </div>
               {fieldErrors.email && (
