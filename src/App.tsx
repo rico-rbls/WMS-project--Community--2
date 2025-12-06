@@ -11,7 +11,7 @@ const SuppliersView = React.lazy(() => import("./components/suppliers-view").the
 const CustomersView = React.lazy(() => import("./components/customers-view").then(m => ({ default: m.CustomersView })));
 const UserManagementView = React.lazy(() => import("./components/user-management-view").then(m => ({ default: m.UserManagementView })));
 const AdminProfileView = React.lazy(() => import("./components/admin-profile-view").then(m => ({ default: m.AdminProfileView })));
-const CashBankView = React.lazy(() => import("./components/cash-bank-view").then(m => ({ default: m.CashBankView })));
+const TransactionsView = React.lazy(() => import("./components/cash-bank-view").then(m => ({ default: m.CashBankView })));
 const PaymentsView = React.lazy(() => import("./components/payments-view").then(m => ({ default: m.PaymentsView })));
 // Customer-specific views
 const CustomerDashboard = React.lazy(() => import("./components/customer-dashboard").then(m => ({ default: m.CustomerDashboard })));
@@ -27,10 +27,10 @@ import { reportError } from "./lib/monitoring";
 import { CommandPalette, useCommandPalette } from "./components/command-palette";
 import { Topbar } from "./components/topbar";
 
-export type ViewType = "dashboard" | "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "cash-bank" | "payments" | "users" | "profile" | "customer-dashboard" | "products" | "customer-cart";
+export type ViewType = "dashboard" | "inventory" | "purchase-orders" | "sales-orders" | "shipments" | "suppliers" | "customers" | "transactions" | "payments" | "users" | "profile" | "customer-dashboard" | "products" | "customer-cart";
 
 // Valid view types for URL parsing
-const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "cash-bank", "payments", "users", "profile", "customer-dashboard", "products", "customer-cart"];
+const VALID_VIEWS: ViewType[] = ["dashboard", "inventory", "purchase-orders", "sales-orders", "shipments", "suppliers", "customers", "transactions", "payments", "users", "profile", "customer-dashboard", "products", "customer-cart"];
 
 // Get initial view from URL hash
 function getViewFromHash(): ViewType {
@@ -52,7 +52,7 @@ export default function App() {
   useEffect(() => {
     if (user?.role === "Customer") {
       // If customer is on admin-only views, redirect to customer dashboard
-      const adminOnlyViews: ViewType[] = ["dashboard", "inventory", "purchase-orders", "suppliers", "customers", "cash-bank", "payments", "users"];
+      const adminOnlyViews: ViewType[] = ["dashboard", "inventory", "purchase-orders", "suppliers", "customers", "transactions", "payments", "users"];
       if (adminOnlyViews.includes(currentView)) {
         setCurrentView("customer-dashboard");
       }
@@ -173,8 +173,8 @@ export default function App() {
             onCustomerDialogOpened={clearSelectedItemId}
           />
         );
-      case "cash-bank":
-        return <CashBankView />;
+      case "transactions":
+        return <TransactionsView />;
       case "payments":
         return <PaymentsView />;
       case "users":

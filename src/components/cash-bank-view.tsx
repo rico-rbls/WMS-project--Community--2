@@ -588,8 +588,8 @@ export function CashBankView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cash and Bank</h1>
-          <p className="text-muted-foreground">Manage payment transactions and receipts</p>
+          <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
+          <p className="text-muted-foreground">Manage customer-business financial transactions and receipts</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportToCSV} disabled={filteredData.length === 0}>
