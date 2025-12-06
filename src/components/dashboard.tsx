@@ -109,9 +109,17 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       ["Pending Approval", "Approved", "Ordered"].includes(po.status)
     );
 
-    // Sales Order fulfillment rate (delivered / total)
+    // Sales Order fulfillment rate - synced with Shipments data
     const activeSalesOrders = salesOrders.filter(so => !so.archived);
-    const deliveredOrders = activeSalesOrders.filter(so => so.shippingStatus === "Delivered").length;
+    // Count orders that have at least one delivered shipment
+    const salesOrderIdsWithDeliveredShipments = new Set(
+      activeShipments
+        .filter(s => s.status === "Delivered")
+        .map(s => s.salesOrderId)
+    );
+    const deliveredOrders = activeSalesOrders.filter(so =>
+      salesOrderIdsWithDeliveredShipments.has(so.id)
+    ).length;
     const fulfillmentRate = activeSalesOrders.length > 0 ? Math.round((deliveredOrders / activeSalesOrders.length) * 100) : 0;
 
     // Warehouse capacity (based on maintainStockAt as capacity indicator) - using active inventory only
