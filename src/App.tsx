@@ -42,11 +42,22 @@ function getViewFromHash(): ViewType {
 }
 
 export default function App() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>(getViewFromHash);
   const [openAddDialog, setOpenAddDialog] = useState<ViewType | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(undefined);
   const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
+
+  // Redirect customers to their dashboard on login
+  useEffect(() => {
+    if (user?.role === "Customer") {
+      // If customer is on admin-only views, redirect to customer dashboard
+      const adminOnlyViews: ViewType[] = ["dashboard", "inventory", "purchase-orders", "suppliers", "customers", "cash-bank", "payments", "users"];
+      if (adminOnlyViews.includes(currentView)) {
+        setCurrentView("customer-dashboard");
+      }
+    }
+  }, [user?.role, currentView]);
 
   // Sync URL hash with current view
   useEffect(() => {
