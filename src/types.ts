@@ -329,6 +329,9 @@ export interface SalesOrder {
   // Archive fields
   archived?: boolean; // Whether the SO is archived (soft-deleted)
   archivedAt?: string; // ISO date when the SO was archived
+  // IMS Sync fields (for Inventory Management System integration)
+  inventorySyncedToIMS?: boolean; // Whether inventory was synced to IMS products collection
+  inventorySyncedAt?: string; // ISO date when inventory was synced to IMS
 }
 
 export interface CreateSalesOrderInput {
@@ -366,6 +369,9 @@ export interface UpdateSalesOrderInput {
   shippingStatus?: ShippingStatus;
   totalReceived?: number;
   amountPaid?: number; // Amount paid by customer
+  // IMS Sync fields
+  inventorySyncedToIMS?: boolean;
+  inventorySyncedAt?: string;
 }
 
 // ============================================

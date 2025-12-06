@@ -22,6 +22,7 @@ import {
 } from "../services/firebase-shipments-api";
 import { getFirebaseSalesOrders, updateFirebaseSalesOrder } from "../services/firebase-sales-orders-api";
 import { getInventory, updateInventoryItem } from "../services/firebase-inventory-api";
+import { syncInventoryToIMS } from "../services/ims-sync-api";
 import type { Shipment, SalesOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
@@ -442,6 +443,7 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   }
 
   // Helper function to deduct inventory when shipment is marked as delivered
+  // Also syncs inventory to IMS (Inventory Management System) for customer orders
   const deductInventoryForDeliveredShipment = useCallback(async (shipment: Shipment) => {
     try {
       // Find the sales order for this shipment
@@ -449,6 +451,11 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       if (!salesOrder) {
         console.warn("[Shipment] No sales order found for shipment:", shipment.id);
         return;
+      }
+
+      // Check if this order was already synced to IMS (prevent duplicate syncs)
+      if (salesOrder.inventorySyncedToIMS) {
+        console.log("[Shipment] Order already synced to IMS, skipping sync:", salesOrder.id);
       }
 
       // Get current inventory
@@ -468,11 +475,38 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
         }
       }
 
-      // Update sales order shipping status to Delivered
-      await updateFirebaseSalesOrder({
-        id: salesOrder.id,
-        shippingStatus: "Delivered",
-      });
+      // Sync inventory to IMS (Inventory Management System)
+      // All customer orders are treated as IMS orders
+      if (!salesOrder.inventorySyncedToIMS) {
+        console.log("[IMS Sync] Starting sync for order:", salesOrder.id);
+        const syncResult = await syncInventoryToIMS(salesOrder, inventory);
+
+        if (syncResult.success) {
+          console.log(`[IMS Sync] Successfully synced ${syncResult.syncedItems} items to IMS`);
+          toast.success(`Synced ${syncResult.syncedItems} items to IMS`);
+        } else {
+          console.warn("[IMS Sync] Partial sync:", syncResult.errors);
+          if (syncResult.syncedItems > 0) {
+            toast.warning(`Synced ${syncResult.syncedItems} items to IMS (some errors occurred)`);
+          } else {
+            toast.error("Failed to sync inventory to IMS");
+          }
+        }
+
+        // Mark order as synced to IMS (even if partial, to prevent re-sync attempts)
+        await updateFirebaseSalesOrder({
+          id: salesOrder.id,
+          shippingStatus: "Delivered",
+          inventorySyncedToIMS: true,
+          inventorySyncedAt: new Date().toISOString(),
+        });
+      } else {
+        // Just update shipping status if already synced
+        await updateFirebaseSalesOrder({
+          id: salesOrder.id,
+          shippingStatus: "Delivered",
+        });
+      }
 
       toast.success("Inventory updated for delivered order");
     } catch (error) {

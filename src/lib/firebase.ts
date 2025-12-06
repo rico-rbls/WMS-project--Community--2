@@ -80,6 +80,8 @@ export const COLLECTIONS = {
   USERS: 'users',
   CATEGORIES: 'categories',
   NOTIFICATIONS: 'notifications',
+  // IMS (Inventory Management System) collection - shared Firebase project
+  IMS_PRODUCTS: 'products',
 } as const;
 
 // Type for collection names
