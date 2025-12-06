@@ -162,6 +162,18 @@ export function SalesOrdersView() {
     destination: "",
   });
 
+  // Auto-populate shipment destination when dialog opens
+  useEffect(() => {
+    if (showCreateShipmentDialog && detailViewSO) {
+      const deliveryAddress = detailViewSO.deliveryAddress ||
+        `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`;
+      setShipmentForm(prev => ({
+        ...prev,
+        destination: deliveryAddress,
+      }));
+    }
+  }, [showCreateShipmentDialog, detailViewSO]);
+
   const [form, setForm] = useState<SOFormState>({
     soDate: new Date().toISOString().split("T")[0],
     customerId: "",
@@ -262,6 +274,21 @@ export function SalesOrdersView() {
   }, [isAddOpen, isCustomer, user?.email, user?.displayName, customersData]);
 
   const list = salesOrdersData ?? [];
+
+  // Debug logging for customer orders
+  useEffect(() => {
+    if (isCustomer) {
+      console.log("[My Orders Debug]", {
+        isCustomer,
+        userEmail: user?.email,
+        userRole,
+        totalOrders: list.length,
+        ordersCreatedByMe: list.filter(so => so.createdBy === user?.email).length,
+        allCreatedByValues: list.map(so => so.createdBy),
+        showArchived,
+      });
+    }
+  }, [isCustomer, user?.email, userRole, list, showArchived]);
 
   const filteredData = useMemo(() => {
     return list.filter((so) => {
