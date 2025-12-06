@@ -123,9 +123,16 @@ export async function syncInventoryToIMS(
   const errors: string[] = [];
   let syncedItems = 0;
 
+  console.log("[IMS Sync] ========== STARTING IMS SYNC ==========");
+  console.log("[IMS Sync] Sales Order ID:", salesOrder.id);
+  console.log("[IMS Sync] Sales Order Items:", salesOrder.items.length);
+  console.log("[IMS Sync] Available Inventory Items:", inventoryItems.length);
+  console.log("[IMS Sync] Target Collection:", COLLECTIONS.IMS_PRODUCTS);
+
   try {
     // Get all suppliers for name lookup
     const suppliers = await getFirebaseSuppliers();
+    console.log("[IMS Sync] Loaded suppliers:", suppliers.length);
     const supplierMap = new Map<string, string>();
     suppliers.forEach((s) => supplierMap.set(s.id, s.name));
 
@@ -168,7 +175,10 @@ export async function syncInventoryToIMS(
           
           // Generate a unique document ID
           const docId = `wms-${invItem.id.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now()}`;
-          
+
+          console.log(`[IMS Sync] Creating new product in collection '${COLLECTIONS.IMS_PRODUCTS}' with docId: ${docId}`);
+          console.log("[IMS Sync] Product data:", JSON.stringify(newProduct, null, 2));
+
           await setDoc(doc(db, COLLECTIONS.IMS_PRODUCTS, docId), {
             ...newProduct,
             createdAt: serverTimestamp(),
@@ -176,7 +186,7 @@ export async function syncInventoryToIMS(
             lastSyncedFromWMS: serverTimestamp(),
           });
 
-          console.log(`[IMS Sync] Created new product ${invItem.name} with qty ${deliveredQty}`);
+          console.log(`[IMS Sync] ✅ Created new product ${invItem.name} with qty ${deliveredQty}`);
         }
 
         syncedItems++;
