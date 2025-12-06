@@ -74,11 +74,17 @@ export function Dashboard({ navigateToView }: DashboardProps) {
   const stats = useMemo(() => {
     if (!inventory || !shipments) return null;
 
-    const totalItems = inventory.reduce((sum, item) => sum + item.quantity, 0);
+    // Filter out archived items from all entities for accurate statistics
+    const activeInventory = inventory.filter(i => !i.archived);
+    const activeShipments = shipments.filter(s => !s.archived);
+    const activePurchaseOrders = purchaseOrders.filter(po => !po.archived);
+    const activeSuppliersList = suppliers?.filter(s => !s.archived) || [];
+
+    const totalItems = activeInventory.reduce((sum, item) => sum + item.quantity, 0);
     // Count active sales orders (not fully delivered)
     const activeOrders = salesOrders.filter(so => !so.archived && so.shippingStatus !== "Delivered").length;
-    const inTransit = shipments.filter(s => s.status === "In Transit").length;
-    const lowStockItems = inventory.filter(i => i.status === "Low Stock" || i.status === "Critical");
+    const inTransit = activeShipments.filter(s => s.status === "In Transit").length;
+    const lowStockItems = activeInventory.filter(i => i.status === "Low Stock" || i.status === "Critical");
 
     // Enhanced low stock items with additional calculations
     const enhancedLowStockItems = lowStockItems.map(item => {
@@ -98,8 +104,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       return a.stockPercentage - b.stockPercentage;
     });
 
-    // PO stats
-    const pendingPOs = purchaseOrders.filter(po =>
+    // PO stats (using filtered active POs)
+    const pendingPOs = activePurchaseOrders.filter(po =>
       ["Pending Approval", "Approved", "Ordered"].includes(po.status)
     );
 
@@ -108,20 +114,20 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     const deliveredOrders = activeSalesOrders.filter(so => so.shippingStatus === "Delivered").length;
     const fulfillmentRate = activeSalesOrders.length > 0 ? Math.round((deliveredOrders / activeSalesOrders.length) * 100) : 0;
 
-    // Warehouse capacity (based on maintainStockAt as capacity indicator)
-    const currentStock = inventory.reduce((sum, item) => sum + item.quantity, 0);
-    const maxCapacity = inventory.reduce((sum, item) => sum + (item.maintainStockAt || item.reorderLevel * 3 || 100), 0);
+    // Warehouse capacity (based on maintainStockAt as capacity indicator) - using active inventory only
+    const currentStock = activeInventory.reduce((sum, item) => sum + item.quantity, 0);
+    const maxCapacity = activeInventory.reduce((sum, item) => sum + (item.maintainStockAt || item.reorderLevel * 3 || 100), 0);
     const capacityUtilization = maxCapacity > 0 ? Math.round((currentStock / maxCapacity) * 100) : 0;
 
-    // Inventory health metrics
-    const inStockItems = inventory.filter(i => i.status === "In Stock").length;
-    const criticalItems = inventory.filter(i => i.status === "Critical").length;
-    const overstockItems = inventory.filter(i => i.status === "Overstock");
-    const healthScore = inventory.length > 0 ? Math.round((inStockItems / inventory.length) * 100) : 0;
+    // Inventory health metrics - using active inventory only
+    const inStockItems = activeInventory.filter(i => i.status === "In Stock").length;
+    const criticalItems = activeInventory.filter(i => i.status === "Critical").length;
+    const overstockItems = activeInventory.filter(i => i.status === "Overstock");
+    const healthScore = activeInventory.length > 0 ? Math.round((inStockItems / activeInventory.length) * 100) : 0;
 
     // Enhanced overstock items with additional calculations
     const enhancedOverstockItems = overstockItems.map(item => {
-      const supplier = suppliers?.find(s => s.id === item.supplierId);
+      const supplier = activeSuppliersList.find(s => s.id === item.supplierId);
       const excessQty = Math.max(0, item.quantity - (item.maintainStockAt || item.reorderLevel * 2));
       const overstockPercentage = item.maintainStockAt > 0 ? Math.round((item.quantity / item.maintainStockAt) * 100) : 0;
 
@@ -133,9 +139,9 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       };
     }).sort((a, b) => b.overstockPercentage - a.overstockPercentage);
 
-    // Supplier performance (based on PO completion)
-    const completedPOs = purchaseOrders.filter(po => po.status === "Received").length;
-    const supplierPerformance = purchaseOrders.length > 0 ? Math.round((completedPOs / purchaseOrders.length) * 100) : 0;
+    // Supplier performance (based on PO completion) - using active POs only
+    const completedPOs = activePurchaseOrders.filter(po => po.status === "Received").length;
+    const supplierPerformance = activePurchaseOrders.length > 0 ? Math.round((completedPOs / activePurchaseOrders.length) * 100) : 0;
 
     return {
       totalItems,
@@ -145,8 +151,8 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       lowStockItems: enhancedLowStockItems,
       totalOrders: activeSalesOrders.length,
       deliveredOrders,
-      pendingShipments: shipments.filter(s => s.status === "Pending").length,
-      activeSuppliers: suppliers?.filter(s => s.status === "Active").length || 0,
+      pendingShipments: activeShipments.filter(s => s.status === "Pending").length,
+      activeSuppliers: activeSuppliersList.filter(s => s.status === "Active").length,
       pendingPOCount: pendingPOs.length,
       fulfillmentRate,
       capacityUtilization,
@@ -160,9 +166,12 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     };
   }, [inventory, shipments, suppliers, purchaseOrders, salesOrders]);
 
-  // Calculate category distribution
+  // Calculate category distribution (excluding archived items)
   const categoryData = useMemo(() => {
     if (!inventory) return [];
+
+    // Filter out archived items for accurate category distribution
+    const activeInventory = inventory.filter(i => !i.archived);
 
     const categories: Record<InventoryCategory, number> = {
       Electronics: 0,
@@ -171,7 +180,7 @@ export function Dashboard({ navigateToView }: DashboardProps) {
       "Food & Beverages": 0,
     };
 
-    inventory.forEach(item => {
+    activeInventory.forEach(item => {
       categories[item.category] += item.quantity;
     });
 

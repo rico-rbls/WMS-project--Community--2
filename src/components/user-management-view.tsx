@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX, Crown, Eye, ShoppingBag } from "lucide-react";
+import { Search, Users, Check, X, Shield, UserCog, Trash2, Clock, UserCheck, UserX, Crown, Eye, ShoppingBag, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
@@ -71,6 +71,29 @@ export function UserManagementView() {
 
   // Pending users count
   const pendingCount = useMemo(() => users.filter(u => u.status === "Pending").length, [users]);
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["User ID", "Name", "Email", "Role", "Status", "Registered At", "Last Login"];
+    const rows = filteredUsers.map((u) => [
+      u.id,
+      u.name,
+      u.email,
+      u.role,
+      u.status,
+      u.registeredAt || "",
+      u.lastLoginAt || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Users exported to CSV");
+  };
 
   const openEditDialog = (user: User) => {
     setSelectedUser(user);
@@ -254,6 +277,10 @@ export function UserManagementView() {
                   <SelectItem value="Inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
             </div>
           </div>
         </CardHeader>

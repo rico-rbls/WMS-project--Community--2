@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star, TrendingUp, Clock, CheckCircle, Filter, Calendar, AlertCircle } from "lucide-react";
+import { Search, MapPin, Package, Plus, Truck, X, Trash2, RefreshCw, Star, TrendingUp, Clock, CheckCircle, Filter, Calendar, AlertCircle, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -304,6 +304,33 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Shipment ID", "Sales Order ID", "Carrier", "Tracking #", "Status", "Origin", "Destination", "Ship Date", "ETA", "Delivered Date", "Notes"];
+    const rows = filteredShipments.map((s) => [
+      s.id,
+      s.salesOrderId,
+      s.carrier,
+      s.trackingNumber || "",
+      s.status,
+      s.origin || "",
+      s.destination || "",
+      s.shipDate || "",
+      s.eta || "",
+      s.deliveredDate || "",
+      s.notes || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shipments-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Shipments exported to CSV");
+  };
 
   // Clear selection when page changes
   useEffect(() => {
@@ -730,6 +757,10 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button onClick={() => resetForm()} disabled={!canModify} title={!canModify ? "You don't have permission to add shipments" : undefined}>

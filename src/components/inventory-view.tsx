@@ -24,7 +24,7 @@ import {
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2, Loader2 } from "lucide-react";
+import { Plus, Search, Filter, Package, Trash2, Edit, Star, Upload, FileSpreadsheet, Image, X, AlertCircle, CheckCircle2, ImageIcon, LayoutGrid, List, MapPin, DollarSign, TrendingUp, Clock, Boxes, Eye, Tag, Hash, Warehouse, Building2, FileText, Archive, ArchiveRestore, Settings2, Loader2, Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -441,6 +441,37 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
       style: "currency",
       currency: "PHP",
     }).format(amount);
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Item ID", "Item Name", "Category", "Supplier", "Description", "Quantity", "Unit", "Price Per Piece", "Total Value", "Warehouse", "Location", "Reorder Level", "Reorder Required", "Status", "Created Date"];
+    const rows = filteredItems.map((item) => [
+      item.id,
+      item.itemName,
+      item.category,
+      supplierById.get(item.supplierId || "") || item.supplierId || "",
+      item.description || "",
+      item.quantity.toString(),
+      item.unit || "",
+      item.pricePerPiece.toFixed(2),
+      (item.quantity * item.pricePerPiece).toFixed(2),
+      item.warehouse || "",
+      item.location || "",
+      (item.reorderLevel || 0).toString(),
+      item.reorderRequired ? "Yes" : "No",
+      item.status,
+      item.createdDate || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inventory-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Inventory exported to CSV");
   };
 
   // Batch selection
@@ -1425,6 +1456,12 @@ export function InventoryView({ initialOpenDialog, onDialogOpened }: InventoryVi
               <CardDescription>Manage your warehouse inventory items and stock levels</CardDescription>
             </div>
             <div className="flex gap-2">
+              {/* Export to CSV Button */}
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+
               {/* Import from Excel/CSV Button */}
               <Button
                 variant="outline"

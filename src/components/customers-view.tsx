@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign, AlertCircle } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign, AlertCircle, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -311,6 +311,35 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Customer ID", "Name", "Contact Person", "Email", "Phone", "Status", "Country", "City", "Address", "Sales Total", "Receipts", "Balance", "Created Date"];
+    const rows = filteredCustomers.map((c) => [
+      c.id,
+      c.name,
+      c.contact || "",
+      c.email || "",
+      c.phone || "",
+      c.status,
+      c.country || "",
+      c.city || "",
+      c.address || "",
+      (c.sales || 0).toFixed(2),
+      (c.receipts || 0).toFixed(2),
+      (c.balance || 0).toFixed(2),
+      c.createdDate || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `customers-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Customers exported to CSV");
+  };
 
   // Clear selection when page changes
   useEffect(() => {
@@ -659,6 +688,10 @@ export function CustomersView({ initialOpenDialog, onDialogOpened, initialCustom
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 }); }}>
                 <DialogTrigger asChild>
                   <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 })} disabled={!canModify} title={!canModify ? "You don't have permission to add customers" : undefined}>

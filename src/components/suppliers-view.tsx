@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign, AlertCircle } from "lucide-react";
+import { Search, Plus, Users, Mail, Phone, Trash2, RefreshCw, Star, TrendingUp, Package, ShoppingCart, Filter, X, CheckCircle, XCircle, Archive, ArchiveRestore, Eye, Building2, Tag, Hash, Calendar, Edit, MapPin, DollarSign, AlertCircle, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -356,6 +356,36 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Supplier ID", "Name", "Contact Person", "Email", "Phone", "Category", "Status", "Country", "City", "Address", "Purchases", "Payments", "Balance", "Created Date"];
+    const rows = filteredSuppliers.map((s) => [
+      s.id,
+      s.name,
+      s.contact || "",
+      s.email || "",
+      s.phone || "",
+      s.category || "",
+      s.status,
+      s.country || "",
+      s.city || "",
+      s.address || "",
+      (s.purchases || 0).toFixed(2),
+      (s.payments || 0).toFixed(2),
+      (s.balance || 0).toFixed(2),
+      s.createdDate || "",
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `suppliers-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Suppliers exported to CSV");
+  };
+
   // Clear selection when page changes
   useEffect(() => {
     deselectAll();
@@ -682,6 +712,10 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
               <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 }); }}>
                 <DialogTrigger asChild>
                   <Button onClick={() => setForm({ id: "", name: "", contact: "", email: "", phone: "", category: "", status: "Active", country: "", city: "", address: "", purchases: 0, payments: 0 })} disabled={!canModify} title={!canModify ? "You don't have permission to add suppliers" : undefined}>
