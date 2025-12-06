@@ -923,13 +923,12 @@ export function SalesOrdersView() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Date", "SO ID", "Customer ID", "Customer Name", "Invoice #", "Country", "City", "Items", "Total Amount", "Total Received", "SO Balance", "Receipt Status", "Shipping Status", "Expected Delivery", "Notes"];
+    const headers = ["Date", "SO ID", "Customer ID", "Customer Name", "Country", "City", "Items", "Total Amount", "Total Received", "SO Balance", "Receipt Status", "Shipping Status", "Expected Delivery", "Notes"];
     const rows = filteredData.map((so) => [
       so.soDate ?? so.createdDate,
       so.id,
       so.customerId,
       so.customerName,
-      so.invoiceNumber ?? "",
       so.customerCountry ?? "",
       so.customerCity ?? "",
       (so.items ?? []).map((i) => `${i.itemName} (${i.quantity})`).join("; "),
@@ -970,8 +969,6 @@ export function SalesOrdersView() {
       partyName: so.customerName,
       partyCity: so.customerCity,
       partyCountry: so.customerCountry,
-      referenceNumber: so.invoiceNumber,
-      referenceLabel: "Invoice No.",
       items: so.items?.map(item => ({
         description: item.itemName,
         quantity: item.quantity,
@@ -1110,13 +1107,6 @@ export function SalesOrdersView() {
                 <div>
                   <p className="text-muted-foreground text-xs">Customer</p>
                   <p className="font-medium text-xs sm:text-sm">{detailViewSO.customerName}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-muted-foreground text-xs">Invoice #</p>
-                  <p className="font-medium text-xs sm:text-sm">{detailViewSO.invoiceNumber || "N/A"}</p>
                 </div>
               </div>
             </div>
@@ -2029,10 +2019,6 @@ export function SalesOrdersView() {
                             <Label>City</Label>
                             <Input value={form.customerCity} disabled className="bg-muted" />
                           </div>
-                          <div className="space-y-2">
-                            <Label>Invoice #</Label>
-                            <Input value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} placeholder="INV-2025-0001" />
-                          </div>
                         </div>
                         {/* Admin-only fields */}
                         {!isCustomer && (
@@ -2218,7 +2204,6 @@ export function SalesOrdersView() {
                       <SortableTableHead sortKey="id" currentSortKey={sortColumn} sortDirection={getSortDirection("id")} onSort={handleSort}>SO ID</SortableTableHead>
                       <TableHead>Customer ID</TableHead>
                       <SortableTableHead sortKey="customerName" currentSortKey={sortColumn} sortDirection={getSortDirection("customerName")} onSort={handleSort}>Customer Name</SortableTableHead>
-                      <TableHead>Invoice #</TableHead>
                       <TableHead>Country</TableHead>
                       <TableHead>City</TableHead>
                       <SortableTableHead sortKey="totalAmount" currentSortKey={sortColumn} sortDirection={getSortDirection("totalAmount")} onSort={handleSort} className="text-right">Total Amount</SortableTableHead>
@@ -2241,7 +2226,6 @@ export function SalesOrdersView() {
                         <TableCell className="font-medium py-3 text-primary">{so.id}</TableCell>
                         <TableCell className="text-muted-foreground py-3 text-sm">{so.customerId}</TableCell>
                         <TableCell className="py-3 font-medium">{so.customerName}</TableCell>
-                        <TableCell className="text-muted-foreground py-3">{so.invoiceNumber || "-"}</TableCell>
                         <TableCell className="py-3">{so.customerCountry || "-"}</TableCell>
                         <TableCell className="py-3">{so.customerCity || "-"}</TableCell>
                         <TableCell className="text-right font-semibold py-3">₱{(so.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
@@ -2350,10 +2334,6 @@ export function SalesOrdersView() {
                               <div className="space-y-2">
                                 <Label>City</Label>
                                 <Input value={form.customerCity} disabled className="bg-muted" />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Invoice #</Label>
-                                <Input value={form.invoiceNumber} onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))} disabled={isCustomer} className={isCustomer ? "bg-muted" : ""} />
                               </div>
                             </div>
                             {/* Admin-only fields */}
