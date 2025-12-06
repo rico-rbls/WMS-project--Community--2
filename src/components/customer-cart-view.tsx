@@ -180,16 +180,19 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
         shippingStatus: "Processing", // Auto-set to Processing since shipment will be created
       });
 
-      // Automatically create shipment for the order
+      // Automatically create shipment for the order with random carrier
+      const carriers = ["J&T Express", "LBC", "JRS Express", "Grab Express", "Lalamove", "Ninja Van", "Flash Express", "GoGo Xpress"];
+      const randomCarrier = carriers[Math.floor(Math.random() * carriers.length)];
+
       try {
         await createFirebaseShipment({
           salesOrderId: order.id,
           destination: effectiveDeliveryAddress,
-          carrier: "Pending Assignment", // Admin will assign carrier later
+          carrier: randomCarrier,
           status: "Pending",
           eta: undefined, // Admin will set ETA later
         });
-        console.log("[Checkout] Shipment auto-created for order:", order.id);
+        console.log("[Checkout] Shipment auto-created for order:", order.id, "with carrier:", randomCarrier);
       } catch (shipmentError) {
         // If shipment creation fails, still proceed - order was created successfully
         // Just update the order's shipping status back to "Pending"
