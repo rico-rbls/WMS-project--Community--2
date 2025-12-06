@@ -179,20 +179,55 @@ export function SalesOrdersView() {
   // Load all data including shipments and payments
   const loadAllData = useCallback(async () => {
     try {
-      const [soData, custData, invData, shipData, payData] = await Promise.all([
+      // Load data with individual error handling to prevent one failure from blocking all
+      const [soResult, custResult, invResult, shipResult, payResult] = await Promise.allSettled([
         getFirebaseSalesOrders(),
         getFirebaseCustomers(),
         getInventory(),
         getFirebaseShipments(),
         getCashBankTransactions(),
       ]);
-      setSalesOrdersData(soData);
-      setCustomersData(custData);
-      setInventoryData(invData);
-      setShipmentsData(shipData);
-      setPaymentsData(payData);
+
+      // Process each result and log any errors
+      if (soResult.status === 'fulfilled') {
+        setSalesOrdersData(soResult.value);
+      } else {
+        console.error("Failed to load sales orders:", soResult.reason);
+        setSalesOrdersData([]);
+      }
+
+      if (custResult.status === 'fulfilled') {
+        setCustomersData(custResult.value);
+      } else {
+        console.error("Failed to load customers:", custResult.reason);
+      }
+
+      if (invResult.status === 'fulfilled') {
+        setInventoryData(invResult.value);
+      } else {
+        console.error("Failed to load inventory:", invResult.reason);
+      }
+
+      if (shipResult.status === 'fulfilled') {
+        setShipmentsData(shipResult.value);
+      } else {
+        console.error("Failed to load shipments:", shipResult.reason);
+      }
+
+      if (payResult.status === 'fulfilled') {
+        setPaymentsData(payResult.value);
+      } else {
+        console.error("Failed to load payments:", payResult.reason);
+      }
+
+      // Show error only if critical data failed
+      if (soResult.status === 'rejected') {
+        toast.error("Failed to load orders. Please check your connection.");
+      }
     } catch (error) {
+      console.error("Data loading error:", error);
       toast.error("Failed to load data");
+      setSalesOrdersData([]);
     } finally {
       setIsLoading(false);
     }
