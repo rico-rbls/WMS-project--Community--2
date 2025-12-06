@@ -1846,11 +1846,11 @@ export function SalesOrdersView() {
             {filteredData.length > 0 && (
               <div className="mt-4">
                 <PaginationControls
-                  totalItems={filteredData.length}
-                  pageSize={pageSize}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
                   currentPage={currentPage}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={setPageSize}
+                  totalPages={totalPages}
+                  onPageChange={goToPage}
                 />
               </div>
             )}
