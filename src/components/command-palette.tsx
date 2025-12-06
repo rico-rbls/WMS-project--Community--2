@@ -349,31 +349,27 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: CommandPalett
     setQuery(prev => prev.replace(regex, "").trim());
   }, []);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!open) return;
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setSelectedIndex(prev => Math.min(prev + 1, flatResults.length - 1));
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setSelectedIndex(prev => Math.max(prev - 1, 0));
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (flatResults[selectedIndex]) handleSelect(flatResults[selectedIndex]);
-          break;
-        case "Escape":
-          onOpenChange(false);
-          break;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, flatResults, selectedIndex, handleSelect, onOpenChange]);
+  // Keyboard navigation - handle on the input element to avoid interfering with typing
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(prev + 1, flatResults.length - 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (flatResults[selectedIndex]) handleSelect(flatResults[selectedIndex]);
+        break;
+      case "Escape":
+        e.preventDefault();
+        onOpenChange(false);
+        break;
+    }
+  }, [flatResults, selectedIndex, handleSelect, onOpenChange]);
 
   // Reset selection when results change
   useEffect(() => { setSelectedIndex(0); }, [flatResults]);
@@ -403,6 +399,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: CommandPalett
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleInputKeyDown}
             placeholder="Search across all modules... (type ? for help)"
             className="border-0 focus-visible:ring-0 p-0 h-auto text-base"
             aria-label="Global search"

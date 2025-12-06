@@ -37,8 +37,6 @@ import {
   markPOAsOrdered,
   cancelPO,
   receivePurchaseOrder,
-  getSuppliers,
-  getInventory,
   bulkDeletePurchaseOrders,
   archivePurchaseOrder,
   restorePurchaseOrder,
@@ -59,6 +57,7 @@ import { BulkDeleteDialog } from "./ui/bulk-delete-dialog";
 import { SelectAllBanner } from "./ui/select-all-banner";
 import { useAuth } from "../context/auth-context";
 import { getUserRole, hasPermission } from "../lib/permissions";
+import { useSuppliers, useInventory } from "../context/app-context";
 import { SortableTableHead } from "./ui/sortable-table-head";
 import type { SortDirection } from "../hooks/useTableSort";
 import { EditableCell } from "./ui/editable-cell";
@@ -91,12 +90,24 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
 
   const { printReceipt } = usePrintReceipt();
 
+  // Use suppliers and inventory from app context (real-time Firebase subscription)
+  const { suppliers: contextSuppliers, isLoading: suppliersLoading } = useSuppliers();
+  const { inventory: contextInventory, isLoading: inventoryLoading } = useInventory();
+
+  // Filter to only active, non-archived suppliers
+  const suppliersData = useMemo(() => {
+    return (contextSuppliers ?? []).filter(s => s.status === "Active" && !s.archived);
+  }, [contextSuppliers]);
+
+  // Filter to only non-archived inventory items
+  const inventoryData = useMemo(() => {
+    return (contextInventory ?? []).filter(i => !i.archived);
+  }, [contextInventory]);
+
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[] | null>(null);
-  const [suppliersData, setSuppliersData] = useState<Supplier[]>([]);
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState<string | null>(null);
@@ -129,22 +140,14 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const list = useMemo(() => purchaseOrdersData ?? [], [purchaseOrdersData]);
 
-
-
-  // Fetch data on mount
+  // Fetch purchase orders on mount (still from local API)
   useEffect(() => {
     async function fetchData() {
       try {
-        const [pos, suppliers, inventory] = await Promise.all([
-          getPurchaseOrders(),
-          getSuppliers(),
-          getInventory(),
-        ]);
+        const pos = await getPurchaseOrders();
         setPurchaseOrdersData(pos);
-        setSuppliersData(suppliers.filter(s => s.status === "Active"));
-        setInventoryData(inventory);
       } catch (error) {
-        toast.error("Failed to load data");
+        toast.error("Failed to load purchase orders");
       } finally {
         setIsLoading(false);
       }
@@ -823,7 +826,7 @@ export function PurchaseOrdersView({ initialOpenDialog, onDialogOpened, prefille
     printReceipt(receiptData);
   };
 
-  if (isLoading) {
+  if (isLoading || suppliersLoading || inventoryLoading) {
     return (
       <div className="p-6">
         <TableLoadingSkeleton rows={8} />

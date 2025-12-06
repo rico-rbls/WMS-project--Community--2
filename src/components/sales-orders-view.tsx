@@ -122,8 +122,9 @@ export function SalesOrdersView() {
   const userRole: Role = (user?.role as Role) || "Viewer";
   const isCustomer = userRole === "Customer";
   // Use purchase_orders permissions as sales orders have similar access control
-  // Customers can create their own orders
-  const canCreate = isCustomer || hasPermission(userRole, "purchase_orders:create");
+  // Only customers can create sales orders (via My Orders)
+  // Owners/Admins can only view and manage existing orders
+  const canCreate = isCustomer;
   const canEdit = !isCustomer && hasPermission(userRole, "purchase_orders:update");
   const canDelete = !isCustomer && hasPermission(userRole, "purchase_orders:delete");
   const canPermanentlyDelete = userRole === "Owner" || userRole === "Admin";
@@ -1082,28 +1083,28 @@ export function SalesOrdersView() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Order Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                <Hash className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div>
                   <p className="text-muted-foreground text-xs">Order ID</p>
-                  <p className="font-mono font-medium text-xs sm:text-sm">{detailViewSO.id}</p>
+                  <p className="font-mono font-medium">{detailViewSO.id}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div>
                   <p className="text-muted-foreground text-xs">Date & Time</p>
-                  <p className="font-medium text-xs sm:text-sm">
+                  <p className="font-medium">
                     {orderDateTime.toLocaleDateString()} {orderDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                <User className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div>
                   <p className="text-muted-foreground text-xs">Customer</p>
-                  <p className="font-medium text-xs sm:text-sm">{detailViewSO.customerName}</p>
+                  <p className="font-medium">{detailViewSO.customerName}</p>
                 </div>
               </div>
             </div>
@@ -1186,10 +1187,10 @@ export function SalesOrdersView() {
             {/* Payment & Shipping Status */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Payment Info */}
-              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Banknote className="h-4 w-4 text-amber-600" />
-                  <span className="font-medium text-sm">Payment</span>
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Banknote className="h-5 w-5 text-amber-600" />
+                  <span className="font-medium">Payment</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary" className="gap-1">
@@ -1201,10 +1202,10 @@ export function SalesOrdersView() {
               </div>
 
               {/* Shipping Info */}
-              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Truck className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium text-sm">Shipping</span>
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Truck className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium">Shipping</span>
                 </div>
                 <Badge className={`gap-1 ${getShippingStatusColor(detailViewSO.shippingStatus || "Pending")}`}>
                   {detailViewSO.shippingStatus === "Delivered" ? (
@@ -2155,7 +2156,7 @@ export function SalesOrdersView() {
             <EmptyState
               icon={showArchived ? Archive : ShoppingCart}
               title={showArchived ? "No archived sales orders" : "No sales orders found"}
-              description={showArchived ? "Archived sales orders will appear here" : searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : "Create your first sales order to get started"}
+              description={showArchived ? "Archived sales orders will appear here" : searchTerm || filterStatus !== "all" ? "Try adjusting your search or filters" : isCustomer ? "Create your first order to get started" : "Sales orders will appear here when customers place orders"}
               actionLabel={!showArchived && canCreate ? "Create SO" : undefined}
               onAction={!showArchived && canCreate ? () => setIsAddOpen(true) : undefined}
             />

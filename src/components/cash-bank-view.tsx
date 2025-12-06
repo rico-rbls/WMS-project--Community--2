@@ -55,7 +55,8 @@ import {
 } from "lucide-react";
 import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 
-const PAYMENT_MODES: PaymentMode[] = ["Cash", "Bank Transfer", "Credit Card", "Check", "Online Payment"];
+// Only Cash on Delivery is supported for transactions
+const PAYMENT_MODES: PaymentMode[] = ["Cash on Delivery"];
 
 interface TrxFormState {
   trxDate: string;
@@ -64,7 +65,6 @@ interface TrxFormState {
   country: string;
   city: string;
   soId: string;
-  invoiceNumber: string;
   paymentMode: PaymentMode;
   amountReceived: number;
   notes: string;
@@ -105,8 +105,7 @@ export function CashBankView() {
     country: "",
     city: "",
     soId: "",
-    invoiceNumber: "",
-    paymentMode: "Cash",
+    paymentMode: "Cash on Delivery",
     amountReceived: 0,
     notes: "",
   });
@@ -142,8 +141,7 @@ export function CashBankView() {
         !debouncedSearch ||
         trx.id.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         trx.customerName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        trx.soId.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        trx.invoiceNumber.toLowerCase().includes(debouncedSearch.toLowerCase());
+        trx.soId.toLowerCase().includes(debouncedSearch.toLowerCase());
 
       const matchesPaymentMode = filterPaymentMode === "all" || trx.paymentMode === filterPaymentMode;
 
@@ -225,12 +223,13 @@ export function CashBankView() {
   const getPaymentModeBadge = (mode: PaymentMode) => {
     const variants: Record<PaymentMode, { variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
       "Cash": { variant: "default", className: "bg-green-500" },
+      "Cash on Delivery": { variant: "default", className: "bg-green-600" },
       "Bank Transfer": { variant: "outline", className: "border-blue-500 text-blue-600" },
       "Credit Card": { variant: "outline", className: "border-purple-500 text-purple-600" },
       "Check": { variant: "outline", className: "border-orange-500 text-orange-600" },
       "Online Payment": { variant: "outline", className: "border-cyan-500 text-cyan-600" },
     };
-    const { variant, className } = variants[mode];
+    const { variant, className } = variants[mode] ?? { variant: "outline" as const, className: "" };
     return <Badge variant={variant} className={cn("gap-1", className)}>{mode}</Badge>;
   };
 
@@ -242,8 +241,7 @@ export function CashBankView() {
       country: "",
       city: "",
       soId: "",
-      invoiceNumber: "",
-      paymentMode: "Cash",
+      paymentMode: "Cash on Delivery",
       amountReceived: 0,
       notes: "",
     });
@@ -264,6 +262,7 @@ export function CashBankView() {
     const so = salesOrdersData.find((s) => s.id === soId);
     if (so) {
       const customer = customersData.find((c) => c.id === so.customerId);
+      // Auto-populate customer info from the selected Sales Order
       setForm((prev) => ({
         ...prev,
         soId,
@@ -271,7 +270,6 @@ export function CashBankView() {
         customerName: so.customerName,
         country: customer?.country ?? so.customerCountry ?? "",
         city: customer?.city ?? so.customerCity ?? "",
-        invoiceNumber: so.invoiceNumber ?? "",
       }));
     }
   };
@@ -289,7 +287,6 @@ export function CashBankView() {
         country: form.country,
         city: form.city,
         soId: form.soId,
-        invoiceNumber: form.invoiceNumber,
         paymentMode: form.paymentMode,
         amountReceived: form.amountReceived,
         notes: form.notes,
@@ -318,7 +315,6 @@ export function CashBankView() {
         country: form.country,
         city: form.city,
         soId: form.soId,
-        invoiceNumber: form.invoiceNumber,
         paymentMode: form.paymentMode,
         amountReceived: form.amountReceived,
         notes: form.notes,
@@ -412,8 +408,7 @@ export function CashBankView() {
       country: trx.country,
       city: trx.city,
       soId: trx.soId,
-      invoiceNumber: trx.invoiceNumber,
-      paymentMode: trx.paymentMode,
+      paymentMode: trx.paymentMode === "Cash" ? "Cash on Delivery" : trx.paymentMode, // Migrate old "Cash" to "Cash on Delivery"
       amountReceived: trx.amountReceived,
       notes: trx.notes ?? "",
     });
@@ -421,7 +416,7 @@ export function CashBankView() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Trx ID", "Trx Date", "Customer ID", "Customer Name", "Country", "City", "SO ID", "Invoice Num", "PMT Mode", "Amount Received"];
+    const headers = ["Trx ID", "Trx Date", "Customer ID", "Customer Name", "Country", "City", "SO ID", "PMT Mode", "Amount Received"];
     const rows = filteredData.map((trx) => [
       trx.id,
       trx.trxDate.split("T")[0],
@@ -430,7 +425,6 @@ export function CashBankView() {
       trx.country,
       trx.city,
       trx.soId,
-      trx.invoiceNumber,
       trx.paymentMode,
       trx.amountReceived.toFixed(2),
     ]);
@@ -458,7 +452,7 @@ export function CashBankView() {
       referenceNumber: trx.soId,
       referenceLabel: "Sales Order",
       items: [{
-        description: `Payment for Invoice ${trx.invoiceNumber}`,
+        description: `Payment for Sales Order ${trx.soId}`,
         quantity: 1,
         unitPrice: trx.amountReceived,
         total: trx.amountReceived,
@@ -533,31 +527,15 @@ export function CashBankView() {
           <Input id="city" value={form.city} disabled className="bg-muted" />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="invoiceNumber">Invoice Number</Label>
-          <Input
-            id="invoiceNumber"
-            value={form.invoiceNumber}
-            onChange={(e) => setForm((prev) => ({ ...prev, invoiceNumber: e.target.value }))}
-            placeholder="INV-001"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="paymentMode">Payment Mode *</Label>
-          <Select value={form.paymentMode} onValueChange={(v) => setForm((prev) => ({ ...prev, paymentMode: v as PaymentMode }))}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAYMENT_MODES.map((mode) => (
-                <SelectItem key={mode} value={mode}>
-                  {mode}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="paymentMode">Payment Mode</Label>
+        <Input
+          id="paymentMode"
+          value="Cash on Delivery"
+          disabled
+          className="bg-muted"
+        />
+        <p className="text-xs text-muted-foreground">Only Cash on Delivery is supported</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="amountReceived">Amount Received (₱) *</Label>
@@ -769,7 +747,6 @@ export function CashBankView() {
                       <SortableTableHead sortKey="country" currentSortKey={sortColumn} sortDirection={getSortDirection("country")} onSort={handleSort}>Country</SortableTableHead>
                       <SortableTableHead sortKey="city" currentSortKey={sortColumn} sortDirection={getSortDirection("city")} onSort={handleSort}>City</SortableTableHead>
                       <SortableTableHead sortKey="soId" currentSortKey={sortColumn} sortDirection={getSortDirection("soId")} onSort={handleSort}>SO ID</SortableTableHead>
-                      <SortableTableHead sortKey="invoiceNumber" currentSortKey={sortColumn} sortDirection={getSortDirection("invoiceNumber")} onSort={handleSort}>Invoice Num</SortableTableHead>
                       <SortableTableHead sortKey="paymentMode" currentSortKey={sortColumn} sortDirection={getSortDirection("paymentMode")} onSort={handleSort}>PMT Mode</SortableTableHead>
                       <SortableTableHead sortKey="amountReceived" currentSortKey={sortColumn} sortDirection={getSortDirection("amountReceived")} onSort={handleSort}>Amount Received</SortableTableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -793,7 +770,6 @@ export function CashBankView() {
                         <TableCell>{trx.country || "-"}</TableCell>
                         <TableCell>{trx.city || "-"}</TableCell>
                         <TableCell>{trx.soId}</TableCell>
-                        <TableCell>{trx.invoiceNumber || "-"}</TableCell>
                         <TableCell>{getPaymentModeBadge(trx.paymentMode)}</TableCell>
                         <TableCell className="font-medium text-green-600">{formatCurrency(trx.amountReceived)}</TableCell>
                         <TableCell className="text-right">

@@ -355,58 +355,10 @@ export function Dashboard({ navigateToView }: DashboardProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Inventory Health</CardTitle>
-            <Activity className="h-5 w-5 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{stats.healthScore}%</div>
-            <div className="mt-2">
-              <Progress value={stats.healthScore} className="h-2" indicatorClassName="bg-purple-600" />
-            </div>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-              {stats.inStockItems} of {inventory.length} items in stock
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900 border-cyan-200 dark:border-cyan-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Warehouse Capacity</CardTitle>
-            <Gauge className="h-5 w-5 text-cyan-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{stats.capacityUtilization}%</div>
-            <div className="mt-2">
-              <Progress
-                value={stats.capacityUtilization}
-                className="h-2"
-                indicatorClassName={stats.capacityUtilization > 90 ? "bg-red-600" : stats.capacityUtilization > 70 ? "bg-yellow-600" : "bg-cyan-600"}
-              />
-            </div>
-            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-              {stats.totalItems.toLocaleString()} items in stock
-            </p>
-          </CardContent>
-        </Card>
         </div>
 
         {/* Secondary Stats Grid */}
-        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("inventory")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
-              <Package className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalItems.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Across {inventory.length} SKUs
-              </p>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-4">
           <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigateToView?.("sales-orders")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Active Sales Orders</CardTitle>
@@ -653,99 +605,6 @@ export function Dashboard({ navigateToView }: DashboardProps) {
                 </div>
               )}
             </CardContent>
-          </Card>
-        </div>
-
-        {/* Inventory Health Row */}
-        <div className={`grid gap-4 mt-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
-        {/* Inventory Health Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Inventory Health
-            </CardTitle>
-            <CardDescription>Overall stock status breakdown</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Health Score */}
-              <div className="text-center">
-                <div className="text-4xl font-bold text-primary">{stats.healthScore}%</div>
-                <p className="text-sm text-muted-foreground">Overall Health Score</p>
-              </div>
-
-              {/* Status Breakdown */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-green-500" />
-                    <span className="text-sm">In Stock</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{stats.inStockItems}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({inventory.length > 0 ? Math.round((stats.inStockItems / inventory.length) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-blue-500" />
-                    <span className="text-sm">Overstock</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-blue-600">{stats.overstockCount}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({inventory.length > 0 ? Math.round((stats.overstockCount / inventory.length) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                    <span className="text-sm">Low Stock</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{stats.lowStockCount - stats.criticalItems}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({inventory.length > 0 ? Math.round(((stats.lowStockCount - stats.criticalItems) / inventory.length) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-red-500" />
-                    <span className="text-sm">Critical</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-red-600">{stats.criticalItems}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({inventory.length > 0 ? Math.round((stats.criticalItems / inventory.length) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Supplier Performance */}
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Active Suppliers</span>
-                  </div>
-                  <span className="font-medium">{stats.activeSuppliers}</span>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <span className="text-sm">PO Completion Rate</span>
-                  </div>
-                  <span className="font-medium text-green-600">{stats.supplierPerformance}%</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
           </Card>
         </div>
 

@@ -372,7 +372,7 @@ export interface UpdateSalesOrderInput {
 // CASH AND BANK TYPES
 // ============================================
 
-export type PaymentMode = "Cash" | "Bank Transfer" | "Credit Card" | "Check" | "Online Payment";
+export type PaymentMode = "Cash" | "Cash on Delivery" | "Bank Transfer" | "Credit Card" | "Check" | "Online Payment";
 
 export interface CashBankTransaction {
   id: string; // TRX-001 format

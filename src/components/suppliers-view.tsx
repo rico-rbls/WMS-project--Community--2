@@ -806,19 +806,11 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                       </div>
                     </div>
 
-                    {/* Financial Fields */}
+                    {/* Financial Information Note */}
                     <div className="border-t pt-4 mt-2">
-                      <Label className="text-sm font-medium text-muted-foreground mb-3 block">Financial Information</Label>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="purchases">Total Purchases (₱)</Label>
-                          <Input id="purchases" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchases} onChange={(e) => setForm({ ...form, purchases: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="payments">Total Payments (₱)</Label>
-                          <Input id="payments" type="number" min="0" step="0.01" placeholder="0.00" value={form.payments} onChange={(e) => setForm({ ...form, payments: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        💡 Financial information (Total Purchases, Payments, Balance) is automatically calculated from Purchase Orders.
+                      </p>
                     </div>
                   </div>
                   <DialogFooter>
@@ -842,8 +834,8 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                             country: form.country,
                             city: form.city,
                             address: form.address,
-                            purchases: form.purchases,
-                            payments: form.payments,
+                            purchases: 0, // Auto-calculated from POs
+                            payments: 0,  // Auto-calculated from POs
                           });
                           setSuppliersData((prev) => [created, ...(prev ?? [])]);
                           setIsAddOpen(false);
@@ -1375,19 +1367,11 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                   </div>
                                 </div>
 
-                                {/* Financial Fields */}
+                                {/* Financial Information Note */}
                                 <div className="border-t pt-4 mt-2">
-                                  <Label className="text-sm font-medium text-muted-foreground mb-3 block">Financial Information</Label>
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                      <Label htmlFor="edit-purchases">Total Purchases (₱)</Label>
-                                      <Input id="edit-purchases" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchases} onChange={(e) => setForm({ ...form, purchases: parseFloat(e.target.value) || 0 })} />
-                                    </div>
-                                    <div className="grid gap-2">
-                                      <Label htmlFor="edit-payments">Total Payments (₱)</Label>
-                                      <Input id="edit-payments" type="number" min="0" step="0.01" placeholder="0.00" value={form.payments} onChange={(e) => setForm({ ...form, payments: parseFloat(e.target.value) || 0 })} />
-                                    </div>
-                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    💡 Financial information (Total Purchases, Payments, Balance) is automatically calculated from Purchase Orders.
+                                  </p>
                                 </div>
                               </div>
                               <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
@@ -1432,6 +1416,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                         return;
                                       }
                                       try {
+                                        // Note: purchases/payments are auto-calculated from POs, not stored here
                                         const updated = await updateFirebaseSupplier({
                                           id: form.id,
                                           name: form.name,
@@ -1443,8 +1428,6 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                                           country: form.country,
                                           city: form.city,
                                           address: form.address,
-                                          purchases: form.purchases,
-                                          payments: form.payments,
                                         });
                                         setSuppliersData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
                                         setIsEditOpen(null);
@@ -1492,6 +1475,11 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
             // Get related purchase orders for this supplier
             const supplierPOs = purchaseOrdersData.filter(po => po.supplierId === supplier.id);
             const totalPOValue = supplierPOs.reduce((sum, po) => sum + po.totalAmount, 0);
+
+            // Calculate financial metrics from Purchase Orders
+            const calculatedPurchases = supplierPOs.reduce((sum, po) => sum + (po.totalAmount ?? 0), 0);
+            const calculatedPayments = supplierPOs.reduce((sum, po) => sum + (po.totalPaid ?? 0), 0);
+            const calculatedBalance = calculatedPurchases - calculatedPayments;
 
             // Get products from this supplier
             const supplierProducts = inventoryData.filter(item => item.supplierId === supplier.id);
@@ -1604,28 +1592,29 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                     </div>
                   )}
 
-                  {/* Financial Information */}
+                  {/* Financial Information - Auto-calculated from Purchase Orders */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Financial Summary</h4>
+                    <p className="text-xs text-muted-foreground -mt-2">Auto-calculated from Purchase Orders</p>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-center">
                         <TrendingUp className="h-4 w-4 mx-auto mb-1 text-blue-600" />
                         <p className="text-lg font-bold text-blue-600">
-                          ₱{supplier.purchases.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₱{calculatedPurchases.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         <p className="text-xs text-muted-foreground">Total Purchases</p>
                       </div>
                       <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-center">
                         <DollarSign className="h-4 w-4 mx-auto mb-1 text-green-600" />
                         <p className="text-lg font-bold text-green-600">
-                          ₱{supplier.payments.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₱{calculatedPayments.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         <p className="text-xs text-muted-foreground">Total Payments</p>
                       </div>
-                      <div className={cn("p-3 rounded-lg text-center", supplier.balance > 0 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-emerald-50 dark:bg-emerald-950/30")}>
-                        <DollarSign className={cn("h-4 w-4 mx-auto mb-1", supplier.balance > 0 ? "text-amber-600" : "text-emerald-600")} />
-                        <p className={cn("text-lg font-bold", supplier.balance > 0 ? "text-amber-600" : "text-emerald-600")}>
-                          ₱{supplier.balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className={cn("p-3 rounded-lg text-center", calculatedBalance > 0 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-emerald-50 dark:bg-emerald-950/30")}>
+                        <DollarSign className={cn("h-4 w-4 mx-auto mb-1", calculatedBalance > 0 ? "text-amber-600" : "text-emerald-600")} />
+                        <p className={cn("text-lg font-bold", calculatedBalance > 0 ? "text-amber-600" : "text-emerald-600")}>
+                          ₱{calculatedBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         <p className="text-xs text-muted-foreground">Balance</p>
                       </div>
