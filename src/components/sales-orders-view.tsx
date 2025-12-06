@@ -94,7 +94,7 @@ import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-rec
 import { CustomerOrderForm } from "@/components/customer-order-form";
 
 const RECEIPT_STATUSES: ReceiptStatus[] = ["Unpaid", "Partially Paid", "Paid", "Overdue"];
-const SHIPPING_STATUSES: ShippingStatus[] = ["Pending", "Processing", "Shipped", "In Transit", "Out for Delivery", "Delivered", "Failed", "Returned"];
+const SHIPPING_STATUSES: ShippingStatus[] = ["Pending", "In Transit", "Delivered"];
 
 interface SOFormState {
   soDate: string;
@@ -571,13 +571,13 @@ export function SalesOrdersView() {
 
       console.log("[Shipment] Shipment created successfully:", newShipment);
 
-      // Update order shipping status
+      // Update order shipping status to In Transit when shipment is created
       await updateFirebaseSalesOrder({
         id: detailViewSO.id,
-        shippingStatus: "Processing",
+        shippingStatus: "In Transit",
       });
 
-      console.log("[Shipment] Sales order shipping status updated to Processing");
+      console.log("[Shipment] Sales order shipping status updated to In Transit");
 
       toast.success("Shipment created successfully");
       setShowCreateShipmentDialog(false);
@@ -1000,11 +1000,8 @@ export function SalesOrdersView() {
     const getShippingStatusColor = (status: string) => {
       switch (status) {
         case "Delivered": return "bg-green-600";
-        case "Shipped":
-        case "In Transit":
-        case "Out for Delivery": return "bg-blue-600";
-        case "Failed":
-        case "Returned": return "bg-red-600";
+        case "In Transit": return "bg-blue-600";
+        case "Pending":
         default: return "bg-amber-600";
       }
     };
@@ -1738,7 +1735,7 @@ export function SalesOrdersView() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">
-                {filteredData.filter(so => so.shippingStatus === "Pending" || so.shippingStatus === "Processing").length}
+                {filteredData.filter(so => so.shippingStatus === "Pending").length}
               </div>
             </CardContent>
           </Card>
@@ -1833,16 +1830,12 @@ export function SalesOrdersView() {
                           <Badge
                             variant={
                               so.shippingStatus === "Delivered" ? "default" :
-                              so.shippingStatus === "Shipped" || so.shippingStatus === "In Transit" || so.shippingStatus === "Out for Delivery" ? "secondary" :
-                              so.shippingStatus === "Failed" || so.shippingStatus === "Returned" ? "destructive" :
+                              so.shippingStatus === "In Transit" ? "secondary" :
                               "outline"
                             }
                             className={
                               so.shippingStatus === "Delivered" ? "bg-green-600" :
-                              so.shippingStatus === "Out for Delivery" ? "bg-blue-600" :
-                              so.shippingStatus === "In Transit" ? "bg-blue-500" :
-                              so.shippingStatus === "Shipped" ? "bg-cyan-600" :
-                              so.shippingStatus === "Processing" ? "bg-amber-500" :
+                              so.shippingStatus === "In Transit" ? "bg-blue-600" :
                               ""
                             }
                           >
@@ -2226,7 +2219,7 @@ export function SalesOrdersView() {
                         </TableCell>
                         <TableCell>{getReceiptStatusBadge(so.receiptStatus)}</TableCell>
                         <TableCell>
-                          <Badge variant={so.shippingStatus === "Delivered" ? "default" : so.shippingStatus === "In Transit" || so.shippingStatus === "Shipped" ? "secondary" : so.shippingStatus === "Failed" || so.shippingStatus === "Returned" ? "destructive" : "outline"}>
+                          <Badge variant={so.shippingStatus === "Delivered" ? "default" : so.shippingStatus === "In Transit" ? "secondary" : "outline"}>
                             {so.shippingStatus ?? "Pending"}
                           </Badge>
                         </TableCell>
@@ -2274,7 +2267,7 @@ export function SalesOrdersView() {
                           <span className="text-sm text-muted-foreground">Receipt Status:</span>
                           {so && getReceiptStatusBadge(so.receiptStatus)}
                           <span className="text-sm text-muted-foreground ml-4">Shipping:</span>
-                          <Badge variant={so?.shippingStatus === "Delivered" ? "default" : so?.shippingStatus === "In Transit" || so?.shippingStatus === "Shipped" ? "secondary" : so?.shippingStatus === "Failed" || so?.shippingStatus === "Returned" ? "destructive" : "outline"}>
+                          <Badge variant={so?.shippingStatus === "Delivered" ? "default" : so?.shippingStatus === "In Transit" ? "secondary" : "outline"}>
                             {so?.shippingStatus ?? "Pending"}
                           </Badge>
                         </div>

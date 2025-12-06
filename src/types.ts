@@ -220,13 +220,8 @@ export type POStatus =
 
 export type ShippingStatus =
   | "Pending"
-  | "Processing"
-  | "Shipped"
   | "In Transit"
-  | "Out for Delivery"
-  | "Delivered"
-  | "Failed"
-  | "Returned";
+  | "Delivered";
 
 export interface POLineItem {
   inventoryItemId: string;
