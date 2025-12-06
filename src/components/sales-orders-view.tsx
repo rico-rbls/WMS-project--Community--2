@@ -551,14 +551,25 @@ export function SalesOrdersView() {
       return;
     }
 
+    const destination = shipmentForm.destination || detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`;
+
+    console.log("[Shipment] Creating shipment:", {
+      salesOrderId: detailViewSO.id,
+      destination,
+      carrier: shipmentForm.carrier,
+      eta: shipmentForm.eta,
+    });
+
     try {
-      await createFirebaseShipment({
+      const newShipment = await createFirebaseShipment({
         salesOrderId: detailViewSO.id,
-        destination: shipmentForm.destination || detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`,
+        destination,
         carrier: shipmentForm.carrier,
         status: "Pending",
         eta: shipmentForm.eta,
       });
+
+      console.log("[Shipment] Shipment created successfully:", newShipment);
 
       // Update order shipping status
       await updateFirebaseSalesOrder({
@@ -566,12 +577,22 @@ export function SalesOrdersView() {
         shippingStatus: "Processing",
       });
 
+      console.log("[Shipment] Sales order shipping status updated to Processing");
+
       toast.success("Shipment created successfully");
       setShowCreateShipmentDialog(false);
       setShipmentForm({ carrier: "", eta: "", destination: "" });
-      loadAllData();
+
+      // Refresh shipments data to show the new shipment
+      const updatedShipments = await getFirebaseShipments();
+      setShipmentsData(updatedShipments);
+
+      // Also refresh sales orders to get updated shipping status
+      const updatedOrders = await getFirebaseSalesOrders();
+      setSalesOrdersData(updatedOrders);
     } catch (error) {
-      toast.error("Failed to create shipment");
+      console.error("[Shipment] Failed to create shipment:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create shipment");
     }
   };
 
