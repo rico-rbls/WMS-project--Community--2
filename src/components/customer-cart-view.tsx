@@ -1,25 +1,23 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useNotifications } from "@/context/notifications-context";
-import { getCustomers, createCustomer, createSalesOrder } from "@/services/api";
+import { getCustomers, createCustomer, updateCustomer, createSalesOrder } from "@/services/api";
 import type { Customer, SalesOrder } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
-  ShoppingCart,
   Plus,
   Minus,
   Trash2,
   Package,
   ImageIcon,
   ArrowLeft,
-  CreditCard,
   CheckCircle2,
   ShoppingBag,
   MapPin,
@@ -31,6 +29,8 @@ import {
   User,
   Calendar,
   Hash,
+  Home,
+  Edit3,
 } from "lucide-react";
 import type { ViewType } from "@/App";
 import { useEffect } from "react";
@@ -49,8 +49,8 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
   const { cart, updateQuantity, removeFromCart, clearCart, cartTotal, itemCount } = useCart();
   const { sendNotification } = useNotifications();
   const [notes, setNotes] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [amountPaid, setAmountPaid] = useState("");
+  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+  const [customDeliveryAddress, setCustomDeliveryAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState<SalesOrder | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
@@ -66,6 +66,24 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
     return customersData.find(c => c.email === user.email);
   }, [user?.email, customersData]);
 
+  // Get effective delivery address
+  const effectiveDeliveryAddress = useMemo(() => {
+    // If user chose to use a different address (toggle is OFF) and provided one
+    if (!useDefaultAddress && customDeliveryAddress.trim()) {
+      return customDeliveryAddress.trim();
+    }
+    // If user wants default address and customer has one saved
+    if (useDefaultAddress && customerRecord?.address) {
+      const parts = [customerRecord.address, customerRecord.city, customerRecord.country].filter(Boolean);
+      return parts.join(", ");
+    }
+    // If no saved address, use custom address even if toggle is on
+    if (customDeliveryAddress.trim()) {
+      return customDeliveryAddress.trim();
+    }
+    return "";
+  }, [useDefaultAddress, customDeliveryAddress, customerRecord]);
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       toast.error("Your cart is empty");
@@ -77,26 +95,58 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
       return;
     }
 
+    // Ensure we have a delivery address
+    if (!effectiveDeliveryAddress) {
+      toast.error("Please provide a delivery address");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Use existing customer record or auto-create one
       let customer = customerRecord;
+      const displayName = user.displayName || user.email.split("@")[0];
 
       if (!customer) {
-        // Auto-create customer record from user profile
-        const displayName = user.displayName || user.email.split("@")[0];
+        // Auto-create customer record from user profile with full details
+        // Extract city from custom address if provided
+        const addressParts = effectiveDeliveryAddress.split(",").map(s => s.trim());
+        const city = addressParts.length > 1 ? addressParts[1] : "";
+        const address = addressParts[0] || effectiveDeliveryAddress;
+
         customer = await createCustomer({
           name: displayName,
+          contact: displayName,
           email: user.email,
           phone: "",
-          address: deliveryAddress || "",
-          city: "",
+          address: address,
+          city: city,
           country: "Philippines",
           status: "Active",
+          purchases: cartTotal,
+          payments: 0,
         });
         // Update local state
         setCustomersData(prev => [...prev, customer!]);
         toast.info("Customer profile created automatically.");
+      } else {
+        // Update existing customer with order info - sync address if using new address
+        const updates: Partial<Customer> & { id: string } = {
+          id: customer.id,
+          purchases: (customer.purchases || 0) + cartTotal,
+        };
+
+        // If customer doesn't have an address or is using a new address, update it
+        if (!customer.address && effectiveDeliveryAddress) {
+          const addressParts = effectiveDeliveryAddress.split(",").map(s => s.trim());
+          updates.address = addressParts[0] || effectiveDeliveryAddress;
+          if (addressParts.length > 1) {
+            updates.city = addressParts[1];
+          }
+        }
+
+        customer = await updateCustomer(updates);
+        setCustomersData(prev => prev.map(c => c.id === customer!.id ? customer! : c));
       }
 
       const orderItems = cart.map(item => ({
@@ -107,18 +157,20 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
         totalPrice: item.totalPrice,
       }));
 
+      // Create order with createdBy set to user email for tracking
       const order = await createSalesOrder({
         customerId: customer.id,
         customerName: customer.name,
-        customerCountry: customer.country,
-        customerCity: customer.city,
-        deliveryAddress: deliveryAddress || customer.address || undefined,
+        customerCountry: customer.country || "Philippines",
+        customerCity: customer.city || "",
+        deliveryAddress: effectiveDeliveryAddress,
         soDate: new Date().toISOString().split("T")[0],
         items: orderItems,
         totalAmount: cartTotal,
         receiptStatus: "Unpaid",
         notes: notes || undefined,
         amountPaid: 0,
+        createdBy: user.email, // Critical for order tracking - must match user.email
       });
 
       setOrderPlaced(order);
@@ -515,36 +567,97 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
 
               <Separator />
 
-              {/* Delivery & Notes */}
+              {/* Delivery Address Selection */}
               <div className="space-y-3">
-                <div>
-                  <Label htmlFor="deliveryAddress" className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    Delivery Address
-                  </Label>
-                  <textarea
-                    id="deliveryAddress"
-                    placeholder={customerRecord?.address || "Enter your delivery address..."}
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    className="mt-1.5 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                  {customerRecord?.address && !deliveryAddress && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Default: {customerRecord.address}, {customerRecord.city}, {customerRecord.country}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="notes">Order Notes (Optional)</Label>
-                  <textarea
-                    id="notes"
-                    placeholder="Any special instructions..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="mt-1.5 flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
+                <Label className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Delivery Address
+                </Label>
+
+                {/* Address Selection Toggle - Only show if customer has saved address */}
+                {customerRecord?.address ? (
+                  <div className="space-y-3">
+                    {/* Toggle between saved and new address */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Home className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Use saved address</span>
+                      </div>
+                      <Switch
+                        checked={useDefaultAddress}
+                        onCheckedChange={setUseDefaultAddress}
+                      />
+                    </div>
+
+                    {/* Show saved address when toggle is ON */}
+                    {useDefaultAddress ? (
+                      <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-green-800 dark:text-green-200">Saved Address</p>
+                            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                              {[customerRecord.address, customerRecord.city, customerRecord.country].filter(Boolean).join(", ")}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Show textarea when toggle is OFF */
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Edit3 className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Enter a different address</span>
+                        </div>
+                        <textarea
+                          id="customDeliveryAddress"
+                          placeholder="Enter your delivery address..."
+                          value={customDeliveryAddress}
+                          onChange={(e) => setCustomDeliveryAddress(e.target.value)}
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* No saved address - show input directly */
+                  <div>
+                    <div className="p-3 mb-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        💡 Enter your delivery address. It will be saved for future orders.
+                      </p>
+                    </div>
+                    <textarea
+                      id="deliveryAddress"
+                      placeholder="Enter your full delivery address (e.g., 123 Main St, Calamba, Laguna)..."
+                      value={customDeliveryAddress}
+                      onChange={(e) => setCustomDeliveryAddress(e.target.value)}
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
+                )}
+
+                {/* Show effective address summary */}
+                {effectiveDeliveryAddress && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Truck className="h-3 w-3" />
+                    Delivering to: {effectiveDeliveryAddress}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Order Notes */}
+              <div>
+                <Label htmlFor="notes">Order Notes (Optional)</Label>
+                <textarea
+                  id="notes"
+                  placeholder="Any special instructions..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="mt-1.5 flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
               </div>
             </CardContent>
             <CardFooter>
