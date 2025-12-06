@@ -57,7 +57,17 @@ import {
   ArrowLeft,
   Printer,
   AlertCircle,
+  Banknote,
+  MapPin,
+  User,
+  Calendar,
+  Hash,
+  Truck,
+  Package,
+  Receipt,
+  CheckCircle2,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 import { CustomerOrderForm } from "@/components/customer-order-form";
 
@@ -313,13 +323,21 @@ export function SalesOrdersView() {
 
   const getReceiptStatusBadge = (status: ReceiptStatus) => {
     const variants: Record<ReceiptStatus, { variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-      Unpaid: { variant: "outline", className: "border-gray-500 text-gray-600" },
-      "Partially Paid": { variant: "outline", className: "border-yellow-500 text-yellow-600" },
-      Paid: { variant: "default", className: "bg-green-500" },
+      Unpaid: { variant: "outline", className: "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30" },
+      "Partially Paid": { variant: "outline", className: "border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30" },
+      Paid: { variant: "default", className: "bg-green-600" },
       Overdue: { variant: "destructive" },
     };
     const { variant, className } = variants[status];
-    return <Badge variant={variant} className={cn("gap-1", className)}>{status}</Badge>;
+    return (
+      <Badge variant={variant} className={cn("gap-1", className)}>
+        {status === "Paid" && <CheckCircle2 className="h-3 w-3" />}
+        {status === "Unpaid" && <Clock className="h-3 w-3" />}
+        {status === "Partially Paid" && <DollarSign className="h-3 w-3" />}
+        {status === "Overdue" && <AlertCircle className="h-3 w-3" />}
+        {status}
+      </Badge>
+    );
   };
 
   const resetForm = () => {
@@ -703,110 +721,244 @@ export function SalesOrdersView() {
     );
   }
 
-  // Detail View - shows line items table for a specific sales order
+  // Detail View - Enhanced Receipt Style (matches customer order confirmation)
   if (detailViewSO) {
+    const orderDateTime = new Date(detailViewSO.soDate || detailViewSO.createdDate || new Date());
+    const getShippingStatusColor = (status: string) => {
+      switch (status) {
+        case "Delivered": return "bg-green-600";
+        case "Shipped":
+        case "In Transit":
+        case "Out for Delivery": return "bg-blue-600";
+        case "Failed":
+        case "Returned": return "bg-red-600";
+        default: return "bg-amber-600";
+      }
+    };
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-4xl mx-auto">
         {/* Header with Back Button */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="outline" size="sm" onClick={closeDetailView}>
               <ArrowLeft className="h-4 w-4 mr-1" />
-              Back to List
+              Back
             </Button>
             <div>
-              <h2 className="text-xl font-semibold">Sales Order Details - {detailViewSO.id}</h2>
+              <h2 className="text-xl font-semibold">Order Receipt</h2>
               <p className="text-sm text-muted-foreground">
-                {detailViewSO.customerName} • {detailViewSO.soDate ?? detailViewSO.createdDate}
+                {detailViewSO.customerName}
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => handlePrintSalesOrder(detailViewSO)}>
+          <Button variant="outline" size="sm" onClick={() => handlePrintSalesOrder(detailViewSO)} className="print:hidden">
             <Printer className="h-4 w-4 mr-2" />
-            Print Invoice
+            Print Receipt
           </Button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Customer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="font-medium">{detailViewSO.customerName}</div>
-              <div className="text-sm text-muted-foreground">{detailViewSO.customerId}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Location</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="font-medium">{detailViewSO.customerCity || "-"}</div>
-              <div className="text-sm text-muted-foreground">{detailViewSO.customerCountry || "-"}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-bold text-emerald-600">{formatCurrency(detailViewSO.totalAmount ?? 0)}</div>
-              <div className="text-sm text-muted-foreground">{detailViewSO.items?.length ?? 0} line items</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-1">
-                {getReceiptStatusBadge(detailViewSO.receiptStatus)}
-                <Badge variant={detailViewSO.shippingStatus === "Delivered" ? "default" : "outline"} className="w-fit mt-1">
+        {/* Main Receipt Card */}
+        <Card className="print:shadow-none print:border-none" id="order-receipt">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Sales Order Receipt</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Order Info Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Order ID</p>
+                  <p className="font-mono font-medium text-xs sm:text-sm">{detailViewSO.id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Date & Time</p>
+                  <p className="font-medium text-xs sm:text-sm">
+                    {orderDateTime.toLocaleDateString()} {orderDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Customer</p>
+                  <p className="font-medium text-xs sm:text-sm">{detailViewSO.customerName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-muted-foreground text-xs">Invoice #</p>
+                  <p className="font-medium text-xs sm:text-sm">{detailViewSO.invoiceNumber || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Location */}
+            {(detailViewSO.customerCity || detailViewSO.customerCountry) && (
+              <div className="flex items-start gap-2 bg-muted/50 rounded-lg p-3">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Customer Location</p>
+                  <p className="text-sm">{[detailViewSO.customerCity, detailViewSO.customerCountry].filter(Boolean).join(", ")}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Delivery Address */}
+            {detailViewSO.deliveryAddress && (
+              <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <Truck className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Delivery Address</p>
+                  <p className="text-sm">{detailViewSO.deliveryAddress}</p>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Items Ordered */}
+            <div>
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Items Ordered ({detailViewSO.items?.length || 0})
+              </h4>
+              {(!detailViewSO.items || detailViewSO.items.length === 0) ? (
+                <EmptyState
+                  icon={ShoppingCart}
+                  title="No line items"
+                  description="This sales order has no line items"
+                />
+              ) : (
+                <div className="space-y-2 bg-muted/30 rounded-lg p-3">
+                  {detailViewSO.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-start text-sm">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="font-medium line-clamp-1">{item.itemName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(item.unitPrice)} × {item.quantity}
+                        </p>
+                      </div>
+                      <p className="font-medium shrink-0">{formatCurrency(item.totalPrice)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Order Summary */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(detailViewSO.totalAmount ?? 0)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="text-green-600">Free</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total</span>
+                <span className="text-primary">{formatCurrency(detailViewSO.totalAmount ?? 0)}</span>
+              </div>
+              {(detailViewSO.amountPaid ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Amount Paid</span>
+                    <span className="text-green-600">{formatCurrency(detailViewSO.amountPaid ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-muted-foreground">Balance Due</span>
+                    <span className="text-amber-600">{formatCurrency((detailViewSO.totalAmount ?? 0) - (detailViewSO.amountPaid ?? 0))}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Payment & Shipping Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Payment Info */}
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Banknote className="h-4 w-4 text-amber-600" />
+                  <span className="font-medium text-sm">Payment</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="gap-1">
+                    <Banknote className="h-3 w-3" />
+                    Cash on Delivery
+                  </Badge>
+                  {getReceiptStatusBadge(detailViewSO.receiptStatus)}
+                </div>
+              </div>
+
+              {/* Shipping Info */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Truck className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-sm">Shipping</span>
+                </div>
+                <Badge className={`gap-1 ${getShippingStatusColor(detailViewSO.shippingStatus || "Pending")}`}>
+                  {detailViewSO.shippingStatus === "Delivered" ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <Clock className="h-3 w-3" />
+                  )}
                   {detailViewSO.shippingStatus ?? "Pending"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* Line Items Detail Table */}
+            {/* Notes */}
+            {detailViewSO.notes && (
+              <div className="text-sm bg-muted/50 rounded-lg p-3">
+                <p className="text-muted-foreground mb-1 font-medium">Order Notes:</p>
+                <p className="italic">{detailViewSO.notes}</p>
+              </div>
+            )}
+
+            {/* Expected Delivery Date */}
+            {detailViewSO.expectedDeliveryDate && (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Expected Delivery: {new Date(detailViewSO.expectedDeliveryDate).toLocaleDateString()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Detailed Line Items Table (Admin View) */}
         <Card>
           <CardHeader>
-            <CardTitle>Line Items</CardTitle>
+            <CardTitle className="text-base">Detailed Line Items</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Detailed breakdown of all items in this sales order
+              Full breakdown with item IDs and categories
             </p>
           </CardHeader>
           <CardContent>
-            {(!detailViewSO.items || detailViewSO.items.length === 0) ? (
-              <EmptyState
-                icon={ShoppingCart}
-                title="No line items"
-                description="This sales order has no line items"
-              />
-            ) : (
+            {detailViewSO.items && detailViewSO.items.length > 0 && (
               <div className="border rounded-lg overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>SO Date</TableHead>
-                      <TableHead>SO ID</TableHead>
-                      <TableHead>Detail ID</TableHead>
-                      <TableHead>Customer ID</TableHead>
-                      <TableHead>Customer Name</TableHead>
-                      <TableHead>Country</TableHead>
-                      <TableHead>City</TableHead>
-                      <TableHead>Invoice Num</TableHead>
                       <TableHead>Item ID</TableHead>
-                      <TableHead>Item Type</TableHead>
-                      <TableHead>Item Category</TableHead>
-                      <TableHead>Item Subcategory</TableHead>
                       <TableHead>Item Name</TableHead>
-                      <TableHead className="text-right">QTY Sold</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
                       <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">Total Sales Price</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -814,19 +966,9 @@ export function SalesOrdersView() {
                       const invDetails = getInventoryItemDetails(item.inventoryItemId);
                       return (
                         <TableRow key={index}>
-                          <TableCell className="whitespace-nowrap">{detailViewSO.soDate ?? detailViewSO.createdDate}</TableCell>
-                          <TableCell className="font-medium">{detailViewSO.id}</TableCell>
-                          <TableCell className="font-mono text-sm">{generateDetailId(detailViewSO.id, index)}</TableCell>
-                          <TableCell className="text-muted-foreground">{detailViewSO.customerId}</TableCell>
-                          <TableCell>{detailViewSO.customerName}</TableCell>
-                          <TableCell>{detailViewSO.customerCountry || "-"}</TableCell>
-                          <TableCell>{detailViewSO.customerCity || "-"}</TableCell>
-                          <TableCell>{detailViewSO.invoiceNumber || "-"}</TableCell>
                           <TableCell className="font-mono text-sm">{invDetails.itemId}</TableCell>
-                          <TableCell>{invDetails.itemType}</TableCell>
-                          <TableCell>{invDetails.itemCategory}</TableCell>
-                          <TableCell>{invDetails.itemSubcategory}</TableCell>
                           <TableCell>{item.itemName}</TableCell>
+                          <TableCell className="text-muted-foreground">{invDetails.itemCategory}</TableCell>
                           <TableCell className="text-right">{item.quantity}</TableCell>
                           <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(item.totalPrice)}</TableCell>
@@ -835,16 +977,6 @@ export function SalesOrdersView() {
                     })}
                   </TableBody>
                 </Table>
-              </div>
-            )}
-
-            {/* Summary Footer */}
-            {detailViewSO.items && detailViewSO.items.length > 0 && (
-              <div className="mt-4 pt-4 border-t flex justify-end">
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Grand Total</div>
-                  <div className="text-2xl font-bold text-emerald-600">{formatCurrency(detailViewSO.totalAmount ?? 0)}</div>
-                </div>
               </div>
             )}
           </CardContent>
