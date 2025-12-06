@@ -18,18 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import {
   ShoppingCart,
-  Plus,
-  Minus,
   Search,
   Package,
   ImageIcon,
   Tag,
-  Filter,
-  Grid3X3,
-  LayoutList,
-  ArrowRight,
   Eye,
-  X,
   Layers,
 } from "lucide-react";
 import type { ViewType } from "@/App";
@@ -45,14 +38,13 @@ interface ProductsCatalogViewProps {
 }
 
 export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps) {
-  const { addToCart, getCartItem, updateQuantity, itemCount, cartTotal } = useCart();
+  const { addToCart, getCartItem, itemCount, cartTotal } = useCart();
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [categoryDefinitions, setCategoryDefinitions] = useState<CategoryDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
-  const [detailQuantity, setDetailQuantity] = useState(1);
 
   useEffect(() => {
     async function loadData() {
@@ -193,7 +185,7 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
                 {/* Product Image */}
                 <div
                   className="aspect-[4/3] bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center relative overflow-hidden cursor-pointer"
-                  onClick={() => { setSelectedProduct(product); setDetailQuantity(1); }}
+                  onClick={() => setSelectedProduct(product)}
                 >
                   {product.photoUrl ? (
                     <img
@@ -242,35 +234,15 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
                       <Button size="sm" variant="outline" disabled className="opacity-60 h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3">
                         Out
                       </Button>
-                    ) : inCart ? (
-                      <div className="flex items-center gap-0.5 sm:gap-1.5 bg-accent rounded-lg p-0.5 sm:p-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-5 w-5 sm:h-7 sm:w-7"
-                          onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
-                        >
-                          <Minus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        </Button>
-                        <span className="w-4 sm:w-6 text-center font-semibold text-[10px] sm:text-sm">{cartItem.quantity}</span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-5 w-5 sm:h-7 sm:w-7"
-                          onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
-                          disabled={cartItem.quantity >= product.quantity}
-                        >
-                          <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        </Button>
-                      </div>
                     ) : (
                       <Button
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); addToCart(product); }}
                         className="gap-1 h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3"
+                        variant={inCart ? "secondary" : "default"}
                       >
                         <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline">Add</span>
+                        <span className="hidden sm:inline">{inCart ? "Add More" : "Add"}</span>
                       </Button>
                     )}
                   </div>
@@ -365,60 +337,25 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
                         Out of Stock
                       </Button>
                     ) : (
-                      <div className="flex items-center gap-3">
-                        {/* Quantity Selector */}
-                        <div className="flex items-center gap-2 bg-accent rounded-lg p-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => setDetailQuantity(Math.max(1, detailQuantity - 1))}
-                            disabled={detailQuantity <= 1}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="w-8 text-center font-semibold">{detailQuantity}</span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => setDetailQuantity(Math.min(maxQty, detailQuantity + 1))}
-                            disabled={detailQuantity >= maxQty}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        {/* Add to Cart Button */}
-                        <Button
-                          onClick={() => {
-                            if (inCart) {
-                              updateQuantity(selectedProduct.id, cartItem.quantity + detailQuantity);
-                            } else {
-                              for (let i = 0; i < detailQuantity; i++) {
-                                addToCart(selectedProduct);
-                              }
-                              // Adjust quantity after adding (addToCart adds with qty 1)
-                              if (detailQuantity > 1) {
-                                setTimeout(() => updateQuantity(selectedProduct.id, detailQuantity), 0);
-                              }
-                            }
-                            toast.success(`Added ${detailQuantity} × ${selectedProduct.name} to cart`);
-                            setSelectedProduct(null);
-                          }}
-                          disabled={maxQty <= 0}
-                          className="gap-2"
-                        >
-                          <ShoppingCart className="h-4 w-4" />
-                          {inCart ? "Add More" : "Add to Cart"}
-                        </Button>
-                      </div>
+                      <Button
+                        onClick={() => {
+                          addToCart(selectedProduct);
+                          toast.success(`Added ${selectedProduct.name} to cart`);
+                          setSelectedProduct(null);
+                        }}
+                        disabled={maxQty <= 0}
+                        className="gap-2"
+                        variant={inCart ? "secondary" : "default"}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        {inCart ? "Add More" : "Add to Cart"}
+                      </Button>
                     )}
                   </div>
 
                   {inCart && (
                     <p className="text-sm text-muted-foreground text-center">
-                      You already have {cartItem.quantity} in your cart
+                      You have {cartItem.quantity} in your cart
                     </p>
                   )}
                 </div>
