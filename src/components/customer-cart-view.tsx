@@ -37,6 +37,7 @@ import {
   Hash,
   Home,
   Edit3,
+  Phone,
 } from "lucide-react";
 import type { ViewType } from "@/App";
 import { useEffect } from "react";
@@ -597,6 +598,37 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
                 <p className="text-xs text-muted-foreground mt-2">
                   Pay when your order arrives at your doorstep
                 </p>
+              </div>
+
+              <Separator />
+
+              {/* Customer Information */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  Customer Information
+                </Label>
+                <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {customerRecord?.name || user?.displayName || user?.email?.split("@")[0] || "Customer"}
+                    </span>
+                  </div>
+                  {customerRecord?.phone ? (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{customerRecord.phone}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-amber-500" />
+                      <span className="text-sm text-amber-600 dark:text-amber-400">
+                        No phone number saved - update your profile
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <Separator />
