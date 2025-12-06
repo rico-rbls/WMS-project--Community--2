@@ -103,20 +103,20 @@ export function CustomerDashboard({ navigateToView }: CustomerDashboardProps) {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">
-                Welcome back, {user?.displayName || "Customer"}! 👋
+                Welcome back, {user?.displayName || "User"}! 👋
               </h1>
               <p className="text-muted-foreground mt-2">
-                Browse our products and place your orders with ease.
+                Browse warehouse inventory and place your orders with ease.
               </p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => navigateToView("customer-cart")}>
                 <ShoppingCart className="h-4 w-4 mr-2" />
-                Cart ({itemCount})
+                Orders ({itemCount})
               </Button>
               <Button onClick={() => navigateToView("products")}>
                 <Package className="h-4 w-4 mr-2" />
-                Browse All Products
+                Browse Inventory
               </Button>
             </div>
           </div>
@@ -131,12 +131,12 @@ export function CustomerDashboard({ navigateToView }: CustomerDashboardProps) {
               <div className="flex items-center gap-4">
                 <ShoppingCart className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">You have {itemCount} item(s) in your cart</p>
+                  <p className="font-medium">You have {itemCount} item(s) in your order</p>
                   <p className="text-sm text-muted-foreground">Total: {formatCurrency(cartTotal)}</p>
                 </div>
               </div>
               <Button onClick={() => navigateToView("customer-cart")}>
-                View Cart <ArrowRight className="h-4 w-4 ml-2" />
+                View Order <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
           </CardContent>

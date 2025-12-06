@@ -108,15 +108,15 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Products</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Warehouse Inventory</h1>
           <p className="text-muted-foreground">
-            Browse our complete catalog of {allProducts.length} products
+            Browse our complete inventory of {allProducts.length} items
           </p>
         </div>
         {itemCount > 0 && (
           <Button onClick={() => navigateToView("customer-cart")}>
             <ShoppingCart className="h-4 w-4 mr-2" />
-            View Cart ({itemCount}) - {formatCurrency(cartTotal)}
+            View Order ({itemCount}) - {formatCurrency(cartTotal)}
           </Button>
         )}
       </div>

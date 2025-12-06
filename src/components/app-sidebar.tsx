@@ -83,12 +83,12 @@ export function AppSidebar({ currentView, setCurrentView }: AppSidebarProps) {
     { id: "payments" as ViewType, label: "Payments", icon: Wallet },
   ];
 
-  // Customer-only menu items (e-commerce style navigation)
+  // Customer-only menu items (Inventory Management System navigation)
   const customerMenuItems = [
     { id: "customer-dashboard" as ViewType, label: "Home", icon: Home },
-    { id: "products" as ViewType, label: "Products", icon: Store },
-    { id: "customer-cart" as ViewType, label: "My Cart", icon: ShoppingCart },
-    { id: "sales-orders" as ViewType, label: "My Orders", icon: Receipt },
+    { id: "products" as ViewType, label: "Warehouse Inventory", icon: Store },
+    { id: "customer-cart" as ViewType, label: "Inventory Orders", icon: ShoppingCart },
+    { id: "sales-orders" as ViewType, label: "Order Shipment", icon: Receipt },
   ];
 
   const menuItems = isCustomer ? customerMenuItems : fullMenuItems;

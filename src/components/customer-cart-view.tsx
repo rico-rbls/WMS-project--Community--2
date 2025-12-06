@@ -93,7 +93,7 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
-      toast.error("Your cart is empty");
+      toast.error("Your order is empty");
       return;
     }
 
@@ -401,10 +401,10 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row gap-3 print:hidden">
             <Button variant="outline" onClick={() => navigateToView("sales-orders")} className="w-full sm:w-auto">
-              View My Orders
+              View Order Shipment
             </Button>
             <Button onClick={() => { setOrderPlaced(null); navigateToView("products"); }} className="w-full sm:w-auto">
-              Continue Shopping
+              Continue Ordering
             </Button>
           </CardFooter>
         </Card>
@@ -421,21 +421,21 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Shopping Cart</h1>
-            <p className="text-muted-foreground">Your cart is empty</p>
+            <h1 className="text-3xl font-bold tracking-tight">Inventory Orders</h1>
+            <p className="text-muted-foreground">Your order is empty</p>
           </div>
         </div>
         <Card>
           <CardContent className="py-12">
             <div className="flex flex-col items-center text-center">
               <ShoppingBag className="h-16 w-16 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Your cart is empty</h3>
+              <h3 className="text-lg font-semibold mb-2">Your order is empty</h3>
               <p className="text-muted-foreground mb-6">
-                Looks like you haven&apos;t added any items to your cart yet.
+                Looks like you haven&apos;t added any items to your order yet.
               </p>
               <Button onClick={() => navigateToView("products")}>
                 <Package className="h-4 w-4 mr-2" />
-                Browse Products
+                Browse Inventory
               </Button>
             </div>
           </CardContent>
@@ -452,8 +452,8 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Shopping Cart</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">{itemCount} item(s) in your cart</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Inventory Orders</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">{itemCount} item(s) in your order</p>
         </div>
       </div>
 
