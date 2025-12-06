@@ -1181,18 +1181,7 @@ export function SalesOrdersView() {
                 <span>Total</span>
                 <span className="text-primary">{formatCurrency(detailViewSO.totalAmount ?? 0)}</span>
               </div>
-              {(detailViewSO.amountPaid ?? 0) > 0 && (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Amount Paid</span>
-                    <span className="text-green-600">{formatCurrency(detailViewSO.amountPaid ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-medium">
-                    <span className="text-muted-foreground">Balance Due</span>
-                    <span className="text-amber-600">{formatCurrency((detailViewSO.totalAmount ?? 0) - (detailViewSO.amountPaid ?? 0))}</span>
-                  </div>
-                </>
-              )}
+
             </div>
 
             <Separator />
@@ -1812,7 +1801,6 @@ export function SalesOrdersView() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right font-medium whitespace-nowrap text-xs sm:text-sm">{formatCurrency(so.totalAmount)}</TableCell>
-                        <TableCell className="text-right text-green-600 hidden sm:table-cell">{formatCurrency(so.amountPaid ?? 0)}</TableCell>
                         <TableCell>
                           <Badge
                             variant={
@@ -2029,17 +2017,18 @@ export function SalesOrdersView() {
                             </div>
                             <div className="space-y-2">
                               <Label>Total Received (₱)</Label>
-                              <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
+                              <div className="flex gap-2">
+                                <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} className="flex-1" />
+                                <Button type="button" variant="outline" size="sm" onClick={() => {
+                                  const totalAmount = form.items.reduce((sum, item) => sum + item.totalPrice, 0);
+                                  setForm((prev) => ({ ...prev, totalReceived: totalAmount }));
+                                }}>
+                                  Full Payment
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}
-                        {/* Amount Paid - Customer editable field */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Amount Paid (₱)</Label>
-                            <Input type="number" min="0" step="0.01" value={form.amountPaid} onChange={(e) => setForm((prev) => ({ ...prev, amountPaid: parseFloat(e.target.value) || 0 }))} placeholder="Enter amount paid" />
-                          </div>
-                        </div>
                         <div className="space-y-2">
                           <Label>Notes</Label>
                           <Input value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Additional notes..." />
@@ -2345,7 +2334,15 @@ export function SalesOrdersView() {
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Total Received (₱)</Label>
-                                  <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} />
+                                  <div className="flex gap-2">
+                                    <Input type="number" min="0" step="0.01" value={form.totalReceived} onChange={(e) => setForm((prev) => ({ ...prev, totalReceived: parseFloat(e.target.value) || 0 }))} className="flex-1" />
+                                    <Button type="button" variant="outline" size="sm" onClick={() => {
+                                      const totalAmount = form.items.reduce((sum, item) => sum + item.totalPrice, 0);
+                                      setForm((prev) => ({ ...prev, totalReceived: totalAmount }));
+                                    }}>
+                                      Full Payment
+                                    </Button>
+                                  </div>
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Shipping Status</Label>
@@ -2360,13 +2357,6 @@ export function SalesOrdersView() {
                                 </div>
                               </div>
                             )}
-                            {/* Amount Paid - Customer editable field */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Amount Paid (₱)</Label>
-                                <Input type="number" min="0" step="0.01" value={form.amountPaid} onChange={(e) => setForm((prev) => ({ ...prev, amountPaid: parseFloat(e.target.value) || 0 }))} placeholder="Enter amount paid" />
-                              </div>
-                            </div>
                             <div className="space-y-2">
                               <Label>Notes</Label>
                               <Input value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional notes..." />
