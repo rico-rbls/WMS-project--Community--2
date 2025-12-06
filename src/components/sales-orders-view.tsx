@@ -13,9 +13,14 @@ import {
   bulkArchiveSalesOrders,
   bulkRestoreSalesOrders,
   bulkPermanentlyDeleteSalesOrders,
+  getShipments,
+  createShipment,
+  getCashBankTransactions,
+  createCashBankTransaction,
+  updateCustomer,
 } from "@/services/api";
-import { getInventory } from "@/services/firebase-inventory-api";
-import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus } from "@/types";
+import { getInventory, updateInventoryItem } from "@/services/firebase-inventory-api";
+import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus, Shipment, CashBankTransaction, PaymentMode } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useNotifications } from "@/context/notifications-context";
 import { getUserRole, hasPermission } from "@/lib/permissions";
@@ -66,7 +71,18 @@ import {
   Package,
   Receipt,
   CheckCircle2,
+  Phone,
+  Mail,
+  Building2,
+  History,
+  CreditCard,
+  AlertTriangle,
+  Boxes,
+  Link2,
+  ExternalLink,
+  UserCheck,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { usePrintReceipt, type ReceiptData } from "@/components/ui/printable-receipt";
 import { CustomerOrderForm } from "@/components/customer-order-form";
@@ -110,6 +126,8 @@ export function SalesOrdersView() {
   const [salesOrdersData, setSalesOrdersData] = useState<SalesOrder[] | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
+  const [shipmentsData, setShipmentsData] = useState<Shipment[]>([]);
+  const [paymentsData, setPaymentsData] = useState<CashBankTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -122,6 +140,20 @@ export function SalesOrdersView() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [detailViewSO, setDetailViewSO] = useState<SalesOrder | null>(null);
   const [showCustomerOrderForm, setShowCustomerOrderForm] = useState(false);
+
+  // Integration dialogs
+  const [showRecordPaymentDialog, setShowRecordPaymentDialog] = useState(false);
+  const [showCreateShipmentDialog, setShowCreateShipmentDialog] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    paymentMode: "Cash" as PaymentMode,
+    amountReceived: 0,
+    notes: "",
+  });
+  const [shipmentForm, setShipmentForm] = useState({
+    carrier: "",
+    eta: "",
+    destination: "",
+  });
 
   const [form, setForm] = useState<SOFormState>({
     soDate: new Date().toISOString().split("T")[0],
@@ -138,25 +170,31 @@ export function SalesOrdersView() {
     shippingStatus: "Pending",
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [soData, custData, invData] = await Promise.all([
-          getSalesOrders(),
-          getCustomers(),
-          getInventory(),
-        ]);
-        setSalesOrdersData(soData);
-        setCustomersData(custData);
-        setInventoryData(invData);
-      } catch (error) {
-        toast.error("Failed to load data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
+  // Load all data including shipments and payments
+  const loadAllData = useCallback(async () => {
+    try {
+      const [soData, custData, invData, shipData, payData] = await Promise.all([
+        getSalesOrders(),
+        getCustomers(),
+        getInventory(),
+        getShipments(),
+        getCashBankTransactions(),
+      ]);
+      setSalesOrdersData(soData);
+      setCustomersData(custData);
+      setInventoryData(invData);
+      setShipmentsData(shipData);
+      setPaymentsData(payData);
+    } catch (error) {
+      toast.error("Failed to load data");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
 
   // Auto-select customer for customer users when Add dialog opens
   useEffect(() => {
@@ -338,6 +376,154 @@ export function SalesOrdersView() {
         {status}
       </Badge>
     );
+  };
+
+  // ========== INTEGRATION HELPERS ==========
+
+  // Get customer details by ID
+  const getCustomerDetails = useCallback((customerId: string) => {
+    return customersData.find((c) => c.id === customerId);
+  }, [customersData]);
+
+  // Get all orders for a customer
+  const getCustomerOrderHistory = useCallback((customerId: string) => {
+    if (!salesOrdersData) return [];
+    return salesOrdersData.filter((so) => so.customerId === customerId && !so.archived);
+  }, [salesOrdersData]);
+
+  // Get payments for a specific sales order
+  const getOrderPayments = useCallback((soId: string) => {
+    return paymentsData.filter((p) => p.soId === soId && !p.archived);
+  }, [paymentsData]);
+
+  // Get shipments for a specific sales order
+  const getOrderShipments = useCallback((soId: string) => {
+    return shipmentsData.filter((s) => s.salesOrderId === soId && !s.archived);
+  }, [shipmentsData]);
+
+  // Get inventory item details
+  const getInventoryItemById = useCallback((itemId: string) => {
+    return inventoryData.find((i) => i.id === itemId);
+  }, [inventoryData]);
+
+  // Check stock availability for order items
+  const checkStockAvailability = useCallback((items: SOLineItem[]) => {
+    const issues: { itemName: string; requested: number; available: number }[] = [];
+    items.forEach((item) => {
+      const invItem = getInventoryItemById(item.inventoryItemId);
+      if (invItem && invItem.quantity < item.quantity) {
+        issues.push({
+          itemName: item.itemName,
+          requested: item.quantity,
+          available: invItem.quantity,
+        });
+      }
+    });
+    return issues;
+  }, [getInventoryItemById]);
+
+  // Record payment for an order
+  const handleRecordPayment = async () => {
+    if (!detailViewSO || paymentForm.amountReceived <= 0) {
+      toast.error("Please enter a valid payment amount");
+      return;
+    }
+
+    const customer = getCustomerDetails(detailViewSO.customerId);
+
+    try {
+      // Create payment transaction
+      await createCashBankTransaction({
+        trxDate: new Date().toISOString().split("T")[0],
+        customerId: detailViewSO.customerId,
+        customerName: detailViewSO.customerName,
+        country: detailViewSO.customerCountry,
+        city: detailViewSO.customerCity,
+        soId: detailViewSO.id,
+        invoiceNumber: detailViewSO.invoiceNumber,
+        paymentMode: paymentForm.paymentMode,
+        amountReceived: paymentForm.amountReceived,
+        notes: paymentForm.notes,
+        createdBy: user?.displayName || user?.email || "Unknown",
+      });
+
+      // Update sales order
+      const newTotalReceived = (detailViewSO.totalReceived || 0) + paymentForm.amountReceived;
+      const newBalance = detailViewSO.totalAmount - newTotalReceived;
+      const newStatus: ReceiptStatus = newBalance <= 0 ? "Paid" : newBalance < detailViewSO.totalAmount ? "Partially Paid" : "Unpaid";
+
+      await updateSalesOrder({
+        id: detailViewSO.id,
+        totalReceived: newTotalReceived,
+        receiptStatus: newStatus,
+      });
+
+      // Update customer balance
+      if (customer) {
+        await updateCustomer({
+          id: customer.id,
+          payments: (customer.payments || 0) + paymentForm.amountReceived,
+        });
+      }
+
+      toast.success(`Payment of ${formatCurrency(paymentForm.amountReceived)} recorded successfully`);
+      setShowRecordPaymentDialog(false);
+      setPaymentForm({ paymentMode: "Cash", amountReceived: 0, notes: "" });
+      loadAllData();
+    } catch (error) {
+      toast.error("Failed to record payment");
+    }
+  };
+
+  // Create shipment for an order
+  const handleCreateShipment = async () => {
+    if (!detailViewSO || !shipmentForm.carrier) {
+      toast.error("Please fill in shipment details");
+      return;
+    }
+
+    try {
+      await createShipment({
+        salesOrderId: detailViewSO.id,
+        destination: shipmentForm.destination || detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`,
+        carrier: shipmentForm.carrier,
+        status: "Pending",
+        eta: shipmentForm.eta,
+      });
+
+      // Update order shipping status
+      await updateSalesOrder({
+        id: detailViewSO.id,
+        shippingStatus: "Processing",
+      });
+
+      toast.success("Shipment created successfully");
+      setShowCreateShipmentDialog(false);
+      setShipmentForm({ carrier: "", eta: "", destination: "" });
+      loadAllData();
+    } catch (error) {
+      toast.error("Failed to create shipment");
+    }
+  };
+
+  // Update inventory when order is marked as shipped/delivered
+  const handleUpdateInventoryForOrder = async (so: SalesOrder) => {
+    try {
+      for (const item of so.items) {
+        const invItem = getInventoryItemById(item.inventoryItemId);
+        if (invItem) {
+          const newQty = Math.max(0, invItem.quantity - item.quantity);
+          await updateInventoryItem({
+            id: invItem.id,
+            quantity: newQty,
+          });
+        }
+      }
+      toast.success("Inventory updated successfully");
+      loadAllData();
+    } catch (error) {
+      toast.error("Failed to update inventory");
+    }
   };
 
   const resetForm = () => {
@@ -721,7 +907,7 @@ export function SalesOrdersView() {
     );
   }
 
-  // Detail View - Enhanced Receipt Style (matches customer order confirmation)
+  // Detail View - Enhanced Receipt Style with Module Integrations
   if (detailViewSO) {
     const orderDateTime = new Date(detailViewSO.soDate || detailViewSO.createdDate || new Date());
     const getShippingStatusColor = (status: string) => {
@@ -736,9 +922,18 @@ export function SalesOrdersView() {
       }
     };
 
+    // Integration data
+    const customer = getCustomerDetails(detailViewSO.customerId);
+    const customerOrders = getCustomerOrderHistory(detailViewSO.customerId);
+    const orderPayments = getOrderPayments(detailViewSO.id);
+    const orderShipments = getOrderShipments(detailViewSO.id);
+    const stockIssues = checkStockAvailability(detailViewSO.items);
+    const totalPaid = orderPayments.reduce((sum, p) => sum + p.amountReceived, 0);
+    const balanceDue = detailViewSO.totalAmount - (detailViewSO.totalReceived || 0);
+
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
-        {/* Header with Back Button */}
+      <div className="space-y-6">
+        {/* Header with Back Button and Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="outline" size="sm" onClick={closeDetailView}>
@@ -746,17 +941,52 @@ export function SalesOrdersView() {
               Back
             </Button>
             <div>
-              <h2 className="text-xl font-semibold">Order Receipt</h2>
+              <h2 className="text-xl font-semibold">Order Details - {detailViewSO.id}</h2>
               <p className="text-sm text-muted-foreground">
-                {detailViewSO.customerName}
+                {detailViewSO.customerName} • Created by {detailViewSO.createdBy}
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => handlePrintSalesOrder(detailViewSO)} className="print:hidden">
-            <Printer className="h-4 w-4 mr-2" />
-            Print Receipt
-          </Button>
+          <div className="flex gap-2 flex-wrap print:hidden">
+            {!isCustomer && balanceDue > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setShowRecordPaymentDialog(true)}>
+                <DollarSign className="h-4 w-4 mr-1" />
+                Record Payment
+              </Button>
+            )}
+            {!isCustomer && detailViewSO.shippingStatus === "Pending" && orderShipments.length === 0 && (
+              <Button size="sm" variant="outline" onClick={() => setShowCreateShipmentDialog(true)}>
+                <Truck className="h-4 w-4 mr-1" />
+                Create Shipment
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => handlePrintSalesOrder(detailViewSO)}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </div>
         </div>
+
+        {/* Stock Warning */}
+        {stockIssues.length > 0 && !isCustomer && (
+          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-200">Low Stock Warning</p>
+                  <ul className="text-sm text-amber-700 dark:text-amber-300 mt-1 space-y-1">
+                    {stockIssues.map((issue, idx) => (
+                      <li key={idx}>
+                        {issue.itemName}: Requested {issue.requested}, Available {issue.available}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Receipt Card */}
         <Card className="print:shadow-none print:border-none" id="order-receipt">
@@ -939,48 +1169,448 @@ export function SalesOrdersView() {
           </CardContent>
         </Card>
 
-        {/* Detailed Line Items Table (Admin View) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Detailed Line Items</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Full breakdown with item IDs and categories
-            </p>
-          </CardHeader>
-          <CardContent>
-            {detailViewSO.items && detailViewSO.items.length > 0 && (
-              <div className="border rounded-lg overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item ID</TableHead>
-                      <TableHead>Item Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailViewSO.items.map((item, index) => {
-                      const invDetails = getInventoryItemDetails(item.inventoryItemId);
-                      return (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono text-sm">{invDetails.itemId}</TableCell>
-                          <TableCell>{item.itemName}</TableCell>
-                          <TableCell className="text-muted-foreground">{invDetails.itemCategory}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.totalPrice)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+        {/* Integration Tabs - Admin Only */}
+        {!isCustomer && (
+          <Tabs defaultValue="items" className="print:hidden">
+            <TabsList className="grid w-full grid-cols-4 h-auto">
+              <TabsTrigger value="items" className="text-xs sm:text-sm py-2">
+                <Package className="h-4 w-4 mr-1 hidden sm:inline" />
+                Items
+              </TabsTrigger>
+              <TabsTrigger value="customer" className="text-xs sm:text-sm py-2">
+                <User className="h-4 w-4 mr-1 hidden sm:inline" />
+                Customer
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="text-xs sm:text-sm py-2">
+                <CreditCard className="h-4 w-4 mr-1 hidden sm:inline" />
+                Payments
+              </TabsTrigger>
+              <TabsTrigger value="shipments" className="text-xs sm:text-sm py-2">
+                <Truck className="h-4 w-4 mr-1 hidden sm:inline" />
+                Shipments
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Items Tab */}
+            <TabsContent value="items" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Line Items & Inventory
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {detailViewSO.items && detailViewSO.items.length > 0 && (
+                    <div className="border rounded-lg overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Category</TableHead>
+                            <TableHead className="text-right">Qty</TableHead>
+                            <TableHead className="text-right">Stock</TableHead>
+                            <TableHead className="text-right">Unit Price</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {detailViewSO.items.map((item, index) => {
+                            const invItem = getInventoryItemById(item.inventoryItemId);
+                            const invDetails = getInventoryItemDetails(item.inventoryItemId);
+                            const stockStatus = invItem ? (invItem.quantity >= item.quantity ? "ok" : invItem.quantity > 0 ? "low" : "out") : "unknown";
+                            return (
+                              <TableRow key={index}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{item.itemName}</p>
+                                    <p className="text-xs text-muted-foreground font-mono">{invDetails.itemId}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{invDetails.itemCategory}</TableCell>
+                                <TableCell className="text-right">{item.quantity}</TableCell>
+                                <TableCell className="text-right">
+                                  <Badge variant={stockStatus === "ok" ? "default" : stockStatus === "low" ? "secondary" : "destructive"} className={stockStatus === "ok" ? "bg-green-600" : stockStatus === "low" ? "bg-amber-500" : ""}>
+                                    {invItem?.quantity ?? "N/A"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(item.totalPrice)}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Customer Tab */}
+            <TabsContent value="customer" className="mt-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Customer Profile */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Customer Profile
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {customer ? (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{customer.name}</p>
+                            <Badge variant={customer.status === "Active" ? "default" : "secondary"} className={customer.status === "Active" ? "bg-green-600" : ""}>
+                              {customer.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Separator />
+                        <div className="grid gap-2 text-sm">
+                          {customer.contact && (
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="h-4 w-4 text-muted-foreground" />
+                              <span>{customer.contact}</span>
+                            </div>
+                          )}
+                          {customer.email && (
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>{customer.email}</span>
+                            </div>
+                          )}
+                          {customer.phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <span>{customer.phone}</span>
+                            </div>
+                          )}
+                          {(customer.city || customer.country) && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span>{[customer.city, customer.country].filter(Boolean).join(", ")}</span>
+                            </div>
+                          )}
+                          {customer.address && (
+                            <div className="flex items-start gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                              <span>{customer.address}</span>
+                            </div>
+                          )}
+                        </div>
+                        <Separator />
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-xs text-muted-foreground">Total Purchases</p>
+                            <p className="font-semibold text-sm">{formatCurrency(customer.purchases || 0)}</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-xs text-muted-foreground">Payments</p>
+                            <p className="font-semibold text-sm text-green-600">{formatCurrency(customer.payments || 0)}</p>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <p className="text-xs text-muted-foreground">Balance</p>
+                            <p className={cn("font-semibold text-sm", (customer.balance || 0) > 0 ? "text-amber-600" : "text-green-600")}>
+                              {formatCurrency(customer.balance || 0)}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">Customer not found</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Order History */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <History className="h-4 w-4" />
+                      Order History ({customerOrders.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {customerOrders.length > 0 ? (
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {customerOrders.slice(0, 10).map((order) => (
+                          <div key={order.id} className={cn("p-2 rounded border text-sm cursor-pointer hover:bg-muted/50", order.id === detailViewSO.id && "bg-primary/10 border-primary")} onClick={() => order.id !== detailViewSO.id && setDetailViewSO(order)}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{order.id}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(order.soDate || order.createdDate).toLocaleDateString()}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium">{formatCurrency(order.totalAmount)}</p>
+                                {getReceiptStatusBadge(order.receiptStatus)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {customerOrders.length > 10 && (
+                          <p className="text-xs text-muted-foreground text-center">+{customerOrders.length - 10} more orders</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">No order history</p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </TabsContent>
+
+            {/* Payments Tab */}
+            <TabsContent value="payments" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Payment History
+                    </CardTitle>
+                    {balanceDue > 0 && (
+                      <Button size="sm" onClick={() => setShowRecordPaymentDialog(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Record Payment
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Payment Summary */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="p-3 bg-muted/50 rounded-lg text-center">
+                      <p className="text-xs text-muted-foreground">Order Total</p>
+                      <p className="font-bold text-lg">{formatCurrency(detailViewSO.totalAmount)}</p>
+                    </div>
+                    <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg text-center">
+                      <p className="text-xs text-muted-foreground">Total Paid</p>
+                      <p className="font-bold text-lg text-green-600">{formatCurrency(detailViewSO.totalReceived || 0)}</p>
+                    </div>
+                    <div className={cn("p-3 rounded-lg text-center", balanceDue > 0 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-green-50 dark:bg-green-950/30")}>
+                      <p className="text-xs text-muted-foreground">Balance Due</p>
+                      <p className={cn("font-bold text-lg", balanceDue > 0 ? "text-amber-600" : "text-green-600")}>{formatCurrency(balanceDue)}</p>
+                    </div>
+                  </div>
+
+                  {/* Payment Transactions */}
+                  {orderPayments.length > 0 ? (
+                    <div className="border rounded-lg overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Transaction ID</TableHead>
+                            <TableHead>Method</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {orderPayments.map((payment) => (
+                            <TableRow key={payment.id}>
+                              <TableCell>{new Date(payment.trxDate).toLocaleDateString()}</TableCell>
+                              <TableCell className="font-mono text-sm">{payment.id}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{payment.paymentMode}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-green-600">{formatCurrency(payment.amountReceived)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No payments recorded yet</p>
+                      {balanceDue > 0 && (
+                        <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowRecordPaymentDialog(true)}>
+                          Record First Payment
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Shipments Tab */}
+            <TabsContent value="shipments" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Truck className="h-4 w-4" />
+                      Shipment Tracking
+                    </CardTitle>
+                    {orderShipments.length === 0 && (
+                      <Button size="sm" onClick={() => setShowCreateShipmentDialog(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Shipment
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Delivery Address */}
+                  {(detailViewSO.deliveryAddress || detailViewSO.customerCity) && (
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-blue-600 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Delivery Address</p>
+                          <p className="text-sm">{detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shipments List */}
+                  {orderShipments.length > 0 ? (
+                    <div className="space-y-3">
+                      {orderShipments.map((shipment) => (
+                        <div key={shipment.id} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium">{shipment.id}</p>
+                              <p className="text-sm text-muted-foreground">Carrier: {shipment.carrier}</p>
+                            </div>
+                            <Badge className={getShippingStatusColor(shipment.status)}>
+                              {shipment.status}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Destination</p>
+                              <p>{shipment.destination}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">ETA</p>
+                              <p>{shipment.eta ? new Date(shipment.eta).toLocaleDateString() : "TBD"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Truck className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No shipments created yet</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowCreateShipmentDialog(true)}>
+                        Create Shipment
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Audit Info */}
+        {!isCustomer && (
+          <Card className="print:hidden">
+            <CardContent className="py-3">
+              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <UserCheck className="h-3 w-3" />
+                  Created by: {detailViewSO.createdBy}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Created: {new Date(detailViewSO.createdDate).toLocaleString()}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Record Payment Dialog */}
+        <Dialog open={showRecordPaymentDialog} onOpenChange={setShowRecordPaymentDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record Payment</DialogTitle>
+              <DialogDescription>
+                Record a payment for order {detailViewSO.id}. Balance due: {formatCurrency(balanceDue)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Payment Method</Label>
+                <Select value={paymentForm.paymentMode} onValueChange={(v) => setPaymentForm((p) => ({ ...p, paymentMode: v as PaymentMode }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                    <SelectItem value="Check">Check</SelectItem>
+                    <SelectItem value="Online Payment">Online Payment</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Amount Received</Label>
+                <Input type="number" min="0" step="0.01" max={balanceDue} value={paymentForm.amountReceived || ""} onChange={(e) => setPaymentForm((p) => ({ ...p, amountReceived: parseFloat(e.target.value) || 0 }))} placeholder="0.00" />
+                <div className="flex gap-2 mt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setPaymentForm((p) => ({ ...p, amountReceived: balanceDue }))}>
+                    Full Amount
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label>Notes (Optional)</Label>
+                <Input value={paymentForm.notes} onChange={(e) => setPaymentForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Payment notes..." />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRecordPaymentDialog(false)}>Cancel</Button>
+              <Button onClick={handleRecordPayment} disabled={paymentForm.amountReceived <= 0}>
+                Record Payment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Shipment Dialog */}
+        <Dialog open={showCreateShipmentDialog} onOpenChange={setShowCreateShipmentDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Shipment</DialogTitle>
+              <DialogDescription>
+                Create a shipment for order {detailViewSO.id}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Carrier</Label>
+                <Input value={shipmentForm.carrier} onChange={(e) => setShipmentForm((p) => ({ ...p, carrier: e.target.value }))} placeholder="e.g., FedEx, UPS, LBC" />
+              </div>
+              <div>
+                <Label>Destination</Label>
+                <Input value={shipmentForm.destination} onChange={(e) => setShipmentForm((p) => ({ ...p, destination: e.target.value }))} placeholder={detailViewSO.deliveryAddress || `${detailViewSO.customerCity}, ${detailViewSO.customerCountry}`} />
+              </div>
+              <div>
+                <Label>Estimated Arrival (Optional)</Label>
+                <Input type="date" value={shipmentForm.eta} onChange={(e) => setShipmentForm((p) => ({ ...p, eta: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateShipmentDialog(false)}>Cancel</Button>
+              <Button onClick={handleCreateShipment} disabled={!shipmentForm.carrier}>
+                Create Shipment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
