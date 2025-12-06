@@ -2252,16 +2252,15 @@ export function SalesOrdersView() {
           )}
 
           {/* Edit Dialog */}
-          {isEditOpen && (
-            <Dialog open={!!isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(null); resetForm(); } }}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Sales Order - {isEditOpen}</DialogTitle>
-                  <DialogDescription>Update sales order details</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-6 py-4">
-                  {(() => {
-                    const so = list.find((s) => s.id === isEditOpen);
+          <Dialog open={!!isEditOpen} onOpenChange={(open) => { if (!open) { setIsEditOpen(null); resetForm(); } }}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Sales Order - {isEditOpen}</DialogTitle>
+                <DialogDescription>Update sales order details</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                {(() => {
+                  const so = list.find((s) => s.id === isEditOpen);
                     return (
                       <>
                         <div className="flex items-center gap-4 mb-4">
@@ -2440,7 +2439,6 @@ export function SalesOrdersView() {
                 </div>
               </DialogContent>
             </Dialog>
-          )}
         </CardContent>
       </Card>
 

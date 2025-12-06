@@ -45,6 +45,7 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
+  const [quantityInput, setQuantityInput] = useState<string>("1");
 
   useEffect(() => {
     async function loadData() {
@@ -254,13 +255,20 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
       )}
 
       {/* Product Detail Modal */}
-      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+      <Dialog open={!!selectedProduct} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedProduct(null);
+          setQuantityInput("1");
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {selectedProduct && (() => {
             const availability = getAvailability(selectedProduct);
             const cartItem = getCartItem(selectedProduct.id);
             const inCart = !!cartItem;
             const maxQty = selectedProduct.quantity - (cartItem?.quantity || 0);
+            const parsedQty = parseInt(quantityInput) || 0;
+            const validQty = Math.min(Math.max(1, parsedQty), maxQty);
 
             return (
               <>
@@ -323,10 +331,43 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
 
                   <Separator />
 
+                  {/* Quantity Input */}
+                  {availability !== "Out of Stock" && maxQty > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Quantity</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={maxQty}
+                          value={quantityInput}
+                          onChange={(e) => setQuantityInput(e.target.value)}
+                          onBlur={() => {
+                            // Validate and clamp on blur
+                            const parsed = parseInt(quantityInput) || 1;
+                            const clamped = Math.min(Math.max(1, parsed), maxQty);
+                            setQuantityInput(clamped.toString());
+                          }}
+                          className="w-24"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          of {maxQty} available
+                        </span>
+                      </div>
+                      {parsedQty > 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          Subtotal: {formatCurrency(selectedProduct.pricePerPiece * validQty)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <Separator />
+
                   {/* Price & Add to Cart */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Price</p>
+                      <p className="text-sm text-muted-foreground">Price per unit</p>
                       <p className={`text-2xl font-bold ${availability === "Out of Stock" ? "text-muted-foreground" : "text-primary"}`}>
                         {formatCurrency(selectedProduct.pricePerPiece)}
                       </p>
@@ -339,23 +380,24 @@ export function ProductsCatalogView({ navigateToView }: ProductsCatalogViewProps
                     ) : (
                       <Button
                         onClick={() => {
-                          addToCart(selectedProduct);
-                          toast.success(`Added ${selectedProduct.name} to cart`);
+                          addToCart(selectedProduct, validQty);
+                          toast.success(`Added ${validQty} × ${selectedProduct.name} to order`);
                           setSelectedProduct(null);
+                          setQuantityInput("1");
                         }}
-                        disabled={maxQty <= 0}
+                        disabled={maxQty <= 0 || validQty <= 0}
                         className="gap-2"
                         variant={inCart ? "secondary" : "default"}
                       >
                         <ShoppingCart className="h-4 w-4" />
-                        {inCart ? "Add More" : "Add to Cart"}
+                        {inCart ? `Add ${validQty} More` : `Add ${validQty} to Order`}
                       </Button>
                     )}
                   </div>
 
                   {inCart && (
                     <p className="text-sm text-muted-foreground text-center">
-                      You have {cartItem.quantity} in your cart
+                      You have {cartItem.quantity} in your order
                     </p>
                   )}
                 </div>
