@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { TableLoadingSkeleton } from "./ui/loading-skeleton";
 import { EmptyState } from "./ui/empty-state";
 import { getPurchaseOrders, getInventory } from "../services/api";
+import { useSuppliers } from "../context/app-context";
 import {
   createFirebaseSupplier,
   updateFirebaseSupplier,
@@ -75,11 +76,14 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   const { user } = useAuth();
   const canModify = user ? canWrite(user.role) : false;
   const canPermanentlyDelete = user?.role === "Admin" || user?.role === "Owner";
+
+  // Use suppliers from app context (real-time Firebase subscription)
+  const { suppliers: suppliersData, isLoading: suppliersLoading, setSuppliers: setSuppliersData } = useSuppliers();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [suppliersData, setSuppliersData] = useState<Supplier[] | null>(null);
   const [purchaseOrdersData, setPurchaseOrdersData] = useState<PurchaseOrder[]>([]);
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,15 +108,14 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
   // Debounce search term for better performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
+  // Fetch purchase orders and inventory (still from local API)
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const [suppliers, purchaseOrders, inventory] = await Promise.all([
-        getSuppliers(),
+      const [purchaseOrders, inventory] = await Promise.all([
         getPurchaseOrders(),
         getInventory(),
       ]);
-      setSuppliersData(suppliers);
       setPurchaseOrdersData(purchaseOrders);
       setInventoryData(inventory);
       setIsLoading(false);
@@ -1040,7 +1043,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
             </DialogContent>
           </Dialog>
 
-          {isLoading ? (
+          {(isLoading || suppliersLoading) ? (
             <TableLoadingSkeleton rows={8} />
           ) : filteredSuppliers.length === 0 ? (
             <EmptyState
