@@ -29,7 +29,7 @@ import {
 import type { SalesOrder, Customer, InventoryItem, SOLineItem, ReceiptStatus, ShippingStatus, Shipment, CashBankTransaction, PaymentMode } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useNotifications } from "@/context/notifications-context";
-import { getUserRole, hasPermission } from "@/lib/permissions";
+import { hasPermission, type Role } from "@/lib/permissions";
 import { useBatchSelection } from "@/hooks/useBatchSelection";
 import { usePagination } from "@/hooks/usePagination";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -118,7 +118,8 @@ const formatCurrency = (amount: number) => {
 export function SalesOrdersView() {
   const { user } = useAuth();
   const { createNotification } = useNotifications();
-  const userRole = user ? getUserRole(user.id) : "Viewer";
+  // Use user.role directly from auth context instead of localStorage-based getUserRole
+  const userRole: Role = (user?.role as Role) || "Viewer";
   const isCustomer = userRole === "Customer";
   // Use purchase_orders permissions as sales orders have similar access control
   // Customers can create their own orders
