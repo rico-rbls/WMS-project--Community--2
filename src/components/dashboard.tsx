@@ -193,6 +193,60 @@ export function Dashboard({ navigateToView }: DashboardProps) {
     return Object.entries(statuses).map(([name, value]) => ({ name, value }));
   }, [salesOrders]);
 
+  // Calculate top selling products based on sales order items
+  const topProductsData = useMemo(() => {
+    const activeSalesOrders = salesOrders.filter(so => !so.archived);
+    if (activeSalesOrders.length === 0) return [];
+
+    // Aggregate quantities by product
+    const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+
+    activeSalesOrders.forEach(so => {
+      so.items.forEach(item => {
+        if (!productSales[item.productId]) {
+          productSales[item.productId] = { name: item.productName, quantity: 0, revenue: 0 };
+        }
+        productSales[item.productId].quantity += item.quantity;
+        productSales[item.productId].revenue += item.totalPrice;
+      });
+    });
+
+    // Sort by quantity and take top 5
+    return Object.entries(productSales)
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+  }, [salesOrders]);
+
+  // Calculate monthly sales trends (last 6 months)
+  const monthlyTrendsData = useMemo(() => {
+    const activeSalesOrders = salesOrders.filter(so => !so.archived);
+    if (activeSalesOrders.length === 0) return [];
+
+    // Get last 6 months
+    const months: { month: string; orders: number; revenue: number }[] = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      months.push({ month: monthKey, orders: 0, revenue: 0 });
+    }
+
+    // Aggregate orders by month
+    activeSalesOrders.forEach(so => {
+      const orderDate = new Date(so.soDate);
+      const monthKey = orderDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      const monthData = months.find(m => m.month === monthKey);
+      if (monthData) {
+        monthData.orders += 1;
+        monthData.revenue += so.items.reduce((sum, item) => sum + item.totalPrice, 0);
+      }
+    });
+
+    return months;
+  }, [salesOrders]);
+
   // Show loading skeleton
   if (isLoading.inventory || isLoading.shipments || salesOrdersLoading) {
     return <DashboardSkeleton />;
@@ -683,6 +737,84 @@ export function Dashboard({ navigateToView }: DashboardProps) {
               </div>
             </div>
           </CardContent>
+          </Card>
+        </div>
+
+        {/* Top Products & Monthly Trends Row */}
+        <div className={`grid gap-4 mt-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
+          {/* Top Selling Products */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5 text-green-600" />
+                Top Selling Products
+              </CardTitle>
+              <CardDescription>Best performers by quantity sold</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topProductsData.length > 0 ? (
+                <div className="space-y-3">
+                  {topProductsData.map((product, index) => (
+                    <div key={product.id} className="flex items-center gap-3">
+                      <div className={`flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold ${
+                        index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                        index === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' :
+                        index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          ₱{product.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} revenue
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0">
+                        {product.quantity} sold
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No sales data available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Monthly Sales Trends */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                Monthly Sales Trends
+              </CardTitle>
+              <CardDescription>Orders and revenue over the last 6 months</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {monthlyTrendsData.length > 0 && monthlyTrendsData.some(m => m.orders > 0) ? (
+                <ResponsiveContainer width="100%" height={isMobile ? 200 : 250}>
+                  <BarChart data={monthlyTrendsData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        name === 'revenue' ? `₱${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : value,
+                        name === 'revenue' ? 'Revenue' : 'Orders'
+                      ]}
+                    />
+                    <Bar dataKey="orders" fill="#3b82f6" name="orders" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No monthly data available
+                </div>
+              )}
+            </CardContent>
           </Card>
         </div>
       </section>

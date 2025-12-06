@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Checkbox } from "./ui/checkbox";
-import { Eye, EyeOff, Lock, Mail, Package, Loader2, User } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, Package, Loader2, User, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/auth-context";
 import { loginSchema, registerSchema, PASSWORD_REQUIREMENTS } from "../lib/validations";
@@ -30,6 +30,7 @@ export function LoginPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
     rememberMe: false,
@@ -45,6 +46,7 @@ export function LoginPage() {
     setForm({
       name: "",
       email: "",
+      phone: "",
       password: "",
       confirmPassword: "",
       rememberMe: false,
@@ -58,12 +60,12 @@ export function LoginPage() {
     resetForm();
   };
 
-  function validateField(field: "name" | "email" | "password" | "confirmPassword", value: string) {
+  function validateField(field: "name" | "email" | "phone" | "password" | "confirmPassword", value: string) {
     try {
       const schema = mode === "login" ? loginSchema : registerSchema;
       const formData = mode === "login"
         ? { email: field === "email" ? value : form.email, password: field === "password" ? value : form.password }
-        : { name: field === "name" ? value : form.name, email: field === "email" ? value : form.email, password: field === "password" ? value : form.password, confirmPassword: field === "confirmPassword" ? value : form.confirmPassword };
+        : { name: field === "name" ? value : form.name, email: field === "email" ? value : form.email, phone: field === "phone" ? value : form.phone, password: field === "password" ? value : form.password, confirmPassword: field === "confirmPassword" ? value : form.confirmPassword };
 
       const result = schema.safeParse(formData);
 
@@ -95,7 +97,7 @@ export function LoginPage() {
       const schema = mode === "login" ? loginSchema : registerSchema;
       const formData = mode === "login"
         ? { email: form.email, password: form.password }
-        : { name: form.name, email: form.email, password: form.password, confirmPassword: form.confirmPassword };
+        : { name: form.name, email: form.email, phone: form.phone, password: form.password, confirmPassword: form.confirmPassword };
 
       const result = schema.safeParse(formData);
 
@@ -138,7 +140,7 @@ export function LoginPage() {
         await login(form.email, form.password, form.rememberMe);
         toast.success("Welcome back!");
       } else {
-        await register(form.email, form.password, form.name);
+        await register(form.email, form.password, form.name, form.phone);
         toast.success("Registration successful! Your account is pending approval by an administrator.");
         switchMode("login");
       }
@@ -222,7 +224,7 @@ export function LoginPage() {
             {/* Name Field (Register only) */}
             {mode === "register" && (
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">Full Name *</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -241,6 +243,37 @@ export function LoginPage() {
                 </div>
                 {fieldErrors.name && (
                   <p className="text-sm text-red-500">{fieldErrors.name}</p>
+                )}
+              </div>
+            )}
+
+            {/* Phone Field (Register only) */}
+            {mode === "register" && (
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number *</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="09123456789"
+                    value={form.phone}
+                    onChange={(e) => {
+                      // Only allow digits
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                      setForm({ ...form, phone: value });
+                      validateField("phone", value);
+                    }}
+                    className={`pl-9 ${fieldErrors.phone ? "border-red-500" : ""}`}
+                    disabled={isLoading}
+                    autoComplete="tel"
+                    maxLength={11}
+                  />
+                </div>
+                {fieldErrors.phone ? (
+                  <p className="text-sm text-red-500">{fieldErrors.phone}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Must be exactly 11 digits (e.g., 09123456789)</p>
                 )}
               </div>
             )}

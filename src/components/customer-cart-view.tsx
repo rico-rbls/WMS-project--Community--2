@@ -210,16 +210,20 @@ export function CustomerCartView({ navigateToView }: CustomerCartViewProps) {
 
       setOrderPlaced(order);
       clearCart();
-
-      // Notify admins
-      await sendNotification({
-        title: "New Customer Order",
-        message: `${customer.name} placed an order for ${formatCurrency(cartTotal)}`,
-        type: "info",
-        recipientRoles: ["Admin", "Owner"],
-      });
-
       toast.success("Order placed successfully!");
+
+      // Notify admins (non-blocking - don't fail the order if notification fails)
+      try {
+        await sendNotification({
+          title: "New Customer Order",
+          message: `${customer.name} placed an order for ${formatCurrency(cartTotal)}`,
+          type: "info",
+          recipientRoles: ["Admin", "Owner"],
+        });
+      } catch (notificationError) {
+        console.warn("[Checkout] Failed to send notification:", notificationError);
+        // Don't show error to user - order was successful
+      }
     } catch (error) {
       console.error("Order error:", error);
       toast.error("Failed to place order. Please try again.");

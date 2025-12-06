@@ -1447,7 +1447,7 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
 
       {/* Supplier Detail Dialog (Read-Only) */}
       <Dialog open={isDetailOpen !== null} onOpenChange={(open) => !open && setIsDetailOpen(null)}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           {isDetailOpen && (() => {
             const supplier = list.find(s => s.id === isDetailOpen);
             if (!supplier) return null;
@@ -1618,6 +1618,59 @@ export function SuppliersView({ initialOpenDialog, onDialogOpened, initialSuppli
                       </div>
                     </div>
                   </div>
+
+                  {/* Products from this Supplier */}
+                  {supplierProducts.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                        Products from this Supplier ({supplierProducts.length})
+                      </h4>
+                      <div className="max-h-[200px] overflow-y-auto border rounded-lg">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Product</TableHead>
+                              <TableHead className="text-xs">Category</TableHead>
+                              <TableHead className="text-xs text-right">Price</TableHead>
+                              <TableHead className="text-xs text-right">Stock</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {supplierProducts.map((product) => (
+                              <TableRow key={product.id}>
+                                <TableCell className="py-2">
+                                  <div className="flex items-center gap-2">
+                                    {product.photoUrl ? (
+                                      <img src={product.photoUrl} alt={product.name} className="h-8 w-8 rounded object-cover" />
+                                    ) : (
+                                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
+                                        <Package className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <p className="text-sm font-medium">{product.name}</p>
+                                      <p className="text-xs text-muted-foreground">{product.brand}</p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                                </TableCell>
+                                <TableCell className="py-2 text-right text-sm">
+                                  ₱{product.pricePerPiece.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="py-2 text-right">
+                                  <Badge variant={product.quantity > 10 ? "default" : product.quantity > 0 ? "secondary" : "destructive"} className="text-xs">
+                                    {product.quantity}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Archive Status */}
                   {supplier.archived && (

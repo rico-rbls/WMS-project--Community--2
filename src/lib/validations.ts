@@ -21,6 +21,11 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// Phone number validation (exactly 11 digits)
+export const phoneSchema = z.string()
+  .min(1, "Phone number is required")
+  .regex(/^\d{11}$/, "Phone number must be exactly 11 digits (e.g., 09123456789)");
+
 // Registration validation schema
 export const registerSchema = z.object({
   name: z.string()
@@ -29,6 +34,7 @@ export const registerSchema = z.object({
   email: z.string()
     .min(1, "Email is required")
     .email("Please enter a valid email address"),
+  phone: phoneSchema,
   password: passwordSchema,
   confirmPassword: z.string()
     .min(1, "Please confirm your password"),

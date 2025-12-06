@@ -20,8 +20,9 @@ import {
   permanentlyDeleteFirebaseShipment,
   bulkPermanentlyDeleteFirebaseShipments,
 } from "../services/firebase-shipments-api";
-import { getFirebaseSalesOrders } from "../services/firebase-sales-orders-api";
-import type { Shipment, SalesOrder } from "../types";
+import { getFirebaseSalesOrders, updateFirebaseSalesOrder } from "../services/firebase-sales-orders-api";
+import { getInventory, updateInventoryItem } from "../services/firebase-inventory-api";
+import type { Shipment, SalesOrder, InventoryItem } from "../types";
 
 import { usePagination } from "../hooks/usePagination";
 import { useDebounce } from "../hooks/useDebounce";
@@ -384,10 +385,19 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       return;
     }
     try {
+      // Check if status is changing to Delivered
+      const currentShipment = shipmentsData?.find(s => s.id === form.id);
+      const isBecomingDelivered = form.status === "Delivered" && currentShipment?.status !== "Delivered";
+
       const updated = await updateFirebaseShipment({ id: form.id, salesOrderId: form.salesOrderId, destination: form.destination, carrier: form.carrier, status: form.status, eta: form.eta });
       setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === updated.id ? updated : s)));
       setIsEditOpen(null);
       toast.success("Shipment updated successfully");
+
+      // If status changed to Delivered, deduct inventory
+      if (isBecomingDelivered) {
+        await deductInventoryForDeliveredShipment(updated);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to update shipment");
     }
@@ -404,18 +414,67 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
     }
   }
 
+  // Helper function to deduct inventory when shipment is marked as delivered
+  const deductInventoryForDeliveredShipment = useCallback(async (shipment: Shipment) => {
+    try {
+      // Find the sales order for this shipment
+      const salesOrder = salesOrdersData.find(so => so.id === shipment.salesOrderId);
+      if (!salesOrder) {
+        console.warn("[Shipment] No sales order found for shipment:", shipment.id);
+        return;
+      }
+
+      // Get current inventory
+      const inventory = await getInventory();
+
+      // Deduct inventory for each item in the order
+      for (const item of salesOrder.items) {
+        const invItem = inventory.find(inv => inv.id === item.inventoryItemId);
+        if (invItem) {
+          const newQty = Math.max(0, invItem.quantity - item.quantity);
+          await updateInventoryItem({
+            id: invItem.id,
+            quantity: newQty,
+            quantitySold: (invItem.quantitySold || 0) + item.quantity,
+          });
+          console.log(`[Inventory] Deducted ${item.quantity} from ${invItem.name}. New qty: ${newQty}`);
+        }
+      }
+
+      // Update sales order shipping status to Delivered
+      await updateFirebaseSalesOrder({
+        id: salesOrder.id,
+        shippingStatus: "Delivered",
+      });
+
+      toast.success("Inventory updated for delivered order");
+    } catch (error) {
+      console.error("[Shipment] Failed to deduct inventory:", error);
+      toast.error("Shipment marked as delivered but inventory update failed");
+    }
+  }, [salesOrdersData]);
+
   // Inline edit handler for quick cell updates
   const handleInlineUpdate = useCallback(async (shipmentId: string, field: keyof Shipment, value: string | number) => {
     try {
+      // Get current shipment to check if status is changing to Delivered
+      const currentShipment = shipmentsData?.find(s => s.id === shipmentId);
+      const isBecomingDelivered = field === "status" && value === "Delivered" && currentShipment?.status !== "Delivered";
+
       const updates: Partial<Shipment> = { [field]: value };
       const updated = await updateFirebaseShipment({ id: shipmentId, ...updates });
       setShipmentsData((prev) => (prev ?? []).map((s) => (s.id === shipmentId ? updated : s)));
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+
+      // If status changed to Delivered, deduct inventory
+      if (isBecomingDelivered) {
+        await deductInventoryForDeliveredShipment(updated);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to update");
       throw e;
     }
-  }, [setShipmentsData]);
+  }, [shipmentsData, setShipmentsData, deductInventoryForDeliveredShipment]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -474,12 +533,21 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
       const ids = Array.from(selectedIds) as string[];
       let successCount = 0;
       let failedCount = 0;
+      const shipmentsToDeductInventory: Shipment[] = [];
 
       // Update each shipment individually
       for (const id of ids) {
         try {
+          const currentShipment = shipmentsData?.find(s => s.id === id);
+          const isBecomingDelivered = status === "Delivered" && currentShipment?.status !== "Delivered";
+
           await updateFirebaseShipment({ id, status: status as Shipment["status"] });
           successCount++;
+
+          // Track shipments that need inventory deduction
+          if (isBecomingDelivered && currentShipment) {
+            shipmentsToDeductInventory.push({ ...currentShipment, status: "Delivered" });
+          }
         } catch {
           failedCount++;
         }
@@ -501,13 +569,18 @@ export function ShipmentsView({ initialOpenDialog, onDialogOpened }: ShipmentsVi
         toast.success(`Successfully updated ${successCount} shipment${successCount !== 1 ? "s" : ""}`);
       }
 
+      // Deduct inventory for all shipments that became Delivered
+      for (const shipment of shipmentsToDeductInventory) {
+        await deductInventoryForDeliveredShipment(shipment);
+      }
+
       deselectAll();
     } catch (e: any) {
       toast.error(e?.message || "Failed to update shipments");
     } finally {
       setIsBulkUpdating(false);
     }
-  }, [selectedIds, deselectAll]);
+  }, [selectedIds, shipmentsData, deselectAll, deductInventoryForDeliveredShipment]);
 
   // Get names of selected shipments for dialogs
   const selectedShipmentNames = useMemo(() => {

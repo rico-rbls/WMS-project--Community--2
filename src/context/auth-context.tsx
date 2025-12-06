@@ -39,7 +39,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => void;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, phone: string) => Promise<void>;
   // User management (admin only)
   getAllUsers: () => StoredUser[];
   getPendingUsers: () => StoredUser[];
@@ -388,7 +388,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string): Promise<void> => {
+  const register = async (email: string, password: string, name: string, phone: string): Promise<void> => {
     // Fetch latest users from Firestore
     const users = await getUsersFromFirestore();
 
@@ -403,6 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       name,
+      phone, // Store phone number
       role: "Customer", // New users default to Customer role
       status: "Pending", // Requires admin approval
       createdAt: new Date().toISOString(),

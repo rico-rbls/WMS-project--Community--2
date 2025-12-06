@@ -1896,63 +1896,71 @@ export function SalesOrdersView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div>
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">Sales Orders</h1>
         <p className="text-muted-foreground">Create and manage customer orders, track payments, and monitor delivery status</p>
       </div>
 
       {/* Statistics Dashboard */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="relative overflow-hidden">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="relative overflow-hidden border-l-4 border-l-slate-400 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total SOs</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <FileText className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{soStats.totalSOs}</div>
-            <p className="text-xs text-muted-foreground mt-1">{soStats.newThisWeek} new this week</p>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-bold">{soStats.totalSOs}</div>
+            <p className="text-xs text-muted-foreground mt-2">{soStats.newThisWeek} new this week</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card className="relative overflow-hidden border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">{formatCurrency(soStats.totalValue)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Avg: {formatCurrency(soStats.avgOrderValue)} per SO</p>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-bold text-emerald-600">{formatCurrency(soStats.totalValue)}</div>
+            <p className="text-xs text-muted-foreground mt-2">Avg: {formatCurrency(soStats.avgOrderValue)} per SO</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card className="relative overflow-hidden border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
-            <Clock className="h-4 w-4 text-amber-600" />
+            <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <Clock className="h-4 w-4 text-amber-600" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{formatCurrency(soStats.outstandingBalance)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{soStats.unpaidCount} unpaid, {soStats.overdueCount} overdue</p>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-bold text-amber-600">{formatCurrency(soStats.outstandingBalance)}</div>
+            <p className="text-xs text-muted-foreground mt-2">{soStats.unpaidCount} unpaid, {soStats.overdueCount} overdue</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card className="relative overflow-hidden border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-600" />
+            <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{soStats.collectionRate}%</div>
-            <p className="text-xs text-muted-foreground mt-1">{soStats.paidCount} paid of {soStats.totalSOs} total</p>
+          <CardContent className="pt-0">
+            <div className="text-3xl font-bold text-blue-600">{soStats.collectionRate}%</div>
+            <p className="text-xs text-muted-foreground mt-2">{soStats.paidCount} paid of {soStats.totalSOs} total</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
           <div>
             <CardTitle>Sales Orders</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">Manage customer sales orders</p>
@@ -2129,15 +2137,15 @@ export function SalesOrdersView() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6 pt-6">
           {/* Filters */}
-          <div className="flex gap-4 items-center">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="relative flex-1 min-w-[250px] max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search SO ID, customer, or items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              <Input placeholder="Search SO ID, customer, or items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 h-10" />
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-52 h-10">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -2148,13 +2156,13 @@ export function SalesOrdersView() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant={showArchived ? "default" : "outline"} size="sm" onClick={() => setShowArchived(!showArchived)} className={showArchived ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}>
-              <Archive className="h-4 w-4 mr-1" />
+            <Button variant={showArchived ? "default" : "outline"} onClick={() => setShowArchived(!showArchived)} className={cn("h-10", showArchived ? "bg-orange-500 hover:bg-orange-600 text-white" : "")}>
+              <Archive className="h-4 w-4 mr-2" />
               {showArchived ? "Viewing Archived" : "View Archived"}
             </Button>
             {(searchTerm || filterStatus !== "all" || showArchived) && (
-              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
-                <X className="h-4 w-4 mr-1" />
+              <Button variant="ghost" onClick={clearAllFilters} className="text-muted-foreground h-10">
+                <X className="h-4 w-4 mr-2" />
                 Clear Filters
               </Button>
             )}
@@ -2185,7 +2193,7 @@ export function SalesOrdersView() {
             />
           ) : (
             <>
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-xl overflow-hidden shadow-sm">
                 {/* Select All Pages Banner */}
                 <SelectAllBanner
                   pageItemCount={pageItemCount}
@@ -2200,10 +2208,10 @@ export function SalesOrdersView() {
                 <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
                       {canDelete && (
-                        <TableHead className="w-12">
-                          <input type="checkbox" checked={isAllSelected} ref={(el) => { if (el) el.indeterminate = isPartiallySelected; }} onChange={() => toggleAll()} className="h-4 w-4" />
+                        <TableHead className="w-12 py-3">
+                          <input type="checkbox" checked={isAllSelected} ref={(el) => { if (el) el.indeterminate = isPartiallySelected; }} onChange={() => toggleAll()} className="h-4 w-4 rounded" />
                         </TableHead>
                       )}
                       <SortableTableHead sortKey="soDate" currentSortKey={sortColumn} sortDirection={getSortDirection("soDate")} onSort={handleSort}>Date</SortableTableHead>
@@ -2223,22 +2231,22 @@ export function SalesOrdersView() {
                   </TableHeader>
                   <TableBody>
                     {paginatedData.map((so) => (
-                      <TableRow key={so.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEditDialog(so)}>
+                      <TableRow key={so.id} className="cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => openEditDialog(so)}>
                         {canDelete && (
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <input type="checkbox" checked={isSelected(so.id)} onChange={() => toggleItem(so.id)} className="h-4 w-4" />
+                          <TableCell className="py-3" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" checked={isSelected(so.id)} onChange={() => toggleItem(so.id)} className="h-4 w-4 rounded" />
                           </TableCell>
                         )}
-                        <TableCell className="whitespace-nowrap">{so.soDate ?? so.createdDate}</TableCell>
-                        <TableCell className="font-medium">{so.id}</TableCell>
-                        <TableCell className="text-muted-foreground">{so.customerId}</TableCell>
-                        <TableCell>{so.customerName}</TableCell>
-                        <TableCell className="text-muted-foreground">{so.invoiceNumber || "-"}</TableCell>
-                        <TableCell>{so.customerCountry || "-"}</TableCell>
-                        <TableCell>{so.customerCity || "-"}</TableCell>
-                        <TableCell className="text-right font-medium">₱{(so.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right">₱{(so.totalReceived ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="whitespace-nowrap py-3">{so.soDate ?? so.createdDate}</TableCell>
+                        <TableCell className="font-medium py-3 text-primary">{so.id}</TableCell>
+                        <TableCell className="text-muted-foreground py-3 text-sm">{so.customerId}</TableCell>
+                        <TableCell className="py-3 font-medium">{so.customerName}</TableCell>
+                        <TableCell className="text-muted-foreground py-3">{so.invoiceNumber || "-"}</TableCell>
+                        <TableCell className="py-3">{so.customerCountry || "-"}</TableCell>
+                        <TableCell className="py-3">{so.customerCity || "-"}</TableCell>
+                        <TableCell className="text-right font-semibold py-3">₱{(so.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right py-3 text-muted-foreground">₱{(so.totalReceived ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right font-semibold py-3">
                           <span className={cn((so.soBalance ?? so.totalAmount ?? 0) > 0 ? "text-orange-600" : "text-green-600")}>
                             ₱{(so.soBalance ?? so.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </span>
