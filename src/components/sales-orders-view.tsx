@@ -1805,11 +1805,14 @@ export function SalesOrdersView() {
                       <TableHead className="text-right whitespace-nowrap">Total</TableHead>
                       <TableHead className="text-right whitespace-nowrap hidden sm:table-cell">Paid</TableHead>
                       <TableHead className="whitespace-nowrap">Payment</TableHead>
+                      <TableHead className="whitespace-nowrap">Carrier</TableHead>
                       <TableHead className="whitespace-nowrap">Shipping</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedData.map((so) => (
+                    {paginatedData.map((so) => {
+                      const orderShipment = shipmentsData.find(s => s.salesOrderId === so.id && !s.archived);
+                      return (
                       <TableRow key={so.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetailView(so)}>
                         <TableCell className="font-medium font-mono text-xs sm:text-sm whitespace-nowrap">{so.id}</TableCell>
                         <TableCell className="whitespace-nowrap text-xs sm:text-sm">{so.soDate ?? so.createdDate}</TableCell>
@@ -1838,6 +1841,16 @@ export function SalesOrdersView() {
                             {so.receiptStatus ?? "Unpaid"}
                           </Badge>
                         </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {orderShipment ? (
+                            <div className="flex items-center gap-1 text-xs sm:text-sm">
+                              <Truck className="h-3 w-3 text-muted-foreground" />
+                              <span>{orderShipment.carrier}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={
@@ -1859,7 +1872,8 @@ export function SalesOrdersView() {
                           </Badge>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
